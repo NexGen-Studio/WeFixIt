@@ -1,0 +1,321 @@
+{
+  "project_phases": {
+    "phase_1_mvp": {
+      "description": "Minimum Viable Product - Kernfunktionen für ersten Store-Release",
+      "timeline": "3-4 Monate",
+      "target": "App Store Release mit OBD-Diagnose, KI-Chatbot und Monetarisierung",
+      "prompts": [
+        {
+          "prompt_id": 1,
+          "name": "Master Build",
+          "priority": "critical",
+          "reason": "App-Grundgerüst mit Flutter, Riverpod, GoRouter, Tabs",
+          "content": "Erzeuge das vollständige Flutter-Projekt 'WeFixIt' mit Riverpod, GoRouter, Dio, Freezed, Supabase. Projektstruktur: lib/src/{app.dart, routes.dart, services/, features/, models/, widgets/}. Grund-UI: BottomNavigation mit drei Tabs für MVP: Diagnose (OBD + KI), Chatbot (KI-Hilfe), Profile (Account + Coming Soon). Design: Primary #0384F4, Accent #FFA521, neutral Gray, abgerundete Buttons/Cards, Roboto/Inter Fonts, Material Icons + KFZ-Icons. Responsives Layout für Mobile. Auth: Email/Passwort, Anonymous fallback (Gastmodus). SupabaseService: signIn, signUp, signOut, getProfile, upsertProfile endpoints. i18n: NUR Deutsch + Englisch für MVP (weitere Sprachen in Phase 2). In-App-Käufe & Subscriptions via RevenueCat integrieren. AdMob Banner-Platzhalter für Free-User in allen Screens (bottom banner, zwischen Content-Sections). Integrierte App-Features: Smart-Caching für Performance-Optimierung (Background-Sync + lokale Caches). CI: Build-Skripte, env-variablen, flutter analyze, automated tests skeleton. Kommentiere im Code wichtige Stellen (OBD, KI, RevenueCat hooks, AdMob Banner-Slots)."
+        },
+        {
+          "prompt_id": 2,
+          "name": "UI/Design System", 
+          "priority": "critical",
+          "reason": "Design-System für konsistente UI",
+          "content": "Provide a design system with components: PrimaryButton, SecondaryButton, Card, ListItem, Avatar, Badge, Modal/Overlay, PaywallCarousel, AdBanner (für Free-User), ComingSoonCard. Use consistent spacing, rounded corners (2xl), shadows, and color tokens. Provide theme variables for dark mode. Ensure accessible font sizes and sufficient contrast. All components use theme colors: primary #0384F4, accent #FFA521, neutralGray for text. AdBanner component: 320x50px Banner-Slot (AdMob), 300x250px Medium Rectangle für Between-Content-Ads, dezent integriert ohne störende Farben. Provide small design tokens file that designers/devs can use."
+        },
+        {
+          "prompt_id": 3,
+          "name": "Localization & Copy Guidelines",
+          "priority": "high",
+          "reason": "Mehrsprachigkeit (de, en) für MVP Start",
+          "content": "Provide all UI copy as i18n keys and values for languages: de, en (weitere Sprachen erst in Phase 2). Keep copy concise. Paywall copy must clearly describe what user buys: differentiate 'Subscription (recurring)' vs 'One-time purchase (no recurring charge)'. All purchase flows and purchase confirmations must explicitly show whether the action is a subscription or one-time purchase and show price & currency. Provide fallback strings for missing translations. Include a short set of marketing microcopies for CTAs and error states. Add copy for Ad-Banner-Hinweise: 'Ads helfen uns, die App kostenlos anzubieten' / 'Ads help us keep the app free' etc. Coming Soon Features: Community, Marketplace, Guides mit Preview-Texten in de/en."
+        },
+        {
+          "prompt_id": 4,
+          "name": "Security & Privacy",
+          "priority": "critical",
+          "reason": "PII-Schutz und GDPR-Compliance für Store-Approval",
+          "content": "Enforce PII minimization. VIN or exact address NOT sent to AI. Only send make/model/year/engine_code if user consent toggled. Use Supabase RLS policies and Edge functions to enforce quotas and protect endpoints. Use HTTPS, store tokens securely, implement rate limiting for AI endpoints. On DTC clear actions, store an audit event: {user_id, vehicle_id masked, action, timestamp} but DO NOT store full VIN or raw PII in logs. Provide GDPR-friendly data deletion flow: user can request account deletion which removes PII and anonymizes logs. AdMob: Implement CMP (Consent Management Platform) for GDPR compliance, age verification, personalized vs. non-personalized ads."
+        },
+        {
+          "prompt_id": 5,
+          "name": "Splash Screen",
+          "priority": "medium",
+          "reason": "Professioneller App-Start",
+          "content": "Splash Screen vor Login/Paywall: zentriertes Logo 'WeFixIt', dezente Ladeanimation, Theme-Farben (#0384F4 Hintergrundvarianten, #FFA521 Akzent), abgerundete Card mit Ladeindikator. Nach kurzer Zeit (oder wenn initial checks fertig) automatisch weiter zum Login Screen oder direkt zur letzten Session wenn already authenticated. i18n: Willkommens-Text in allen Sprachen. Animations-Performance optimiert (kein Jank). Für Free-User: dezenter AdMob Splash-Ad (optional, nur wenn quick loading)."
+        },
+        {
+          "prompt_id": 6,
+          "name": "Monetarisierung (Credits + Abo)",
+          "priority": "critical",
+          "reason": "RevenueCat Integration, Credits-System, Pro-Abo",
+          "content": "Implementiere ein modernes Monetarisierungssystem mit RevenueCat. Struktur:\\n\\n1. **Free User**:\\n   - 3 Credits FREE pro Woche (NICHT akkumulierend - maximal 3 Free Credits, keine Staplung).\\n   - Free Credits NUR wenn KEINE gekauften Credits vorhanden sind.\\n   - Credits verfallen nie, auch die gekauften.\\n   - OBD DTC-Auslesen: immer kostenlos. DTC-Löschen: immer kostenlos.\\n   - AdMob Banner + Interstitials für Free-User (bottom banner in allen Screens, Interstitial zwischen längeren Sessions).\\n\\n2. **Credits (Einmalkäufe über RevenueCat)**:\\n   - 5 Credits – 1,29 € (Low-Entry-Paket, Produkt-ID: wefixit_credits_5).\\n   - 10 Credits – 2,49 € (Standard-Paket, Produkt-ID: wefixit_credits_10).\\n   - 25 Credits – 5,49 € (Value-Pack, Produkt-ID: wefixit_credits_25).\\n   - Credits können für **KI-Diagnosen** oder **KI-Chatbot-Fragen** genutzt werden.\\n   - Ein gemeinsamer Credit-Pool → Nutzer entscheidet selbst, wofür er Credits einsetzt.\\n   - Nach Verbrauch öffnet sich automatisch eine Paywall mit Kaufangebot.\\n   - Hinweis: Alle Käufe sind Einmalkäufe (kein Abo).\\n\\n3. **Pro-Abo (RevenueCat Subscriptions)**:\\n   - Pro Basic - Monatlich: 4,99 € (Produkt-ID: wefixit_pro_month).\\n   - Pro Basic - Jährlich: 39,99 € (Produkt-ID: wefixit_pro_year).\\n   - Pro Familie - Monatlich: 7,99 € (Produkt-ID: wefixit_family_month).\\n   - Pro Familie - Jährlich: 59,99 € (Produkt-ID: wefixit_family_year).\\n   - 7 Tage Gratis-Test für beide Varianten.\\n   \\n   **Pro Basic Vorteile:**\\n     - Unbegrenzte KI-Diagnosen.\\n     - Unbegrenzte KI-Chatbot-Nutzung.\\n     - Keine Werbung (AdMob deaktiviert).\\n     - Wartungs-Foto-Upload für Belege/Arbeiten.\\n     - Erweiterte Wartungs-Benachrichtigungen (3/7/14 Tage wählbar).\\n     - 12-Monate Kosten-Historie statt nur 3 Monate.\\n     - Erweiterte Kosten-Charts + Budget-Alerts.\\n     - CSV-Export für alle Daten.\\n     - Premium-Features (Coming Soon: Guides, Marketplace-Highlights).\\n   \\n   **Pro Familie Zusätzlich:**\\n     - Bis zu 4 Familien-Accounts.\\n     - Multi-Fahrzeug-Management.\\n     - Geteilte Kosten-Reports.\\n     - Fahrzeug-Nutzungsstatistiken pro Familie-Mitglied.\\n     - OBD-Diagnose-Verlauf für alle Familie-Autos.\\n     - Familien-Dashboard mit allen Autos.\\n   \\n   - Hinweis: Pro-User können **keine Credits kaufen** (da alles inklusive).\\n\\n4. **Paywall**:\\n   - Mehrseitiges Design: Seite 1 (Free vs. Pro Vergleich), Seite 2 (Credit-Pakete), Seite 3 (Coming Soon Features Preview).\\n   - Immer anzeigen, wenn Free-Credits verbraucht sind.\\n   - Auch manuell aufrufbar über **Profil → Kaufoptionen**.\\n   - Paywall passt sich automatisch an die Sprache der App an.\\n   - Bei Credits immer Hinweis: 'Kein Abo, nur Einmalkauf'.\\n\\n5. **Profil & Settings**:\\n   - Reiter 'Kaufoptionen' mit aktuellen Credits, Credit-Paketen, Pro-Abo Buttons.\\n   - Restore Purchases Button.\\n   - Ad-Settings für Free-User: personalized vs. non-personalized ads."
+        },
+        {
+          "prompt_id": 7,
+          "name": "Credits & Free-Quota Logic",
+          "priority": "critical",
+          "reason": "Shared Credit-Pool, 3 Credits/Woche für Free-User",
+          "content": "Implement shared Credit-Pool logic mit WICHTIGER Logik-Änderung:\\n\\n**Free Credits Logic**:\\n- Free-Users bekommen maximal 3 Free Credits (NICHT akkumulierend - wenn ungenutzt verfallen sie).\\n- Free Credits werden NUR gewährt wenn user.purchased_credits = 0.\\n- Wenn gekaufte Credits vorhanden sind, KEINE Free Credits geben.\\n- Reset-Schedule: Nur prüfen wenn purchased_credits = 0, dann free_credits auf 3 setzen (maximal).\\n\\n**Purchased Credits Logic**:\\n- Gekaufte Credits blockieren Free Credits vollständig.\\n- Sobald purchased_credits > 0, keine free_credits mehr generieren.\\n- Erst wenn purchased_credits = 0, dann wieder Free Credits aktivieren.\\n\\n**Server-Logic**:\\n- Zwei separate Felder: free_credits (max 3) + purchased_credits (unbegrenzt).\\n- /user/credits-status: return {free_credits, purchased_credits, total_available}.\\n- /user/consume-credit: erst purchased_credits verbrauchen, dann free_credits.\\n- Webhook aus RevenueCat: purchased_credits erhöhen + free_credits auf 0 setzen.\\n\\n**UI-Display**:\\n- Zeige nur 'Available Credits' (free + purchased combined).\\n- Keine Details über Herkunft der Credits.\\n\\nCredits never expire. Pro subscribers bypass all credit checks. RevenueCat webhook listener für Subscription-Status in Supabase."
+        },
+        {
+          "prompt_id": 8,
+          "name": "Paywall (Multi-Page)",
+          "priority": "critical",
+          "reason": "Conversion-optimierte Paywall mit Coming Soon Features",
+          "content": "Design a multi-page paywall accessible from Purchase flows and Profile: Page 1 - 'Why Pro? / Free vs Pro vs Familie' : show concise descriptions of ALL current and planned features (OBD-Auslesen - immer kostenlos; OBD-Löschen - immer kostenlos; Wartungserinnerungen - immer kostenlos; Kosten-Tracker - immer kostenlos; KI-Diagnose - free limit 3/week for Free users; KI-Chatbot - free limit 3/week for Free users; Werbung - nur Free User, Pro ohne Ads; Coming Soon: Community, Guides, Familie + Marketplace). Page 2 - 'Choose Your Plan or Credits': present options: (A) Pro Basic 4,99€/Monat oder 39,99€/Jahr - unlimited KI + Wartungs-Fotos + 12-Monate Kosten-Historie + keine Ads; (B) Pro Familie 7,99€/Monat oder 59,99€/Jahr - bis zu 4 Accounts + Multi-Auto + geteilte Kosten (verfügbar ab Phase 3); (C) Buy Credits (5/10/25 Credits) - one-time via RevenueCat, credits never expire (ONLY visible for Free users). Each purchase panel clearly states pricing and 'This is a subscription' for Pro plans. 7-day trial für beide Pro-Varianten. Page 3 - 'Coming Soon Features Preview' : Community (Austausch mit anderen - Phase 2), Guides (Step-by-Step Anleitungen - Phase 2), Familie-Features + Marketplace (Multi-User + Ersatzteile kaufen/verkaufen - Available in Phase 3) mit mockup screenshots. All Paywall texts adapt to app language (de/en). If a user is Pro, hide Credits purchase panel and show 'All features included' badge. Provide 'Restore Purchases' button that calls RevenueCat restorePurchases API. Kostenlose-Features-Highlight: Wartungserinnerungen, Kosten-Tracker und Smart-Caching sind kostenlos für alle User."
+        },
+        {
+          "prompt_id": 9,
+          "name": "Profile & Privacy",
+          "priority": "critical",
+          "reason": "Account, Credits, Fahrzeuge, Coming Soon Karten",
+          "content": "Profile-Screen mit Tabs: 'Account & Abonnement', 'Fahrzeuge', 'Coming Soon Features'. Account & Abonnement zeigt: aktueller Nutzername, Avatar, E-Mail (obfuscated), Abo-Status (Free / Pro Basic / Pro Familie), Button: 'Abo verwalten' (führt zu RevenueCat Flow), 'Credits kaufen' (nur sichtbar für Free-User), Credit-Zähler (nur aktuelle verfügbare Credits anzeigen, keine Verbrauchshistorie). Fahrzeuge: mehrere Fahrzeuge pro Nutzer (make, model, year, engine_code, VIN optional but not sent to AI unless consent). Consent-Toggle 'share_vehicle_with_ai' default false — nur wenn true dürfen Fahrzeugdaten in KI-Prompts genutzt werden (nur make/model/year/engine_code, niemals PII). Coming Soon Features: drei Cards für Community ('Austausch mit anderen Autofahrern - Coming in Phase 2'), Guides ('Premium Anleitungen & Tutorials - Coming in Phase 2'), Familie-Features + Marketplace ('Multi-User + Ersatzteile-Marktplatz - Coming in Phase 3') mit Preview-Mockups und entsprechenden Phase-Badges. Ad-Settings für Free-User: CMP consent management, personalized ads toggle. Supabase RLS / Edge-Functions: implementiere PII-Schutz, Audit-Logs, quota keys. UI lokalisiert in de/en. App-integrierte Features: Smart-Caching für bessere Performance - kostenlos für alle User."
+        },
+        {
+          "prompt_id": 11,
+          "name": "AI Backend Edge Functions",
+          "priority": "critical",
+          "reason": "KI-Diagnose und Chatbot Backend",
+          "content": "Edge Functions for AI endpoints: /ai/diagnose, /ai/chatbot. Input schema: { user_id, vehicle_id (if consent), symptom_text OR question_text, media_urls[], language }. PromptBuilder must strip PII: include only make, model, year, engine_code. Quota enforcement: check subscription status via RevenueCat and credit-balance for Free users. Output format MUST be strict JSON for /ai/diagnose: { summary, likeliest_causes: [], steps: [], safety: [], tags: [], parts: [], confidence_score }. Output for /ai/chatbot: { answer, follow_up_questions: [], safety_notes: [], relevant_topics: [] }. Language: respond in requested language. Error codes: 402 (quota exceeded), 429 (rate limit). Logging anonymized; store only non-PII metadata and request hashes. Unit tests to ensure no PII in prompts. Provide fallback messages in case of AI failure. Edge functions should also provide a 'brief' and 'detailed' version of results. AI results queued / cached for 24h to reduce costs."
+        },
+        {
+          "prompt_id": 12,
+          "name": "Systemprompt KI",
+          "priority": "critical",
+          "reason": "KFZ-Experten AI für Diagnose und Reparaturanleitungen",
+          "content": "System prompt für /ai/diagnose: 'Du bist eine erfahrene KFZ-Technikerin/Mechaniker mit Fokus auf praktische, sichere Reparaturhinweise.' Output strict JSON: { summary (max 2 Sätze), likeliest_causes[], steps[] (schrittweise, nummeriert), safety[] (Warnhinweise), tags[], parts[] (Benennung & OEM/Aftermarket Hinweise), confidence_score }. System prompt für /ai/chatbot: 'Du bist ein hilfsreicher KFZ-Experte und beantwortest Fragen rund um Autos, Reparaturen und Wartung. Antworte praktisch und sicherheitsbewusst.' Output JSON: { answer, follow_up_questions[], safety_notes[], relevant_topics[] }. NEVER include PII. Use metric units. Tone: praktisch, präzise, neutral. Localize terminology per language (e.g. German automotive terms). Ensure output parsable by frontend and display-ready. If insufficient data, ask for one clarifying question in the user's language."
+        },
+        {
+          "prompt_id": 13,
+          "name": "OBD & Media Stubs",
+          "priority": "critical",
+          "reason": "OBD2-Adapter, DTC auslesen/löschen",
+          "content": "Implement OBD bluetooth/adapter service: scanForAdapters(), connect(adapterId), disconnect(), readDTCs(), readLiveData(PIDs[]), clearDTCs(codes[]). UI screens: Adapter Pairing (scan + connect), Live Data (gauges + streaming list), DTC List (codes + short description), 'KI-Diagnose starten' button next to each code (consumes credit if Free-User has exceeded weekly free credits), 'Fehler löschen' (clear) button - IMMER KOSTENLOS für alle Nutzer. Behavior: DTC-Auslesen is ALWAYS FREE and displays codes immediately. DTC-Löschung is ALWAYS FREE (no credits needed). NUR KI-Diagnose consumes from the shared weekly free credits pool (3 free credits per week) or from purchased credits; if user is Pro (RevenueCat active subscription) then KI-Diagnose is unlimited. OBD-Funktionen (lesen/löschen), Wartungserinnerungen und Kosten-Tracker sind immer gratis für alle User - nur AI-Features kosten Credits. Media: image/audio capture + upload to Supabase Storage returning media_urls for AI functions. Permissions: request Bluetooth, Location, Storage/Camera. Offline fallback: store OBD logs locally and sync when online. Show confirmation dialogs and logs for clearDTCs (audit trail). AdMob Banner für Free-User: bottom banner in DTC List, aber KEIN Interstitial nach Clear-DTC da kostenlos. i18n for all messages. Design consistent with theme. Security: only allow clearDTC when connected and user confirms; log action in Supabase but mask PII."
+        },
+        {
+          "prompt_id": 14,
+          "name": "Einfache Wartungserinnerungen",
+          "priority": "high",
+          "reason": "Basic Service-Erinnerungen für tägliche Relevanz",
+          "content": "Implementiere einfache Wartungserinnerungen mit manueller User-Eingabe - KOMPLETT KOSTENLOS für alle User. User kann selbst Erinnerungen erstellen: Wartungsart aus Dropdown (Ölwechsel, TÜV, Inspektion, Bremsen, Reifen, Sonstiges), Fälligkeitsdatum ODER Kilometerstand, optional Notizen. Kilometerzähler: falls OBD verbunden, automatisch aktualisieren, sonst manuelle Eingabe. Push-Erinnerungen: 1 Woche vorher, am Tag der Fälligkeit, überfällig. Wartungshistorie: User kann Wartungen als erledigt markieren mit Datum, Kosten, Notizen. Kostenlos für ALLE: unbegrenzte Erinnerungen, alle Wartungsarten, Push-Notifications. Pro-User Zusatzfeatures: Foto-Upload für Belege/Arbeiten, erweiterte Benachrichtigungsoptionen (3/7/14 Tage vorher wählbar), Wartungs-Notizen mit Rich-Text, keine AdMob Banner in Wartungs-Screens. UI: Liste nächster Wartungen, 'Neue Erinnerung' FAB, simple Form. Supabase Schema: maintenance_reminders (vehicle_id, type, due_date, due_km, completed_at, cost, notes, photos[], user_id). i18n für de/en. KEINE automatische Fahrzeugdatenbank - User trägt selbst ein was er braucht."
+        },
+        {
+          "prompt_id": 15,
+          "name": "Einfacher Kosten-Tracker",
+          "priority": "medium", 
+          "reason": "Basic Kostenkontrolle für User-Value",
+          "content": "Entwickle einfachen Kosten-Tracker für Fahrzeugkosten - KOMPLETT KOSTENLOS für alle User. Kategorien: Sprit, Reparaturen, Versicherung, Wartung, Parken, Sonstiges. Eingabe-Methoden: NUR manuell (Quick-Add mit Kategorieauswahl, Betrag, Datum, optional Notizen). Integration mit Wartungserinnerungen: wenn User Wartung als 'erledigt' markiert, kann er optional Kosten eintragen. Kostenlos für ALLE: Kosteneingabe, aktuelle Monatskosten, letzte 3 Monate Verlauf, Basic-Kategorie-Übersicht. Pro-User Zusatzfeatures: 12-Monate-Verlauf statt nur 3, erweiterte Charts + Trends, CSV-Export, Multi-Fahrzeug-Kostenvergleich, Budget-Alerts/Limits setzen, keine AdMob Banner in Cost-Reports. Reports: Monthly Cost-Summary (simple Liste + Gesamtsumme), Kategorie-Verteilung (einfache Balken). UI: Dashboard mit aktuelle Monatskosten, 'Neue Ausgabe' FAB, simple Eingabeform, Monatslisten. Supabase Schema: vehicle_costs (vehicle_id, category, amount, date, description, user_id). KEINE OCR im MVP - nur manuelle Eingabe. Lokalisierung: Euro als Standard, de/en Texte."
+        },
+        {
+          "prompt_id": 16,
+          "name": "Testing & QA Flows",
+          "priority": "high",
+          "reason": "Test-Suites für alle MVP Features",
+          "content": "Provide automated test stubs & manual QA checklists: Auth flows, Paywall flows, RevenueCat purchase & restore, Credits purchase & consume, OBD connect/read/clear (with an OBD mock adapter), DTC read ALWAYS FREE returns codes and UI shows them, DTC clear is ALWAYS FREE and works (no credits needed), KI-Diagnose consumes credit if free quota used, KI-Chatbot consumes credit if free quota used, Pro bypass tests for unlimited KI-usage, AdMob Banner integration (shows for Free, hidden for Pro), Coming Soon Features display correctly in Profile.\\n\\n**CRITICAL Credit-Logic Tests**:\\n- Test dass Free Credits NICHT akkumulieren (max 3, keine Staplung).\\n- Test dass gekaufte Credits Free Credits blockieren (purchased_credits > 0 = no free credits).\\n- Test Reset-Logic: nur wenn purchased_credits = 0, dann free_credits = 3.\\n- Test Credit-Consume-Order: erst purchased, dann free credits.\\n- Test dass OBD-Funktionen (read/clear) NIEMALS Credits konsumieren.\\n- Test Webhook: RevenueCat purchase setzt free_credits auf 0.\\n\\n**SIMPLIFIED MVP Feature Tests**:\\n- Wartungserinnerungen: KOSTENLOS für alle - manuelle Eingabe funktioniert, Push-Benachrichtigungen kommen, unbegrenzte Erinnerungen.\\n- Pro-Wartungsfeatures: Foto-Upload funktioniert, erweiterte Notification-Optionen.\\n- Kosten-Tracker: KOSTENLOS für alle - manuelle Kosteneingabe, Kategorisierung, 3-Monate-Übersicht, Integration mit Wartung.\\n- Pro-Kostenfeatures: 12-Monate-Historie, erweiterte Charts, CSV-Export.\\n- Smart-Caching: Performance-Verbesserung messbar, Offline-Funktionalität, Background-Sync.\\n- Lokalisierung: de/en Texte korrekt, Währung Euro, Fallbacks funktionieren.\\n\\n**Test-Szenarien**:\\n1. User hat 2 Free Credits, kauft 5 Credits → free_credits = 0, purchased = 5, total = 5.\\n2. User verbraucht alle gekauften Credits → purchased = 0 → nächster Reset gibt wieder 3 Free Credits.\\n3. User mit 1 Free Credit ungenutzt → nach 7 Tagen immer noch max 3 Free Credits (keine 4).\\n4. Free-User kann unbegrenzt Wartungserinnerungen erstellen - KOSTENLOS.\\n5. Pro-User kann Fotos zu Wartungen hinzufügen, Free-User nicht.\\n6. Free-User sieht nur 3-Monate Kosten-Historie, Pro-User 12 Monate.\\n7. Kosten-Tracker: manuelle Eingabe → Monatsübersicht aktualisiert sich korrekt.\\n\\nProvide test accounts and sample vehicles for QA. Include localization checks für de/en. Provide end-to-end test scripts (Flutter integration tests) and mock servers for AI, RevenueCat and AdMob responses. Test CMP consent flow for GDPR."
+        },
+        {
+          "prompt_id": 17,
+          "name": "Deployment Notes",
+          "priority": "high",
+          "reason": "Store-Deployment, RevenueCat Setup, Firebase Config",
+          "content": "Include step-by-step deployment notes: create apps in Google Play & App Store, configure RevenueCat products and entitlements (wefixit_credits_5, wefixit_credits_10, wefixit_credits_25, wefixit_pro_month, wefixit_pro_year, wefixit_family_month, wefixit_family_year), set up Firebase project for FCM, provision Supabase project with Postgres and RLS, configure storage buckets, set up AdMob (App-IDs, Ad Unit IDs für Banner + Interstitials), add environment variables and secrets to CI/CD, set up automated builds (fastlane recommended) for Play/App Store distribution, provide checklist for App Store review (explain use of OBD, Health & Safety disclaimers, AdMob integration). Also include privacy policy and TOS references for stores. Configure CMP for GDPR compliance. Test all purchase flows in sandbox before production. Smart-Caching ist integrierte App-Feature, kein separates Product. Familie-Features kommen erst in Phase 3 - MVP funktioniert ohne komplexe Multi-User-RLS. Initial Store-Launch nur mit de/en Lokalisierung, weitere Sprachen in Phase 2."
+        }
+      ],
+      "core_features": [
+        "Flutter App mit BottomNavigation (Diagnose, Chatbot, Profil)",
+        "OBD2-Adapter koppeln, DTC auslesen (immer kostenlos), DTC löschen (immer kostenlos)",
+        "KI-Diagnose: Ursachen + Schritt-für-Schritt Reparaturanleitung (Credit)",
+        "KI-Chatbot für freie KFZ-Fragen (Credit)",
+        "Credits-System: 3 free/Woche (nicht akkumulierend), gekaufte Credits blockieren Free Credits",
+        "Built-in Feature: Smart-Caching für bessere Performance (Background-Sync, lokale Caches)",
+        "Wartungserinnerungen: KOSTENLOS für alle User (unbegrenzt), Pro: Foto-Upload + erweiterte Notifications",
+        "Kosten-Tracker: KOSTENLOS für alle User (3-Monate-Historie), Pro: 12-Monate + Charts + Export",
+        "Pro Basic (4,99€): unlimited Credits, keine Werbung, Wartungs-Foto-Upload, 12-Monate Kosten-Historie + Charts",
+        "Pro Familie (7,99€): + Multi-User (4 Accounts), Multi-Auto, geteilte Kosten (Coming in Phase 3)",
+        "AdMob Banner + Interstitials für Free-User (Pro = werbefrei)",
+        "Multi-Page Paywall mit Coming Soon Preview",
+        "Profil: Account, Credits, Fahrzeuge, Coming Soon Karten",
+        "2 Sprachen: Deutsch + Englisch für MVP Start + CMP für GDPR"
+      ]
+    },
+    
+    "phase_2_community": {
+      "description": "Social Features - Community & Guides aktivieren",
+      "timeline": "2-3 Monate nach MVP",
+      "target": "Nutzer-Engagement durch Community und Premium-Content steigern",
+      "prompts": [
+        {
+          "prompt_id": 10,
+          "name": "Push Notifications",
+          "priority": "high",
+          "reason": "Engagement für Community-Interaktionen",
+          "content": "Integrate Firebase Cloud Messaging. Store device tokens in Supabase user profile. Notification types: Brand/Model thread updates, private messages, marketplace interactions (message on listing), moderator actions. Implement in-app Inbox (notifications table) with read/unread. Settings: mute per brand/model, mute all, mute chat. Rate-limiting: server-side ensure 1 push per 10 minutes per user per notification type. Provide deep-linking to appropriate screens. UI: Inbox screen with badges, toggle read/unread, localized texts. AdMob: Bei Free-User können Push-Nachrichten als Interstitial Ad-Trigger fungieren (z.B. nach 3 Push-Opens ein Ad zeigen)."
+        },
+        {
+          "prompt_id": "10a",
+          "name": "Broadcast & Announcements", 
+          "priority": "medium",
+          "reason": "System-Updates und Feature-Ankündigungen",
+          "content": "Broadcast- und In-App-Ankündigungen für alle Nutzer (AGB-/Preis-/System-Updates):\n\nZiele:\n- Owner/Admin kann Kampagnen an ALLE oder SEGMENTE (Sprache, Land, Plattform, Abo-Status Pro/Free) senden.\n- Zustellung via Push (FCM) + In-App-Nachricht (Fallback & Archiv/Inbox).\n- Kritische Mitteilungen (AGB/Datenschutz) als blockierende Modal-Announce mit Pflicht-Bestätigung.\n\nBackend/Supabase:\n- Tabellen: announcements(id, type[legal_update|price_change|maintenance|general], title, body, language, audience_segment JSONB, required_ack bool, deeplink, start_at, end_at, created_by, created_at).\n- Tabellen: user_announcement_status(user_id, announcement_id, delivered_at, opened_at, acknowledged_at).\n- Profilfelder: terms_version_accepted, terms_accepted_at.\n- Edge Function send_announcement: segmentiertes Versenden (FCM), Idempotency-Key (campaign_id), TTL, Rate-Limits.\n- RLS: Nur Rolle admin darf announcements erstellen/versenden; Nutzer sehen nur freigegebene Ankündigungen.\n\nZustellung/Logik:\n- Push an alle Zielgeräte; falls Push deaktiviert → In-App beim nächsten Start automatisch anzeigen.\n- In-App:\n  - Typ critical (required_ack=true): Vollbild-Modal, blockiert App bis Bestätigung; speichert acknowledged_at. Bei legal_update zusätzlich terms_version_accepted aktualisieren.\n  - Typ info: Banner/Sheet + Eintrag in Inbox.\n- Deduplikation per announcement_id; Wiederholung bis acknowledged oder end_at.\n- Lokalisierung: Auswahl language-spezifischer Texte; Fallback auf App-Sprache/Englisch.\n\nCompliance/Hinweise:\n- AGB/Datenschutz-Updates: Zwingend bestätigen lassen; alte Version verlinken; Zeitstempel speichern.\n- Preise in Mitteilungen NICHT hardcoden: Falls Preis erwähnt, dynamisch aus RevenueCat priceString im UI rendern.\n- Rate-Limits: max 1 Broadcast/min global, pro Nutzer nicht mehr als 3/Tag."
+        },
+        {
+          "prompt_id": 14,
+          "name": "Community",
+          "priority": "critical",
+          "reason": "Brand/Model-segmentierte Foren, Posts, Likes, Comments",
+          "content": "Brand-/Model-segmentierte Community: Startseite zeigt Marken-Grid + 'Meine Marken' Follow. Beim Klick Marke->Modelle, dann Threads-Feed für Marke/Model. Thread/Post Funktionen: create (text, images), edit, delete (owner), like (mit Schraubenschlüssel-Icon statt Stern), comment (threaded), pin (moderator), report. Likes: optimistic UI update. Sorting: Newest, Most Liked, Most Commented. Notifications: follow brand/model opt-in. Moderation: Report workflow, auto-flagging (keyword list), simple AI-suggested moderation queue (KI moderator stub) — moderator actions: hide post, warn user, ban user. Block: user can block another user (hides their content, blocks DMs). Rating: users can rate other users (icon choices: 🔧 Schraubenschlüssel / 🚗 Auto) and rate per area (Community, Marketplace). AdMob für Free-User: Native Ads zwischen Posts, Banner in Thread-Listen. Internationalization for all strings. Design: cards, rounded corners, orange accent for highlights."
+        },
+        {
+          "prompt_id": 15,
+          "name": "Private Chat",
+          "priority": "high",
+          "reason": "1:1 Chat für Community-Members",
+          "content": "Realtime 1:1 Chat via Supabase Realtime oder Realtime alternative with local offline caching (Hive). Funktionen: Text, Image, Audio (optional), Typing Indicator, Read Receipts, message delete (for owner), archived chat, report message. Push Notifications via FCM on new message. Blocked users cannot send DMs. Messages stored in Supabase 'private_messages' table with RLS policies restricting access. In-App: Chat screen with threaded messages, emoji reactions, scroll-to-bottom, incremental loading. AdMob für Free-User: Interstitial Ad nach längeren Chat-Sessions (z.B. nach 15 Nachrichten), aber nicht störend während aktiver Unterhaltung. i18n strings for notifications and UI."
+        },
+        {
+          "prompt_id": 17,
+          "name": "Guides & Tags",
+          "priority": "high",
+          "reason": "Premium Reparatur-Anleitungen für Pro-User",
+          "content": "Guides-Module: Tag-basierte Struktur (Bremsen, Elektrik, Motor, Karosserie, etc.). Guides können Brand-/Model-spezifisch markiert werden. Editor-Skeleton (Markdown-compatible), Guide-Detail: markdown render, images, step-by-step, estimated time, difficulty level, parts list. Free-User: Vorschau + 1-2 komplette Guides pro Monat voll zugänglich + AdMob Banner zwischen Steps, Medium Rectangle Ads zwischen Sektionen. Pro-User: Vollzugriff auf alle Premium-Guides und Offline-Export (PDF/print), keine Ads. Guides sind suchbar und filterbar. Like & Bookmark für alle. i18n support for guide metadata and content. AdMob für Free-User: Banner in Guide-Listen, zwischen Guide-Steps, aber nicht störend beim praktischen Arbeiten."
+        },
+        {
+          "prompt_id": 18,
+          "name": "Admin / Moderator Tools",
+          "priority": "high",
+          "reason": "Community-Moderation, Report-Management",
+          "content": "Create an Admin/Moderator dashboard (web or admin-only in-app) to review reports, remove listings/posts, ban users, review highlight purchases, audit OBD clear logs, export reports (CSV). Include moderator queue for AI-suggested flags and manual override. Log all moderator actions. Provide role-based access in Supabase (roles: user, moderator, admin). Broadcast/announcement creation interface (siehe Prompt 10a). AdMob revenue dashboard für Admins: impressions, clicks, eCPM per user segment. i18n for admin messages where relevant."
+        },
+        {
+          "prompt_id": 30,
+          "name": "Erweiterte Sprachen & Lokalisierung",
+          "priority": "medium",
+          "reason": "Internationale Expansion: it, fr, es, pt hinzufügen",
+          "content": "Erweitere die App um zusätzliche europäische Sprachen. Sprachen hinzufügen: Italienisch (it), Französisch (fr), Spanisch (es), Portugiesisch (pt). Alle bestehenden UI-Texte, Fehlermeldungen, Paywall-Texte, OBD-Texte, Wartungskategorien übersetzen. Währungen: EUR für DE/IT/FR/ES, Britische Pfund für UK falls später, Schweizer Franken für CH. Country-Detection: automatisch basierend auf System-Locale oder Store-Land. Kategorien lokalisieren: Wartungsarten und Kostenkategorien in landestypischen Begriffen. RevenueCat: Preise pro Land/Währung konfigurieren. App Store: Beschreibungen und Screenshots für neue Märkte. UI: Language-Switcher in Settings, Restart-Hinweis bei Sprachwechsel. Testing: alle Flows in allen Sprachen testen, besonders Paywall und OBD-Texte. Fallback: bei fehlenden Übersetzungen auf Englisch zurückfallen."
+        }
+      ],
+      "new_features": [
+        "Community: Marken-spezifische Foren mit Posts, Likes, Comments + Native Ads für Free",
+        "Private Chat zwischen Community-Members + Interstitial Ads nach langen Sessions",
+        "Guides: Premium Anleitungen für Pro-User, Preview + AdMob Banner für Free",
+        "Push Notifications für Community-Aktivitäten + Ad-Triggers", 
+        "Erweiterte Sprachen: Italienisch, Französisch, Spanisch, Portugiesisch für EU-Expansion",
+        "Moderator-Tools für Content-Management + AdMob Revenue Dashboard",
+        "User-Ratings und Bewertungssystem",
+        "Broadcast & Announcements System für Updates"
+      ]
+    },
+    
+    "phase_3_optimization": {
+      "description": "Familie-Features, Marketplace, Optimierung & Enterprise Features",
+      "timeline": "2-3 Monate nach Community Phase",
+      "target": "Familie-Features aktivieren, Marketplace launch, Conversion-Optimierung, Compliance, Skalierung",
+      "prompts": [
+        {
+          "prompt_id": 21,
+          "name": "Remote Config & Feature Flags",
+          "priority": "high",
+          "reason": "Dynamic Feature-Rollouts ohne App-Update",
+          "content": "Implementiere Remote Config über Supabase (Tabelle app_config) inkl. Caching: Flags für Paywall-Varianten, Wartungsbanner, experimentelle Features (z. B. neue OBD-UI), API-Endpoints, Copy-Snippets. Client lädt beim Start + onFocus; Fallback auf lokale Defaults. Rollouts: Prozent- und Segment-basiert (Locale, Plattform, Pro/Free). AdMob Feature-Flags: Ad-Häufigkeit, neue Ad-Formate testen, Ad-Placement-Varianten für Free-User. Logging: welche Flag-Varianten aktiv. Keine hartkodierten Preise – Preis-Copy dynamisch befüllen."
+        },
+        {
+          "prompt_id": 22,
+          "name": "A/B Testing & Paywall Experiments", 
+          "priority": "high",
+          "reason": "Conversion-Rate durch Paywall-Optimierung steigern",
+          "content": "A/B-Experimente für Paywall und Key-Flows: Variablen (Copy, Reihenfolge Pro vs Credits, Standardseite, CTA-Texte, Illustrationen). Zuweisung stabil per user_id Hash + Remote Config. Analytics: plan_select, purchase_attempt, conversion, retention D1/D7; Segmentierung nach Pro/Free, Land, Sprache. AdMob A/B Testing: Ad-Häufigkeit für Free-User (weniger/mehr Ads), Ad-Platzierung testen (Banner-Position, Interstitial-Timing), personalisierte vs. non-personalisierte Ads Conversion-Impact messen. Guardrails: Abbruch bei schlechter Performance. Keine Fixpreise in Copy, immer RevenueCat priceString."
+        },
+        {
+          "prompt_id": 23,
+          "name": "Observability & SLOs",
+          "priority": "high",
+          "reason": "Performance Monitoring, Error Tracking",
+          "content": "Integriere Sentry/Crashlytics, strukturierte Logs und Dashboards (Supabase/Edge/FCM/RevenueCat/AdMob). Definiere SLOs: App-Startzeit, Paywall-Ladezeit, Kauf-Erfolgsquote, Absturzrate, AdMob Fill-Rate/eCPM. Alerts in CI/CD (Pager/Email). Traces für Edge Functions (Diagnose/Moderation/Credits). AdMob Performance Monitoring: Ad Load Times, Fill Rates, eCPM Tracking, Click-Through-Rate für verschiedene Ad-Formate. Revenue Analytics: LTV per User Segment, ARPU, Ad Revenue vs. Subscription Revenue. Datenschutz: keine PII in Logs, nur IDs/Hashes."
+        },
+        {
+          "prompt_id": 24,
+          "name": "Compliance & Consent",
+          "priority": "critical",
+          "reason": "GDPR/DSGVO, CMP für AdMob, granulare Consent",
+          "content": "CMP für AdMob (Einwilligungspflicht), granulare Push-Kategorien (Marketing/System), Datenaufbewahrung (Logs max. 90 Tage), GDPR/DSGVO-Export/Löschung. Rechtstexte (AGB/Datenschutz) versioniert; In-App-Pflichtbestätigung bei Updates (siehe Prompt 10a). Analytics nur mit Einwilligung; Opt-out respektieren. AdMob CMP: Vendor-spezifische Consent (Google, Partner-Networks), personalisierte vs. non-personalisierte Ads basierend auf Consent, EU-Nutzer: explizite Einwilligung vor ersten Ad-Display, Consent-Withdraw jederzeit möglich in Settings. Cookie-Banner für Web-Komponenten falls vorhanden. COPPA compliance für unter 13-Jährige (keine personalisierte Werbung)."
+        },
+        {
+          "prompt_id": 25,
+          "name": "Security Hardening", 
+          "priority": "critical",
+          "reason": "SSL Pinning, Anti-Tamper, Root Detection",
+          "content": "Mobile Hardening: SSL-Pinning zum Backend/Supabase, sichere Token-Speicherung, Root/Jailbreak-Erkennung, Anti-Tamper. Backend: Rate-Limits pro Endpoint, WAF-Regeln, Signaturen für Webhooks (RevenueCat/FCM/AdMob), Secret Rotation. OBD: sichere BLE-Verbindung, Wiederverbindungsstrategie, Timeout- und Fehlerpfade; keine PII/VIN im Log. AdMob Security: Ad-Fraud-Detection, Invalid-Click-Protection, AdMob Ad-Network-Filtering für Brand Safety. Revenue Protection: RevenueCat Receipt Validation, Subscription Status Server-side verifizieren, Anti-Piracy für Premium Content. App Integrity: Play Protect / App Attest Integration."
+        },
+        {
+          "prompt_id": 16,
+          "name": "Marketplace",
+          "priority": "critical", 
+          "reason": "Ersatzteile/Tools kaufen/verkaufen, Highlight-Feature",
+          "content": "Complete Marketplace implementation: Users can create listings for parts or whole vehicles. Fields: title, brand, model, year, condition (new/used/defekt), price, location (city, optional radius), shipping_options (pickup, shipping), images (up to 12), description, contact method (in-app message). Listings creation is FREE for all users. Filter & Search: brand, model, price range, condition, location radius, shipping/collection. Sorting: newest, price, relevance. Highlight feature: 'Hervorheben 7 Tage' purchasable via RevenueCat one-time product (1,99 EUR, Produkt-ID: wefixit_marketplace_highlight_7d) - sets listing.highlighted=true with UI prominence. Pro subscribers get highlight included (button disabled/hidden for Pro). No platform commission: payments between users are arranged privately. Listing detail page: contact seller (in-app message), report listing, share, save. Rating: Buyer/Seller rating after successful meetup (rating icons: 🔧 / 🚗), with separate rating categories possible. Admin/moderator flags for illegal content. Listings stored in Supabase with index on brand/model for fast queries. AdMob für Free-User: Banner in Listing-Listen, Native Ads zwischen Listings. i18n for all strings."
+        },
+        {
+          "prompt_id": 29,
+          "name": "Erweiterte OBD-Features", 
+          "priority": "medium",
+          "reason": "Maximale OBD-Ausnutzung für technische Differenzierung",
+          "content": "Erweitere OBD-Integration um Advanced-Features für Power-User. Live-Data-Streaming: Kontinuierliche Anzeige von RPM, Geschwindigkeit, Motortemperatur, Lufttemperatur, Spritmenge, etc. mit Echtzeit-Gauges und Graphen. Custom-Dashboards: User können eigene Dashboard-Layouts erstellen mit bevorzugten Live-Parametern, verschiedene Gauge-Stile (analog, digital, Balken). Data-Logging für Analyse: OBD-Daten über Zeit aufzeichnen und als Graphen anzeigen (Performance-Analyse, Spritverbrauch-Tracking). Performance-Monitoring: 0-100km/h Messung mit OBD-Daten, Beschleunigungskurven, Maximalwerte tracken. Eco-Driving-Scores: Bewertung des Fahrstils basierend auf OBD-Parametern (sanftes Beschleunigen/Bremsen, optimaler Drehzahlbereich), Tipps für spritsparsames Fahren. Pro-Features vs Free: Free-User bekommen Basic Live-Data (3-4 Parameter) + AdMob Banner im Live-Data-Screen, Pro-User bekommen alle Parameter + Data-Logging + Performance-Tests + Custom-Dashboards + Eco-Scores ohne Ads. Trip-Recording: Start/Stop von Fahrten mit automatischer OBD-Datenaufzeichnung, Trip-Zusammenfassungen mit Durchschnittsverbrauch, Höchstgeschwindigkeit, Fahrstil-Score. Export-Funktionen: Pro-User können OBD-Logs als CSV exportieren für eigene Analysen. UI: Live-Data-Tab mit anpassbaren Widgets, Vollbild-Modus für einzelne Parameter während der Fahrt, Trip-Historie mit Detailansichten. Supabase Schema: obd_live_sessions(vehicle_id, start_time, end_time, data_points JSONB), trip_recordings(vehicle_id, trip_start, trip_end, summary_stats JSONB). Offline-Support: Live-Daten auch offline anzeigbar, Sync bei nächster Internetverbindung. Sicherheitshinweise: Kein Handy-Use während Fahrt, nur als Beifahrer oder im Stand bedienen. i18n für alle Live-Data-Parameter und Eco-Tipps."
+        },
+        {
+          "prompt_id": 28,
+          "name": "Familie-Features & Multi-User-Management",
+          "priority": "high",
+          "reason": "Familien-Flottenmanager für höhere LTV und neue Zielgruppe",
+          "content": "Implementiere umfassendes Multi-User-Management für Familie-Accounts (Pro Familie Subscription). Familie-Account-Struktur: Haupt-Account (Familie-Admin) kann bis zu 4 Mitglieder einladen, jedes Mitglied hat eigenes Profil aber geteilte Pro-Vorteile. Multi-Vehicle-Support: Familie kann mehrere Fahrzeuge hinzufügen, jedes Familienmitglied kann alle Familie-Autos verwenden, Fahrzeug-Zuordnung pro Session ('Wer fährt heute welches Auto?'). Familie-Dashboard: Übersicht aller Familie-Fahrzeuge mit aktuellen Status (letzte OBD-Diagnose, fällige Wartungen, Kosten), Fahrzeug-Nutzungsstatistiken pro Mitglied (wer fährt wie oft welches Auto), OBD-Diagnose-Verlauf für alle Familie-Autos chronologisch. Geteilte Kosten-Reports: alle Kosten werden Familie-weit zusammengefasst, optionale Aufteilung nach Nutzung oder Fahrzeug, monatliche Familie-Kostenübersicht mit Trends. User-Rollen: Familie-Admin (volles Management), Erwachsene (können eigene + Familie-Autos verwalten), Teenager (eingeschränkte Rechte, können nur zugewiesene Autos verwarten). Einladungs-System: E-Mail-Einladung mit Join-Link, Pending-Status bis Annahme, Mitglieder können Familie verlassen. Familie-Chat: optionaler Gruppenchat für Familie-interne Kommunikation zu Autos. Geteilte Wartungserinnerungen: Familie-Admin sieht alle fälligen Wartungen, Zuweisungen an Mitglieder. Supabase Schema: families(id, name, admin_user_id), family_members(family_id, user_id, role, status), family_vehicles(family_id, vehicle_id, primary_driver_id). RLS-Policies für Familie-Zugriff. UI: Familie-Tab in Profil, Familie-Einstellungen, Mitglieder-Management. i18n für Familie-spezifische Texte. AdMob für Familie-Mitglieder deaktiviert (Pro-Vorteil)."
+        }
+      ],
+      "optimization_features": [
+        "Marketplace: Ersatzteile/Tools kaufen & verkaufen, Highlight-Feature (1,99€) + AdMob Integration",
+        "Familie-Features: Multi-User-Management, Familie-Dashboard, geteilte Kosten-Reports für Pro Familie",
+        "Erweiterte OBD-Features: Live-Data-Streaming, Custom-Dashboards, Performance-Monitoring, Eco-Driving-Scores",
+        "A/B Tests für Paywall-Varianten (Copy, Layout, Preise) + AdMob A/B Testing",
+        "Remote Config für Feature-Flags ohne App-Updates + Ad-Placement-Steuerung",
+        "Advanced Analytics: Conversion Funnels, Cohort Analysis, Ad Revenue vs. Subscription Revenue",
+        "Compliance: GDPR-Requests, Datenexport, granulare Consent, AdMob CMP",
+        "Security: SSL Pinning, Jailbreak Detection, Anti-Reverse-Engineering, Ad-Fraud-Protection",
+        "Performance: SLOs, Error Monitoring, Crash Analytics, Ad Load Time Monitoring",
+        "Enterprise: White-Label Optionen, API für Werkstätten, Revenue Dashboard"
+      ]
+    }
+  },
+  
+  "implementation_strategy": {
+    "mvp_success_criteria": [
+      "10.000+ App Downloads in ersten 3 Monaten",
+      "5% Conversion Rate Free → Pro (Basic + Familie kombiniert)",
+      "60/40 Split: Pro Basic vs. Pro Familie (Familie höhere LTV)",
+      "Durchschnittlich 2+ OBD-Sessions pro aktiven User",
+      "4.0+ App Store Rating",
+      "Weniger als 2% Crash Rate"
+    ],
+    
+    "phase_2_success_criteria": [
+      "50.000+ Community Posts in ersten 2 Monaten",
+      "20.000+ aktive Community-Nutzer mit regelmäßigen Posts",
+      "25% der Pro-User nutzen Premium Guides regelmäßig",
+      "40% höhere User Retention durch Community und Premium-Content",
+      "15%+ Conversion Rate Free → Pro durch Community-Engagement"
+    ],
+    
+    "phase_3_success_criteria": [
+      "20%+ Conversion Rate von Pro Basic zu Pro Familie (höhere LTV)",
+      "5.000+ aktive Marketplace Listings in ersten 3 Monaten",
+      "2.500+ monatliche Marketplace Transaktionen",
+      "10%+ Paywall Conversion durch A/B Tests", 
+      "99.9% App Uptime durch Monitoring",
+      "100% GDPR Compliance für EU-Expansion",
+      "Vorbereitung für Series A Fundraising mit diversifizierten Revenue-Streams"
+    ],
+    
+    "notes": {
+      "mvp_focus": "Schneller Market Entry mit bewährtem OBD + KI Konzept - OBD, Wartungserinnerungen + Kosten-Tracker kostenlos, nur KI kostet Credits",
+      "phase_2_rationale": "Community & Guides schaffen Network Effects, Premium-Content und User Retention",
+      "phase_3_rationale": "Familie-Features für Premium-Tier + Marketplace für neue Revenue-Streams + Skalierung für Investoren-Readiness",
+      "pricing_philosophy": "OBD, Wartungserinnerungen, Kosten-Tracker = immer kostenlos, nur KI-Features = Credit-basiert oder Pro-Abo",
+      "subscription_tiers": "Pro Basic 4,99€ (einzeln) + Pro Familie 7,99€ (bis zu 4 User) für verschiedene Zielgruppen",
+      "credit_philosophy": "Free Credits nicht akkumulierend (max 3), gekaufte Credits blockieren Free Credits vollständig",
+      "risk_mitigation": "Jede Phase ist eigenständig lauffähig und generiert Revenue"
+    }
+  }
+}

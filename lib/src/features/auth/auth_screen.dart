@@ -1,0 +1,111 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../i18n/app_localizations.dart';
+
+class AuthScreen extends ConsumerStatefulWidget {
+  const AuthScreen({super.key});
+
+  @override
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends ConsumerState<AuthScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _isSignUp = false;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final t = AppLocalizations.of(context);
+    try {
+      if (_isSignUp) {
+        await Supabase.instance.client.auth.signUp(
+          email: _emailCtrl.text.trim(),
+          password: _passCtrl.text,
+        );
+      } else {
+        await Supabase.instance.client.auth.signInWithPassword(
+          email: _emailCtrl.text.trim(),
+          password: _passCtrl.text,
+        );
+      }
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = t.tr('auth.error_generic'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(t.tr('auth.title'))),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(t.tr(_isSignUp ? 'auth.subtitle_signup' : 'auth.subtitle_login')),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(labelText: t.tr('auth.email')),
+                      validator: (v) => (v == null || v.isEmpty) ? t.tr('auth.email_required') : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(labelText: t.tr('auth.password')),
+                      validator: (v) => (v == null || v.length < 6) ? t.tr('auth.password_required') : null,
+                    ),
+                    const SizedBox(height: 12),
+                    if (_error != null)
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      child: Text(_isSignUp ? t.tr('auth.signup') : t.tr('auth.login')),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => setState(() => _isSignUp = !_isSignUp),
+                      child: Text(_isSignUp ? t.tr('auth.switch_to_login') : t.tr('auth.switch_to_signup')),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
