@@ -10,6 +10,16 @@ import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'i18n/app_localizations.dart';
+import '../splash_screen.dart';
+
+// Globaler Init-Status für Supabase
+bool _supabaseInitialized = false;
+
+void markSupabaseInitialized() {
+  _supabaseInitialized = true;
+}
+
+bool isSupabaseInitialized() => _supabaseInitialized;
 
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
@@ -24,20 +34,42 @@ class GoRouterRefreshStream extends ChangeNotifier {
 }
 
 GoRouter createRouter() {
-  final supa = Supabase.instance.client;
   return GoRouter(
-    initialLocation: '/home',
-    refreshListenable: GoRouterRefreshStream(
-      supa.auth.onAuthStateChange,
-    ),
+    initialLocation: '/splash',
+    refreshListenable: _supabaseInitialized
+        ? GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange)
+        : null,
     redirect: (context, state) {
+      final inSplash = state.matchedLocation == '/splash';
+      // Splash darf immer sichtbar sein
+      if (inSplash) return null;
+      
+      // Wenn Supabase noch nicht initialisiert: Splash zeigen
+      if (!_supabaseInitialized) {
+        return '/splash';
+      }
+      
+      final supa = Supabase.instance.client;
       final isLoggedIn = supa.auth.currentSession != null;
-      final loggingIn = state.matchedLocation == '/auth';
-      if (!isLoggedIn && !loggingIn) return '/auth';
+      final location = state.matchedLocation;
+      final loggingIn = location == '/auth';
+
+      // Nur bestimmte Routen schützen
+      final isProtected = location.startsWith('/diagnose')
+          || location.startsWith('/asktoni')
+          || location.startsWith('/profile');
+
+      // Wenn nicht eingeloggt und geschützte Route: zur Auth
+      if (!isLoggedIn && isProtected) return '/auth';
+      // Wenn bereits eingeloggt und auf /auth: zurück nach Home
       if (isLoggedIn && loggingIn) return '/home';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (context, state) => const NoTransitionPage(child: SplashScreen()),
+      ),
       GoRoute(
         path: '/auth',
         pageBuilder: (context, state) => const NoTransitionPage(child: AuthScreen()),

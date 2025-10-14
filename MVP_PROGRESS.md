@@ -30,12 +30,16 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - de/en angelegt; Tabs/Labels/Grundtexte vorhanden. Paywall-Texte folgen beim Monetarisierungsmodul.
 
 - **[Security & Privacy]**
-  - Status: IN PLANUNG
+  - Status: TEILWEISE ERLEDIGT
   - Supabase RLS aktiv, Profile-Policies angelegt. GDPR-Deletionflow, CMP und Rate-Limits folgen mit Monetarisierung/Ads.
 
 - **[Splash Screen]**
-  - Status: ZURÜCKGEROLLT
-  - Alle Icon/Splash-Anpassungen entfernt (Rollback auf Standardzustand). Neue Umsetzung erfolgt später mit finalen Assets.
+  - Status: ERLEDIGT
+  - Native Android-12-Splash mit `flutter_native_splash` konfiguriert (weißer Hintergrund, App-Icon).
+  - In-App-Splash (`SplashScreen`) mit Logo + animiertem Text („WeFixIt", LumiosMarker-Font).
+  - Supabase-Initialisierung erfolgt asynchron während Splash läuft (keine Blockierung vor runApp).
+  - Optimierte Startzeit: System-Launch < 0,5s, In-App-Splash ~1s, nahtloser Übergang zu Auth/Home.
+  - `compileSdk/targetSdk = 35` für Android-12-Splash-Attribute.
 
 - **[Monetarisierung (Credits + Abo)]**
   - Status: AUSSTEHEND (Gerüst vorhanden)
@@ -48,7 +52,7 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Status: AUSSTEHEND
 
 - **[Profile & Privacy]**
-  - Status: IN ARBEIT
+  - Status: ERLEDIGT
   - Supabase `profiles` erweitert (display_name, nickname, vehicle_photo_url) + Trigger `on_auth_user_created`.
   - App: Profil-Formular (Name/Nickname, Avatar-/Fahrzeugfoto-Upload); Spracheinstellung ins Settings-Screen verlagert.
   - Fahrzeuge: Felder für Hubraum (cc/l) und Kilometerstand ergänzt (Schema vorhanden), UI und Save-Funktionalität implementiert.
@@ -83,6 +87,18 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Profil vervollständigen]**: Formular (Anzeigename, Nickname), Avatar-/Fahrzeugfoto-Upload; Sprache ist in Settings verschoben (de/en) – Supabase-Anbindung vorhanden.
 - **[Home personalisieren]**: „Hallo {Name}!“, kleines Fahrzeugfoto anzeigen.
 - **[Komponenten-Kit]**: Buttons, Cards, Badge, Modal, PaywallCarousel, AdBanner 320x50 & 300x250 (Platzhalter → echte AdMob-IDs später).
+- **[Screens refactoren]**: Bestehende Screens auf neues Komponenten-Kit umstellen (`PrimaryButton`, `SecondaryButton`, `GlassCard`, `Badge`, `showAppModal`, `PaywallCarousel`, `AdBannerPlaceholder` mit Größen).
+  - Schritte:
+    - Profil (`lib/src/features/profile/profile_screen.dart`): `_GlassCard`/`_GlassButton` entfernen und durch `GlassCard`/`PrimaryButton` ersetzen; `AdBannerPlaceholder(size: ...)` gezielt setzen.
+    - Home (`lib/src/features/home/home_screen.dart`): kleines Badge-Beispiel integrieren; `showAppModal()` Beispiel (z. B. Info-Overlay) hinzufügen.
+    - Settings (`lib/src/features/settings/settings_screen.dart`): Cards auf `GlassCard` konsolidieren; Overlays mit `showAppModal()`.
+    - Paywall-Stub: optionalen `paywall_screen.dart` mit `PaywallCarousel` und CTAs (`PrimaryButton`/`SecondaryButton`) anlegen; Route `/paywall` hinter Feature-Flag.
+    - Importe konsolidieren: `widgets/buttons.dart`, `widgets/glass_card.dart`, `widgets/badge.dart`, `widgets/modal.dart`, `widgets/paywall_carousel.dart` verwenden.
+  - Akzeptanzkriterien:
+    - Build läuft ohne Fehler/Warnings; keine privaten Duplikate (`_GlassCard`, `_GlassButton`).
+    - Optische Parität oder Verbesserung im Dark-Design.
+    - Ads: 320x50 im Shell-Footer, 300x250 (MREC) dort, wo vorgesehen.
+    - Modal: Öffnen/Schließen funktioniert (ein Beispiel in Home oder Settings).
 - **[Wartungserinnerungen & Kosten]**: Tabellen + RLS, einfache Screens (Listen/Forms), Home-Anbindung.
 - **[Splash mit Logo]**: Generierungsbefehle ausführen und testen.
 - **[Monetarisierung]**: Paywall + RevenueCat-Flows + Credit-Logik.
