@@ -12,7 +12,7 @@ class ChatbotScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF636564),
         title: const Text('Ask Toni Mechatroni!'),
       ),
       body: Padding(
@@ -40,7 +40,7 @@ class ChatbotScreen extends StatelessWidget {
                     Text(
                       'Wie kann ich dir helfen?',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
+                            color: const Color(0xFF636564),
                             fontWeight: FontWeight.w700,
                           ),
                     ),

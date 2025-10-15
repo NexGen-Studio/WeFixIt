@@ -51,5 +51,14 @@
   "auth.signup": "Registrieren",
   "auth.switch_to_signup": "Noch kein Konto? Registrieren",
   "auth.switch_to_login": "Schon ein Konto? Anmelden",
-  "auth.error_generic": "Etwas ist schiefgelaufen"
+  "auth.error_generic": "Etwas ist schiefgelaufen",
+  "auth.forgot_password": "Passwort vergessen?",
+  "auth.reset_email_sent": "E-Mail zum Zurücksetzen wurde gesendet.",
+  "auth.reset_password": "Passwort zurücksetzen",
+  "auth.reset_password_hint": "Bitte neues Passwort eingeben und bestätigen.",
+  "auth.new_password": "Neues Passwort",
+  "auth.confirm_password": "Passwort bestätigen",
+  "auth.password_mismatch": "Passwörter stimmen nicht überein",
+  "auth.save_new_password": "Neues Passwort speichern",
+  "auth.password_reset_success": "Passwort wurde aktualisiert"
 }

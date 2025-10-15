@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../i18n/app_localizations.dart';
@@ -17,6 +18,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isSignUp = false;
   bool _loading = false;
   String? _error;
+  bool _showPassword = false;
 
   @override
   void dispose() {
@@ -38,11 +40,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.tr('auth.reset_email_sent'))),
+        );
       } else {
         await Supabase.instance.client.auth.signInWithPassword(
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
         );
+        if (!mounted) return;
+        // Direkt nach erfolgreichem Login weiterleiten
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          // ignore: use_build_context_synchronously
+          GoRouter.of(context).go('/home');
+        }
       }
     } on AuthException catch (e) {
       setState(() => _error = e.message);
@@ -57,7 +71,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(t.tr('auth.title'))),
+      appBar: AppBar(
+        title: Text(t.tr('auth.title')),
+        leading: BackButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              GoRouter.of(context).go('/home');
+            }
+          },
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -80,11 +105,76 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _passCtrl,
-                      obscureText: true,
-                      decoration: InputDecoration(labelText: t.tr('auth.password')),
+                      obscureText: !_showPassword,
+                      decoration: InputDecoration(
+                        labelText: t.tr('auth.password'),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _showPassword = !_showPassword),
+                          icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
                       validator: (v) => (v == null || v.length < 6) ? t.tr('auth.password_required') : null,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    // Zuerst: Noch kein Konto? Registrieren (zentriert)
+                    Center(
+                      child: TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => setState(() => _isSignUp = !_isSignUp),
+                        child: Text(
+                          _isSignUp ? t.tr('auth.switch_to_login') : t.tr('auth.switch_to_signup'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    // Direkt darunter: Passwort vergessen? (kleiner, zentriert, weniger Abstand)
+                    const SizedBox(height: 2),
+                    Center(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                        ),
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                setState(() => _error = null);
+                                // E-Mail automatisch vorbelegen (angemeldeter User oder Eingabefeld)
+                                final currentEmail = Supabase.instance.client.auth.currentUser?.email;
+                                if (currentEmail != null && currentEmail.isNotEmpty) {
+                                  _emailCtrl.text = currentEmail;
+                                }
+                                final email = _emailCtrl.text.trim();
+                                if (email.isEmpty) {
+                                  setState(() => _error = t.tr('auth.email_required'));
+                                  return;
+                                }
+                                try {
+                                  setState(() => _loading = true);
+                                  await Supabase.instance.client.auth.resetPasswordForEmail(
+                                    email,
+                                    redirectTo: 'wefixit://reset-password',
+                                  );
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(t.tr('auth.reset_email_sent'))),
+                                  );
+                                } on AuthException catch (e) {
+                                  setState(() => _error = e.message);
+                                } catch (_) {
+                                  setState(() => _error = t.tr('auth.error_generic'));
+                                } finally {
+                                  if (mounted) setState(() => _loading = false);
+                                }
+                              },
+                        child: Text(
+                          t.tr('auth.forgot_password'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 12),
@@ -93,12 +183,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       child: Text(_isSignUp ? t.tr('auth.signup') : t.tr('auth.login')),
                     ),
                     const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _loading
-                          ? null
-                          : () => setState(() => _isSignUp = !_isSignUp),
-                      child: Text(_isSignUp ? t.tr('auth.switch_to_login') : t.tr('auth.switch_to_signup')),
-                    ),
                   ],
                 ),
               ),

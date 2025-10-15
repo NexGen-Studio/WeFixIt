@@ -22,7 +22,9 @@ create table if not exists public.profiles (
 
 -- Helper updated_at function
 create or replace function public.set_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+set search_path = public, pg_temp
+language plpgsql as $$
 begin
   new.updated_at := now();
   return new;
@@ -46,6 +48,28 @@ create table if not exists public.vehicles (
   created_at timestamptz not null default now()
 );
 create index if not exists vehicles_user_id_idx on public.vehicles(user_id);
+
+-- Add optional vehicle specs used by the app (idempotent)
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='vehicles' and column_name='displacement_cc'
+  ) then
+    alter table public.vehicles add column displacement_cc integer;
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='vehicles' and column_name='power_kw'
+  ) then
+    alter table public.vehicles add column power_kw integer;
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='vehicles' and column_name='mileage_km'
+  ) then
+    alter table public.vehicles add column mileage_km integer;
+  end if;
+end $$;
 
 -- Community
 create table if not exists public.brands (
@@ -205,6 +229,10 @@ alter table public.notifications enable row level security;
 alter table public.credit_events enable row level security;
 alter table public.weekly_free_quota enable row level security;
 alter table public.obd_clear_audit enable row level security;
+-- Security Advisor fixes: enable RLS on brands/models/revenuecat_webhooks
+alter table public.brands enable row level security;
+alter table public.models enable row level security;
+alter table public.revenuecat_webhooks enable row level security;
 
 -- Policies
 drop policy if exists "profiles_self_select" on public.profiles;
@@ -268,7 +296,104 @@ create policy "weekly_quota_owner_all" on public.weekly_free_quota for all using
 drop policy if exists "obd_clear_audit_owner_read" on public.obd_clear_audit;
 create policy "obd_clear_audit_owner_read" on public.obd_clear_audit for select using (auth.uid() = user_id);
 
+-- Public read policies for brands/models (catalog data)
+drop policy if exists "brands_read_all" on public.brands;
+create policy "brands_read_all" on public.brands for select using (true);
+
+drop policy if exists "models_read_all" on public.models;
+create policy "models_read_all" on public.models for select using (true);
+
+-- revenuecat_webhooks is written via service role which bypasses RLS; no public policies needed
+
+-- === Storage: vehicle_photos ===
+-- Ensure storage RLS is enabled (usually enabled by default)
+do $$ begin
+  perform 1 from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'storage' and c.relname = 'objects';
+  -- If table exists, enable RLS (idempotent)
+  execute 'alter table storage.objects enable row level security';
+exception when others then
+  -- ignore if storage schema not present in this environment
+  null;
+end $$;
+
+-- Allow public SELECT for files within bucket 'vehicle_photos'
+drop policy if exists "vehicle_photos_public_read" on storage.objects;
+create policy "vehicle_photos_public_read" on storage.objects
+  for select using (bucket_id = 'vehicle_photos');
+
+-- Allow authenticated users to upload to 'vehicle_photos'
+drop policy if exists "vehicle_photos_auth_insert" on storage.objects;
+create policy "vehicle_photos_auth_insert" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'vehicle_photos');
+
+-- Allow owners to update/delete their own files in 'vehicle_photos'
+drop policy if exists "vehicle_photos_owner_update" on storage.objects;
+create policy "vehicle_photos_owner_update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'vehicle_photos' and owner = auth.uid())
+  with check (bucket_id = 'vehicle_photos' and owner = auth.uid());
+
+drop policy if exists "vehicle_photos_owner_delete" on storage.objects;
+create policy "vehicle_photos_owner_delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'vehicle_photos' and owner = auth.uid());
+
 -- Minimal functions for credit consume/check can be added as Edge Functions; DB holds state.
+
+-- === Storage: avatars (private) ===
+-- NOTE: Do not alter table storage.objects here to avoid ownership errors; RLS is enabled by default.
+-- Private read via signed URLs only; owner-restricted write/update/delete
+drop policy if exists "avatars_select_owner" on storage.objects;
+create policy "avatars_select_owner" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'avatars' and owner = auth.uid());
+
+drop policy if exists "avatars_auth_insert" on storage.objects;
+create policy "avatars_auth_insert" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'avatars');
+
+drop policy if exists "avatars_owner_update" on storage.objects;
+create policy "avatars_owner_update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'avatars' and owner = auth.uid())
+  with check (bucket_id = 'avatars' and owner = auth.uid());
+
+drop policy if exists "avatars_owner_delete" on storage.objects;
+create policy "avatars_owner_delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'avatars' and owner = auth.uid());
+
+-- === Quick Tips (for Home screen rotation) ===
+create table if not exists public.tips (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.tips enable row level security;
+drop policy if exists "tips_read_all" on public.tips;
+create policy "tips_read_all" on public.tips for select using (true);
+
+-- Seed initial 10 tips if empty
+do $$ begin
+  if (select count(*) from public.tips) = 0 then
+    insert into public.tips (title, body) values
+      ('Reifenluftdruck prüfen', 'Prüfe monatlich den Reifenluftdruck – falscher Druck erhöht Verbrauch und Verschleiß.'),
+      ('Ölstand im Blick behalten', 'Kontrolliere den Ölstand alle paar Wochen, vor allem vor langen Fahrten.'),
+      ('Wischerblätter wechseln', 'Schlieren auf der Scheibe? Zeit für neue Wischerblätter – mehr Sicht, mehr Sicherheit.'),
+      ('Bremsen checken', 'Achte auf quietschende Geräusche oder längere Bremswege – frühzeitig Werkstatt aufsuchen.'),
+      ('Lichter testen', 'Regelmäßig Front-, Rück- und Bremslichter testen – bessere Sicht und Sichtbarkeit.'),
+      ('Kühlflüssigkeit prüfen', 'Der Kühlflüssigkeitsstand sollte zwischen Min/Max liegen – schützt vor Überhitzung.'),
+      ('Batterie pflegen', 'Kurze Strecken und Kälte belasten die Batterie – gelegentlich längere Fahrten einplanen.'),
+      ('Reifendruck nach Beladung', 'Bei hoher Beladung den Reifendruck laut Hersteller erhöhen – Sicherheit + Effizienz.'),
+      ('Klimaanlage nutzen', 'Auch im Winter kurz laufen lassen – beugt Gerüchen vor und schont Dichtungen.'),
+      ('Sanft beschleunigen', 'Vorausschauend fahren spart Sprit und schont Motor und Bremsen.');
+  end if;
+end $$;
 
 -- === WeFixIt MVP Profile Enhancements ===
 -- Add new profile fields if they don't exist yet
@@ -307,7 +432,9 @@ end $$;
 
 -- Create helper function to obfuscate email
 create or replace function public.obfuscate_email(email text)
-returns text language plpgsql as $$
+returns text
+set search_path = public, pg_temp
+language plpgsql as $$
 declare
   name_part text;
   domain_part text;
@@ -325,7 +452,9 @@ end $$;
 
 -- Insert trigger to create profile row on signup
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer as $$
+returns trigger
+set search_path = public, pg_temp
+language plpgsql security definer as $$
 begin
   insert into public.profiles (id, username, email_obfuscated, created_at, updated_at)
   values (new.id, split_part(new.email, '@', 1), public.obfuscate_email(new.email), now(), now())

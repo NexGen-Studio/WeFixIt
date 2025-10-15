@@ -54,6 +54,32 @@ class SupabaseService {
     return null;
   }
 
+  Future<String?> uploadAvatarPhoto(String path) async {
+    final user = client.auth.currentUser;
+    if (user == null) return null;
+    final key = 'avatar_${user.id}.jpg';
+    // Overwrite same key for single avatar per user
+    await client.storage
+        .from('avatars')
+        .upload(key, File(path), fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+    // Store the key in profiles.avatar_url (used as storage key)
+    await client.from('profiles').upsert({'id': user.id, 'avatar_url': key});
+    // Return a short-lived signed URL for UI display (bucket is private)
+    final signed = await client.storage.from('avatars').createSignedUrl(key, 60 * 60);
+    final bust = DateTime.now().millisecondsSinceEpoch;
+    return '$signed&t=$bust';
+  }
+
+  Future<String?> getSignedAvatarUrl(String key) async {
+    try {
+      final signed = await client.storage.from('avatars').createSignedUrl(key, 60 * 60);
+      final bust = DateTime.now().millisecondsSinceEpoch;
+      return '$signed&t=$bust';
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Vehicles (MVP: ein Hauptfahrzeug)
   Future<Map<String, dynamic>?> fetchPrimaryVehicle() async {
     final user = client.auth.currentUser;
@@ -77,5 +103,15 @@ class SupabaseService {
       ...vehicle,
     };
     await client.from('vehicles').upsert(data);
+  }
+
+  // Quick tips
+  Future<List<Map<String, dynamic>>> fetchTips() async {
+    final res = await client
+        .from('tips')
+        .select()
+        .order('created_at')
+        .limit(50);
+    return (res as List).cast<Map<String, dynamic>>();
   }
 }

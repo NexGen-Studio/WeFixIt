@@ -12,7 +12,7 @@ class DiagnoseScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF636564),
         title: Text(t.tr('diagnose.title')),
       ),
       body: Padding(
@@ -22,7 +22,7 @@ class DiagnoseScreen extends StatelessWidget {
           children: [
             Text(
               t.tr('diagnose.subtitle'),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: Color(0xFF636564), fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
             _LightButton(label: t.tr('diagnose.read_dtc'), onPressed: () {}),

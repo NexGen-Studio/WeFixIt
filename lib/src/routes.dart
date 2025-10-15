@@ -8,6 +8,7 @@ import 'features/settings/settings_screen.dart';
 import 'widgets/ad_banner.dart';
 import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
+import 'features/auth/reset_password_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'i18n/app_localizations.dart';
 import '../splash_screen.dart';
@@ -39,7 +40,17 @@ GoRouter createRouter() {
     refreshListenable: _supabaseInitialized
         ? GoRouterRefreshStream(Supabase.instance.client.auth.onAuthStateChange)
         : null,
-    redirect: (context, state) {
+    redirect: (context, state) async {
+      // Externe Deep Links abfangen (z.B. wefixit://reset-password?...)
+      final loc = state.uri.toString();
+      if (loc.startsWith('wefixit://')) {
+        // Supabase-Session aus Recovery-Link herstellen
+        try {
+          await Supabase.instance.client.auth.getSessionFromUrl(state.uri);
+        } catch (_) {}
+        // Immer auf interne Route mappen
+        return '/reset-password';
+      }
       final inSplash = state.matchedLocation == '/splash';
       // Splash darf immer sichtbar sein
       if (inSplash) return null;
@@ -73,6 +84,10 @@ GoRouter createRouter() {
       GoRoute(
         path: '/auth',
         pageBuilder: (context, state) => const NoTransitionPage(child: AuthScreen()),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        pageBuilder: (context, state) => const NoTransitionPage(child: ResetPasswordScreen()),
       ),
       ShellRoute(
         builder: (context, state, child) => _RootScaffold(child: child),
@@ -157,13 +172,16 @@ class _RootScaffoldState extends State<_RootScaffold> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Vollflächiger Verlaufshintergrund
+          // Vollflächiger Verlaufshintergrund - Hell und modern
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0B1E2D), Color(0xFF0F3A5A)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFFFFFFF), // Weiß oben
+                  Color(0xFFBBDEFB), // Deutliches Hellblau unten
+                ],
               ),
             ),
           ),
@@ -183,18 +201,25 @@ class _RootScaffoldState extends State<_RootScaffold> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.18),
+          color: Colors.white,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         child: BottomNavigationBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white70,
+          selectedItemColor: const Color(0xFF2563EB),
+          unselectedItemColor: const Color(0xFF64748B),
           selectedIconTheme: const IconThemeData(size: 28),
           unselectedIconTheme: const IconThemeData(size: 24),
           selectedFontSize: 14,

@@ -63,10 +63,10 @@ class _SplashScreenState extends State<SplashScreen>
     } else {
       // A) Standard (empfohlen): Kein Overlay – erst Content nach ~800ms, Zoom 0->1 (~400ms)
       _textOpacity = Tween(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _controller, curve: const Interval(0.72, 1.0, curve: Curves.easeOut)),
+        CurvedAnimation(parent: _controller, curve: const Interval(0.55, 1.0, curve: Curves.easeOut)),
       );
       _textSlide = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-        CurvedAnimation(parent: _controller, curve: const Interval(0.72, 1.0, curve: Curves.easeOutCubic)),
+        CurvedAnimation(parent: _controller, curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic)),
       );
       // Kein Icon-Overlay nötig, aber initialisieren, um null zu vermeiden
       _iconScaleOut = const AlwaysStoppedAnimation<double>(0.0);
@@ -74,13 +74,13 @@ class _SplashScreenState extends State<SplashScreen>
       _contentScaleIn = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _controller,
-          curve: const Interval(0.667, 1.0, curve: Curves.easeOutCubic),
+          curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
         ),
       );
       _contentOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _controller,
-          curve: const Interval(0.667, 1.0, curve: Curves.easeOut),
+          curve: const Interval(0.55, 1.0, curve: Curves.easeOut),
         ),
       );
     }
@@ -143,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoWidth = screenWidth * 0.58; // noch größer
+    final logoWidth = screenWidth * 0.66; // nochmals größer
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -169,14 +169,10 @@ class _SplashScreenState extends State<SplashScreen>
                           position: _textSlide,
                           child: FadeTransition(
                             opacity: _textOpacity,
-                            child: Text(
-                              'WeFixIt',
-                              style: TextStyle(
-                                fontFamily: 'LumiosMarker',
-                                fontSize: screenWidth * 0.15,
-                                color: const Color(0xFF616366),
-                                height: 0.95,
-                              ),
+                            child: Image.asset(
+                              'assets/images/splash_text.png',
+                              width: logoWidth * 1.3,
+                              fit: BoxFit.contain,
                             ),
                           ),
                         ),

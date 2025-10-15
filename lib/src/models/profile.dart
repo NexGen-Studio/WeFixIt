@@ -5,7 +5,6 @@ class UserProfile {
   final String? displayName;
   final String? nickname;
   final String? avatarUrl;
-  final String? vehiclePhotoUrl;
   final String? emailObfuscated;
 
   const UserProfile({
@@ -15,7 +14,6 @@ class UserProfile {
     this.displayName,
     this.nickname,
     this.avatarUrl,
-    this.vehiclePhotoUrl,
     this.emailObfuscated,
   });
 
@@ -27,7 +25,6 @@ class UserProfile {
       displayName: map['display_name'] as String?,
       nickname: map['nickname'] as String?,
       avatarUrl: map['avatar_url'] as String?,
-      vehiclePhotoUrl: map['vehicle_photo_url'] as String?,
       emailObfuscated: map['email_obfuscated'] as String?,
     );
   }
@@ -39,7 +36,6 @@ class UserProfile {
       if (displayName != null) 'display_name': displayName,
       if (nickname != null) 'nickname': nickname,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
-      if (vehiclePhotoUrl != null) 'vehicle_photo_url': vehiclePhotoUrl,
     };
   }
 }
