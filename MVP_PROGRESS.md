@@ -15,15 +15,20 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
     - CI/Build-Skripte: TODO (kommt später in dieser Phase).
 
 - **[UI/Design System]**
-  - Status: IN ARBEIT
-  - Bisher:
-    - Globaler, dezenter automotive-Hintergrund (dunkle Blau-/Petroltöne) statt bunter Verlauf – professioneller Look (Abweichung: Hintergrundfarbe/-optik).
-    - Transparente AppBars, „Glass“-Buttons/Karten, abgerundete Ecken.
-    - BottomNavigation halbtransparent, größere Icons/Labels.
-    - Diagnose/Ask Toni: Blaue Sektionen entfernt; Eingabefelder/Buttons in dunklen Grautönen (#3A3A3A / #4A4A4A), Text Weiß.
-    - Settings: Modernes Dark-Design mit grauen Kacheln (#2F2F2F), weiße Typo, stilisiertes Locale-Dropdown.
-  - Nächste Schritte:
-    - Komponenten-Kit (Primary/Secondary Button, Card, Badge, Modal/Overlay, PaywallCarousel) finalisieren.
+  - Status: ERLEDIGT (Tesla/Kleinanzeigen-Hybrid Style)
+  - Details:
+    - Professionelles helles Design (#FAFAFA Hintergrund) mit modernen weißen Cards und subtilen Borders.
+    - CustomScrollView mit BouncingScrollPhysics für smooth Scrolling in allen Screens.
+    - Farbcodierte Feature-Icons mit passenden Hintergründen (Rot, Blau, Grün, Orange).
+    - Moderne Typografie: FontWeight.w800 für Titel, w600-w700 für Labels, große Header (28px).
+    - Konsistente Border Radius (16px), 20px horizontal Padding, 28px Section-Spacing.
+    - Alle Screens (Home, Diagnose, Chatbot, Profile, Settings) im einheitlichen Design.
+    - Login-CTAs und Dialoge mit freundlichen Texten und Icons.
+  - Komponenten:
+    - Action Cards mit Badges ("Kostenlos", "Credits")
+    - Info Cards mit Icons und Beschreibungen
+    - Suggestion Cards mit Pfeilen
+    - Settings Tiles mit farbcodierten Icons
 
 - **[Localization & Copy]**
   - Status: TEILWEISE ERLEDIGT
@@ -44,6 +49,11 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Monetarisierung (Credits + Abo)]**
   - Status: AUSSTEHEND (Gerüst vorhanden)
   - RevenueCat-Paket integriert, Flows/Paywall folgen (inkl. Credit-Logik, Pro-Bypass).
+  - **Produkte definiert:**
+    - Credits: 5 (1,29€), 10 (2,49€), 25 (5,49€)
+    - KFZ-Kosten Lifetime: 1,99€ (wefixit_costs_lifetime)
+    - Pro Basic: 4,99€/Monat oder 39,99€/Jahr
+    - Pro Familie: 7,99€/Monat oder 59,99€/Jahr (Phase 3)
 
 - **[Credits & Free-Quota Logic]**
   - Status: AUSSTEHEND
@@ -64,10 +74,44 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Status: AUSSTEHEND (UI-Hooks vorhanden; echte OBD-Funktionen folgen als Stubs mit klaren Schnittstellen)
 
 - **[Einfache Wartungserinnerungen]**
-  - Status: AUSSTEHEND (nächster Block; Schema wird ergänzt)
+  - Status: ERLEDIGT ✅
+  - Details:
+    - Supabase Schema erstellt (`maintenance_reminders` Tabelle mit RLS)
+    - Freezed Model (`MaintenanceReminder`) mit Date & Mileage Support
+    - `MaintenanceService` für CRUD Operations
+    - Moderner Wartungs-Screen im Tesla/Kleinanzeigen-Design:
+      - Liste aller Erinnerungen (anstehend/erledigt)
+      - Farbcodierte Status-Badges (Rot: überfällig, Orange: bald fällig, Grün: noch Zeit, Blau: kilometer-basiert)
+      - Toggle für erledigte Erinnerungen
+      - FloatingActionButton für neue Erinnerungen
+    - Professioneller Add-Dialog:
+      - Typ-Auswahl: Datum oder Kilometer
+      - Wiederkehrende Erinnerungen (3/6/12 Monate oder km-basiert)
+      - DatePicker Integration
+      - Moderne Form Validation
+    - Home-Screen Integration:
+      - Nächste anstehende Wartung prominent angezeigt
+      - Gradient-Card mit Status-Indikator
+      - Direct Navigation zu Details
+    - Route `/maintenance` hinzugefügt
+    - Kostenlos für ALLE User (kein Login required für Liste, Login nur für Anlegen/Bearbeiten)
 
-- **[Einfacher Kosten-Tracker]**
-  - Status: AUSSTEHEND (nächster Block; Schema wird ergänzt)
+- **[KFZ-Kosten Tracker]**
+  - Status: AUSSTEHEND (Schema wird ergänzt)
+  - **Monetarisierungsstrategie:**
+    - **Free User**: Nur Treibstoff/Kraftstoff-Kosten kostenlos erfassen
+    - **Pro Basic/Familie Abo**: ALLE Kategorien (Wartung, Reparaturen, Versicherung, Steuer, Parken, Maut, Reinigung, etc.) + 12-Monate Historie + Charts + Budget-Alerts + CSV-Export
+    - **Lifetime Unlock (1,99€)**: Einmalkauf schaltet ALLE KFZ-Kosten Kategorien für immer frei (Produkt-ID: wefixit_costs_lifetime)
+  - Kategorien-Liste:
+    - ✅ Treibstoff/Kraftstoff (immer kostenlos)
+    - 🔒 Wartung (Ölwechsel, Inspektion, etc.)
+    - 🔒 Reparaturen
+    - 🔒 Versicherung
+    - 🔒 KFZ-Steuer
+    - 🔒 Parken/Maut
+    - 🔒 Autowäsche/Reinigung
+    - 🔒 TÜV/AU
+    - 🔒 Sonstiges
 
 - **[Testing & QA Flows]**
   - Status: AUSSTEHEND
@@ -75,12 +119,47 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Deployment Notes]**
   - Status: AUSSTEHEND
 
+## Heute erledigte Arbeiten (16. Oktober 2025)
+
+### Design-Überarbeitung: Tesla/Kleinanzeigen-Hybrid Style ✅
+- **Alle Screens modernisiert** mit einheitlichem professionellem Design:
+  - Home Screen: Feature Cards mit Untertiteln, farbcodierte Icons, Reminder Card mit Orange-Gradient
+  - Diagnose Screen: Action Cards mit Badges ("Kostenlos"/"Credits"), "Wie funktioniert's?" Info-Section
+  - Chatbot Screen: Maskottchen in weißer Card, Beliebte Fragen, fixiertes Eingabefeld mit Send-Button
+  - Profile Screen: Login-CTA für nicht-angemeldete, moderne Profil-Karte mit Avatar-Verwaltung
+  - Settings Screen: Account-Section nur für eingeloggte User, moderne Tiles mit farbcodierten Icons
+- **Navigation Bar**: Icon geändert von `car_repair` zu `search` für Diagnose
+- **Farbschema**: #FAFAFA Hintergrund, weiße Cards mit `Colors.grey[200]` Borders, keine Schatten mehr
+
+### Login-Strategie optimiert ✅
+- **Kostenlose Features ohne Login nutzbar**:
+  - Home Screen (voller Zugriff)
+  - Diagnose Screen (Fehlercodes auslesen/löschen)
+  - Settings (Sprache ändern)
+- **KI-Features zeigen Login-Dialog**:
+  - KI-Diagnose im Diagnose Screen
+  - Ask Toni! Chatbot
+- **Profile zeigt Login-CTA** mit freundlicher Anmelde-Karte statt harter Sperre
+- **Routing angepasst**: Nur `/asktoni` ist geschützt, alle anderen Routen für alle zugänglich
+
+### Texte & Übersetzungen ✅
+- Diagnose-Titel verkürzt: "Fehlercodes auslesen" (statt mit "(immer kostenlos)")
+- Badges zeigen Status: "Kostenlos" (grün) / "Credits" (orange)
+- Login-Dialoge mit Hinweis auf kostenlose Features
+
+### KFZ-Kosten Monetarisierung definiert ✅
+- Free User: Nur Treibstoff/Kraftstoff kostenlos
+- Pro Abo: Alle Kategorien freigeschaltet
+- Lifetime Unlock (1,99€): Einmalkauf für lebenslangen Zugriff auf alle Kategorien
+- Produkt-ID: `wefixit_costs_lifetime`
+- Dokumentiert in `wefixit_prompts_phases.json` und `MVP_PROGRESS.md`
+
 ## Wichtige Design-/Funktions-Abweichungen (bewusst)
 
 - **[Tabs]**: 4 Tabs statt 3 – zusätzlicher `Home`-Tab auf Wunsch.
-- **[Ask Toni!]**: Tab und Screen umbenannt (statt „Chatbot“).
-- **[Kein Gastmodus]**: Anmeldung verpflichtend (gewünscht), ursprünglicher MVP vorsah optionalen Gastmodus.
-- **[Hintergrund]**: Dunkler automotive-Look (statt bunter Verlauf); erhöht Professionalität.
+- **[Ask Toni!]**: Tab und Screen umbenannt (statt „Chatbot").
+- **[Login-Strategie]**: Kostenlose Features (Diagnose, Settings, Sprache) sind ohne Login nutzbar. KI-Features und Profil-Verwaltung benötigen Anmeldung. Freundliche Login-Dialoge/CTAs statt harter Auth-Gate.
+- **[Hintergrund]**: Heller, professioneller Look (#FAFAFA) mit weißen Cards und Borders (statt dunkler automotive-Look); Tesla/Kleinanzeigen-inspiriert.
 
 ## Nächste Aufgaben (Kurzfristige Roadmap)
 

@@ -143,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoWidth = screenWidth * 0.66; // nochmals größer
+    final logoWidth = screenWidth * 0.75; // Noch größer
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -164,15 +164,18 @@ class _SplashScreenState extends State<SplashScreen>
                       children: [
                         // Dein zentrales Logo im Splash
                         Image.asset('assets/images/app_icon.png', width: logoWidth),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 6), // Weniger Abstand
                         SlideTransition(
                           position: _textSlide,
                           child: FadeTransition(
                             opacity: _textOpacity,
-                            child: Image.asset(
-                              'assets/images/splash_text.png',
-                              width: logoWidth * 1.3,
-                              fit: BoxFit.contain,
+                            child: Transform.translate(
+                              offset: const Offset(-8, 0), // Etwas nach links
+                              child: Image.asset(
+                                'assets/images/splash_text.png',
+                                width: logoWidth * 1.25, // Größer
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../i18n/app_localizations.dart';
 import '../../state/locale_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -9,77 +10,143 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context);
     final locale = ref.watch(appLocaleProvider);
+    final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+    
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: const Color(0xFF636564),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              GoRouter.of(context).go('/profile');
-            }
-          },
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Header mit Back Button
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Color(0xFF0A0A0A)),
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            GoRouter.of(context).go('/profile');
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.settings_title,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0A0A0A),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Allgemein Section
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.settings_general,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0A0A0A),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const _LanguageTile(),
+                    
+                    // Konto-Section nur für eingeloggte User
+                    if (isLoggedIn) ...[
+                      const SizedBox(height: 28),
+                      Text(
+                        t.settings_account,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0A0A0A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const _AccountPlaceholders(),
+                    ],
+                    
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-        title: const Text('Einstellungen'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          _SectionTitle('Allgemein'),
-          _LanguageTile(),
-          SizedBox(height: 16),
-          _SectionTitle('Konto'),
-          _AccountPlaceholders(),
-        ],
       ),
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-  final String title;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
-      child: Text(title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF636564),
-                fontWeight: FontWeight.w700,
-              )),
-    );
-  }
-}
 
 class _LanguageTile extends ConsumerWidget {
   const _LanguageTile();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFE0E0E0),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.language, color: Colors.black),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE3F2FD),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.language, color: Color(0xFF1976D2), size: 20),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<Locale>(
                 value: ref.watch(appLocaleProvider),
                 hint: const Text('Sprache', style: TextStyle(color: Colors.black54)),
-                style: const TextStyle(color: Colors.black),
-                dropdownColor: const Color(0xFFE0E0E0),
-                iconEnabledColor: Colors.black54,
+                style: const TextStyle(
+                  color: Color(0xFF0A0A0A),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+                dropdownColor: Colors.white,
+                iconEnabledColor: Colors.grey[400],
                 items: const [
                   DropdownMenuItem(value: Locale('de'), child: Text('Deutsch')),
                   DropdownMenuItem(value: Locale('en'), child: Text('English')),
@@ -98,18 +165,20 @@ class _AccountPlaceholders extends StatelessWidget {
   const _AccountPlaceholders();
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Column(
       children: [
-        _SettingsTile(icon: Icons.email_outlined, label: 'E-Mail ändern', onTap: () => _changeEmail(context)),
+        _SettingsTile(icon: Icons.email_outlined, label: t.settings_change_email, onTap: () => _changeEmail(context)),
         const SizedBox(height: 8),
-        _SettingsTile(icon: Icons.lock_outline, label: 'Passwort ändern', onTap: () => _changePassword(context)),
+        _SettingsTile(icon: Icons.lock_outline, label: t.settings_change_password, onTap: () => _changePassword(context)),
         const SizedBox(height: 8),
-        _SettingsTile(icon: Icons.logout, label: 'Logout', onTap: () => _logout(context)),
+        _SettingsTile(icon: Icons.logout, label: t.settings_logout, onTap: () => _logout(context)),
       ],
     );
   }
 
   Future<void> _changeEmail(BuildContext context) async {
+    final t = AppLocalizations.of(context);
     final supa = Supabase.instance.client;
     final current = supa.auth.currentUser?.email ?? '';
     final controller = TextEditingController(text: current);
@@ -118,8 +187,11 @@ class _AccountPlaceholders extends StatelessWidget {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('E-Mail ändern'),
-          content: Column(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(t.settings_change_email_title),
+          content: SizedBox(
+            width: 600,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -132,6 +204,7 @@ class _AccountPlaceholders extends StatelessWidget {
                 Text(error!, style: const TextStyle(color: Colors.red)),
               ],
             ],
+          ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
@@ -160,6 +233,7 @@ class _AccountPlaceholders extends StatelessWidget {
   }
 
   Future<void> _changePassword(BuildContext context) async {
+    final t = AppLocalizations.of(context);
     final pass1 = TextEditingController();
     final pass2 = TextEditingController();
     bool show1 = false;
@@ -170,8 +244,11 @@ class _AccountPlaceholders extends StatelessWidget {
       builder: (ctx) {
         return StatefulBuilder(builder: (ctx, setState) {
           return AlertDialog(
-            title: const Text('Passwort ändern'),
-            content: Column(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+            title: Text(t.settings_change_password_title),
+            content: SizedBox(
+              width: 600,
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
@@ -202,6 +279,7 @@ class _AccountPlaceholders extends StatelessWidget {
                   Text(error!, style: const TextStyle(color: Colors.red)),
                 ],
               ],
+            ),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
@@ -254,24 +332,54 @@ class _SettingsTile extends StatelessWidget {
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    // Bestimme Farben basierend auf Icon-Typ
+    Color iconColor;
+    Color iconBg;
+    if (icon == Icons.logout) {
+      iconColor = const Color(0xFFE53935);
+      iconBg = const Color(0xFFFFEBEE);
+    } else if (icon == Icons.email_outlined) {
+      iconColor = const Color(0xFF1976D2);
+      iconBg = const Color(0xFFE3F2FD);
+    } else {
+      iconColor = const Color(0xFF388E3C);
+      iconBg = const Color(0xFFE8F5E9);
+    }
+
+    return Material(
+      color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[200]!, width: 1),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Row(
             children: [
-              Icon(icon, color: Colors.black),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(label, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-              const Icon(Icons.chevron_right, color: Colors.black54),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF0A0A0A),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
             ],
           ),
         ),

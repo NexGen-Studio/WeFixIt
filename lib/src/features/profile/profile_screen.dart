@@ -20,7 +20,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _displayCtrl = TextEditingController();
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
-  String? _avatarUrl;
+  String? _avatarKey;  // Storage key (wird in DB gespeichert)
+  String? _avatarUrlUi;  // Signierte URL (nur für UI)
   bool _saving = false;
 
   @override
@@ -71,25 +72,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted) return;
     String? avatarUrlUi;
     if ((p?.avatarUrl ?? '').isNotEmpty) {
-      // p.avatarUrl enthält bei privaten Buckets den Storage-Key
+      // p.avatarUrl enthält den Storage-Key
       avatarUrlUi = await svc.getSignedAvatarUrl(p!.avatarUrl!);
     }
     setState(() {
       _displayCtrl.text = p?.displayName ?? '';
       _firstCtrl.text = p?.firstName ?? '';
       _lastCtrl.text = p?.lastName ?? '';
-      _avatarUrl = avatarUrlUi ?? p?.avatarUrl; // bevorzugt signierte URL
-      // vehiclePhotoUrl wird nicht mehr im Profilbereich angezeigt
+      _avatarKey = p?.avatarUrl;  // Speichere Key
+      _avatarUrlUi = avatarUrlUi;  // Speichere signierte URL für UI
     });
   }
 
   Future<void> _pickAvatar() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked == null) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (picked == null || !mounted) return;
     final svc = SupabaseService(Supabase.instance.client);
-    final url = await svc.uploadAvatarPhoto(picked.path);
-    if (url != null) {
-      setState(() => _avatarUrl = url);
+    final result = await svc.uploadAvatarPhoto(picked.path);
+    if (result != null) {
+      // result ist die signierte URL, wir brauchen aber den Key
+      final user = Supabase.instance.client.auth.currentUser;
+      final key = 'avatar_${user!.id}.jpg';
+      setState(() {
+        _avatarKey = key;
+        _avatarUrlUi = result;  // Verwende signierte URL für sofortige Anzeige
+      });
     }
   }
 
@@ -103,7 +110,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       displayName: _displayCtrl.text.trim().isEmpty ? null : _displayCtrl.text.trim(),
       firstName: _firstCtrl.text.trim().isNotEmpty ? _firstCtrl.text.trim() : null,
       lastName: _lastCtrl.text.trim().isNotEmpty ? _lastCtrl.text.trim() : null,
-      avatarUrl: _avatarUrl,
+      avatarUrl: _avatarKey,  // Speichere nur den Key in der DB!
     );
     await svc.saveUserProfile(profile);
     // Reload to ensure UI reflects DB
@@ -124,70 +131,263 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: const Color(0xFF636564),
-        title: Text(t.tr('profile.title')),
-        actions: [
-          IconButton(onPressed: () { context.go('/settings'); }, icon: const Icon(Icons.settings)),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Anzeigename oben links
-          if (_displayCtrl.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 8),
-              child: Text(
-                _displayCtrl.text,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(color: const Color(0xFF636564), fontWeight: FontWeight.w700),
-              ),
-            ),
-          _GlassCard(
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    final url = _avatarUrl;
-                    if (url != null && url.isNotEmpty) _showImagePreview(url);
-                  },
-                  child: CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Colors.white24,
-                    backgroundImage: (_avatarUrl ?? '').isNotEmpty ? NetworkImage(_avatarUrl!) : null,
-                    child: (_avatarUrl ?? '').isNotEmpty ? null : const Icon(Icons.person, color: Color(0xFF64748B)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+
+    // Wenn nicht eingeloggt, zeige Login-CTA
+    if (!isLoggedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
+        body: SafeArea(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Row(
                     children: [
-                      Text(t.tr('profile.account'), style: const TextStyle(color: Color(0xFF636564), fontWeight: FontWeight.w600)),
-                      Text(Supabase.instance.client.auth.currentUser?.email ?? '', style: const TextStyle(color: Color(0xFF64748B))),
+                      const Expanded(
+                        child: Text(
+                          'Profil',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0A0A0A),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!, width: 1),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.settings, color: Color(0xFF0A0A0A)),
+                          onPressed: () => context.go('/settings'),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                TextButton(
-                  onPressed: _pickAvatar,
-                  child: const Text('Profilbild wählen', style: TextStyle(color: Color(0xFF2563EB))),
-                )
-              ],
-            ),
+              ),
+
+              // Login-CTA Card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey[200]!, width: 1),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE3F2FD),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_outline,
+                            size: 48,
+                            color: Color(0xFF1976D2),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          t.profile_please_login,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0A0A0A),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          t.profile_login_message,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => context.go('/auth'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              t.profile_login_now,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),  
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
           ),
-          const SizedBox(height: 12),
-          _GlassCard(
-            child: Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-                collapsedIconColor: const Color(0xFF636564),
-                iconColor: const Color(0xFF636564),
-                title: Text('Profil', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF636564))),
+        ),
+      );
+    }
+
+    // Normaler Profil-Screen für eingeloggte User
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Header
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _displayCtrl.text.isNotEmpty ? _displayCtrl.text : t.tr('profile.title'),
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0A0A0A),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            Supabase.instance.client.auth.currentUser?.email ?? '',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.settings, color: Color(0xFF0A0A0A)),
+                        onPressed: () => context.go('/settings'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Profil-Karte
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey[200]!, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              final url = _avatarUrlUi;
+                              if (url != null && url.isNotEmpty) _showImagePreview(url);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey[300]!, width: 2),
+                              ),
+                              child: CircleAvatar(
+                                radius: 28,
+                                backgroundColor: Colors.grey[100],
+                                backgroundImage: (_avatarUrlUi ?? '').isNotEmpty ? NetworkImage(_avatarUrlUi!) : null,
+                                child: (_avatarUrlUi ?? '').isNotEmpty ? null : Icon(Icons.person_outline, color: Colors.grey[600], size: 28),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.profile_profile_picture,
+                                  style: TextStyle(
+                                    color: Color(0xFF0A0A0A),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  t.profile_click_to_change,
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _pickAvatar,
+                            icon: const Icon(Icons.edit, color: Color(0xFF2563EB)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _GlassCard(
+                      child: Theme(
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                          collapsedIconColor: const Color(0xFF0A0A0A),
+                          iconColor: const Color(0xFF0A0A0A),
+                          title: Text(
+                            t.profile_edit_profile,
+                            style: TextStyle(
+                              color: Color(0xFF0A0A0A),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
                 children: [
                   Form(
                     key: _formKey,
@@ -196,59 +396,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       children: [
                         _GlassField(
                           controller: _displayCtrl,
-                          label: 'Anzeigename',
+                          label: t.profile_display_name,
                         ),
                         const SizedBox(height: 8),
                         Row(children: [
-                          Expanded(child: _GlassField(controller: _firstCtrl, label: 'Vorname')),
+                          Expanded(child: _GlassField(controller: _firstCtrl, label: t.profile_first_name)),
                           const SizedBox(width: 8),
-                          Expanded(child: _GlassField(controller: _lastCtrl, label: 'Nachname')),
+                          Expanded(child: _GlassField(controller: _lastCtrl, label: t.profile_last_name)),
                         ]),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
                               child: _GlassButton(
-                                label: 'Profilbild wählen',
+                                label: t.profile_choose_picture,
                                 onPressed: _pickAvatar,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _GlassButton(label: _saving ? 'Speichern…' : 'Speichern', onPressed: _saving ? null : _save),
+                        _GlassButton(label: _saving ? t.profile_saving : t.profile_save, onPressed: _saving ? null : _save),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Fahrzeugdaten bearbeiten (einklappbar)
-          _GlassCard(child: _VehicleForm()),
-          const SizedBox(height: 12),
-          // Tabs: Letzte Diagnosen / Letzte Chats (Platzhalter)
-          _GlassCard(
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  const TabBar(labelColor: Color(0xFF636564), unselectedLabelColor: Color(0xFF94A3B8), tabs: [Tab(text: 'Diagnosen'), Tab(text: 'Ask Toni!')]),
-                  SizedBox(
-                    height: 160,
-                    child: TabBarView(
-                      children: [
-                        _LastListPlaceholder(kind: 'Diagnose'),
-                        _LastListPlaceholder(kind: 'Chat'),
-                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    // Fahrzeugdaten bearbeiten (einklappbar)
+                    _GlassCard(child: _VehicleForm()),
+                    const SizedBox(height: 12),
+                    // Tabs: Letzte Diagnosen / Letzte Chats (Platzhalter)
+                    _GlassCard(
+                      child: DefaultTabController(
+                        length: 2,
+                        child: Column(
+                          children: [
+                            TabBar(
+                              labelColor: Color(0xFF0A0A0A),
+                              unselectedLabelColor: Color(0xFF94A3B8),
+                              tabs: [
+                                Tab(text: t.profile_diagnoses),
+                                Tab(text: 'Ask Toni!'),
+                              ],
+                            ),
+                            SizedBox(
+                              height: 160,
+                              child: TabBarView(
+                                children: [
+                                  _LastListPlaceholder(kind: 'Diagnose'),
+                                  _LastListPlaceholder(kind: 'Chat'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -261,15 +474,9 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.grey[200]!, width: 1),
       ),
       padding: const EdgeInsets.all(12),
       child: child,
@@ -390,13 +597,14 @@ class _VehicleFormState extends State<_VehicleForm> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 8),
         collapsedIconColor: const Color(0xFF636564),
         iconColor: const Color(0xFF636564),
-        title: Text('Fahrzeugdaten', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF636564))),
+        title: Text(t.profile_vehicle_data, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF636564))),
         children: [
           Form(
             key: _formKey,
@@ -405,22 +613,22 @@ class _VehicleFormState extends State<_VehicleForm> {
               children: [
                 _GlassField(
                   controller: _make,
-                  label: 'Marke',
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Pflichtfeld' : null,
+                  label: t.profile_make,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? t.profile_required : null,
                 ),
                 const SizedBox(height: 8),
                 _GlassField(
                   controller: _model,
-                  label: 'Modell',
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Pflichtfeld' : null,
+                  label: t.profile_model,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? t.profile_required : null,
                 ),
                 const SizedBox(height: 8),
                 _GlassField(
                   controller: _year,
-                  label: 'Baujahr (YYYY)',
+                  label: t.profile_year,
                   keyboardType: TextInputType.number,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Pflichtfeld';
+                    if (v == null || v.trim().isEmpty) return t.profile_required;
                     final y = int.tryParse(v.trim());
                     final now = DateTime.now().year;
                     if (y == null || y < 1886 || y > now) return 'Ungültiges Jahr';
@@ -428,11 +636,11 @@ class _VehicleFormState extends State<_VehicleForm> {
                   },
                 ),
                 const SizedBox(height: 8),
-                _GlassField(controller: _engine, label: 'Motorcode'),
+                _GlassField(controller: _engine, label: t.profile_engine_code),
                 const SizedBox(height: 8),
                 _GlassField(
                   controller: _displCc,
-                  label: 'Hubraum (cc)',
+                  label: t.profile_displacement,
                   keyboardType: TextInputType.number,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return null; // optional
@@ -467,7 +675,7 @@ class _VehicleFormState extends State<_VehicleForm> {
                 const SizedBox(height: 8),
                 _GlassField(
                   controller: _mileage,
-                  label: 'Kilometerstand (km)',
+                  label: t.profile_mileage,
                   keyboardType: TextInputType.number,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return null; // optional
@@ -478,7 +686,7 @@ class _VehicleFormState extends State<_VehicleForm> {
                 ),
                 const SizedBox(height: 12),
                 _GlassButton(
-                  label: _loading ? 'Laden…' : 'Fahrzeug speichern',
+                  label: _loading ? t.profile_loading : t.profile_save_vehicle,
                   onPressed: _loading
                       ? null
                       : () {
@@ -532,11 +740,12 @@ class _LastListPlaceholder extends StatelessWidget {
   final String kind;
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return ListView(
       children: [
-        ListTile(title: Text('Letzte $kind 1', style: const TextStyle(color: Color(0xFF636564)))),
-        ListTile(title: Text('Letzte $kind 2', style: const TextStyle(color: Color(0xFF636564)))),
-        ListTile(title: Text('Letzte $kind 3', style: const TextStyle(color: Color(0xFF636564)))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '1'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '2'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '3'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
       ],
     );
   }

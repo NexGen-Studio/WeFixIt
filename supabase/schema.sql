@@ -367,31 +367,33 @@ create policy "avatars_owner_delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'avatars' and owner = auth.uid());
 
--- === Quick Tips (for Home screen rotation) ===
+-- === Quick Tips (for Home screen rotation) - i18n Support ===
 create table if not exists public.tips (
   id uuid primary key default uuid_generate_v4(),
-  title text not null,
-  body text not null,
+  title_de text not null,
+  title_en text not null,
+  body_de text not null,
+  body_en text not null,
   created_at timestamptz not null default now()
 );
 alter table public.tips enable row level security;
 drop policy if exists "tips_read_all" on public.tips;
 create policy "tips_read_all" on public.tips for select using (true);
 
--- Seed initial 10 tips if empty
+-- Seed initial 10 tips if empty (bilingual)
 do $$ begin
   if (select count(*) from public.tips) = 0 then
-    insert into public.tips (title, body) values
-      ('Reifenluftdruck prüfen', 'Prüfe monatlich den Reifenluftdruck – falscher Druck erhöht Verbrauch und Verschleiß.'),
-      ('Ölstand im Blick behalten', 'Kontrolliere den Ölstand alle paar Wochen, vor allem vor langen Fahrten.'),
-      ('Wischerblätter wechseln', 'Schlieren auf der Scheibe? Zeit für neue Wischerblätter – mehr Sicht, mehr Sicherheit.'),
-      ('Bremsen checken', 'Achte auf quietschende Geräusche oder längere Bremswege – frühzeitig Werkstatt aufsuchen.'),
-      ('Lichter testen', 'Regelmäßig Front-, Rück- und Bremslichter testen – bessere Sicht und Sichtbarkeit.'),
-      ('Kühlflüssigkeit prüfen', 'Der Kühlflüssigkeitsstand sollte zwischen Min/Max liegen – schützt vor Überhitzung.'),
-      ('Batterie pflegen', 'Kurze Strecken und Kälte belasten die Batterie – gelegentlich längere Fahrten einplanen.'),
-      ('Reifendruck nach Beladung', 'Bei hoher Beladung den Reifendruck laut Hersteller erhöhen – Sicherheit + Effizienz.'),
-      ('Klimaanlage nutzen', 'Auch im Winter kurz laufen lassen – beugt Gerüchen vor und schont Dichtungen.'),
-      ('Sanft beschleunigen', 'Vorausschauend fahren spart Sprit und schont Motor und Bremsen.');
+    insert into public.tips (title_de, title_en, body_de, body_en) values
+      ('Reifenluftdruck prüfen', 'Check tire pressure', 'Prüfe monatlich den Reifenluftdruck – falscher Druck erhöht Verbrauch und Verschleiß.', 'Check tire pressure monthly – incorrect pressure increases fuel consumption and wear.'),
+      ('Ölstand im Blick behalten', 'Keep an eye on oil level', 'Kontrolliere den Ölstand alle paar Wochen, vor allem vor langen Fahrten.', 'Check the oil level every few weeks, especially before long trips.'),
+      ('Wischerblätter wechseln', 'Replace wiper blades', 'Schlieren auf der Scheibe? Zeit für neue Wischerblätter – mehr Sicht, mehr Sicherheit.', 'Streaks on the windshield? Time for new wiper blades – better visibility, more safety.'),
+      ('Bremsen checken', 'Check brakes', 'Achte auf quietschende Geräusche oder längere Bremswege – frühzeitig Werkstatt aufsuchen.', 'Watch for squeaking sounds or longer braking distances – visit the workshop early.'),
+      ('Lichter testen', 'Test lights', 'Regelmäßig Front-, Rück- und Bremslichter testen – bessere Sicht und Sichtbarkeit.', 'Regularly test front, rear and brake lights – better vision and visibility.'),
+      ('Kühlflüssigkeit prüfen', 'Check coolant', 'Der Kühlflüssigkeitsstand sollte zwischen Min/Max liegen – schützt vor Überhitzung.', 'The coolant level should be between Min/Max – protects against overheating.'),
+      ('Batterie pflegen', 'Maintain battery', 'Kurze Strecken und Kälte belasten die Batterie – gelegentlich längere Fahrten einplanen.', 'Short distances and cold weather stress the battery – plan occasional longer trips.'),
+      ('Reifendruck nach Beladung', 'Tire pressure when loaded', 'Bei hoher Beladung den Reifendruck laut Hersteller erhöhen – Sicherheit + Effizienz.', 'Increase tire pressure according to manufacturer when heavily loaded – safety + efficiency.'),
+      ('Klimaanlage nutzen', 'Use air conditioning', 'Auch im Winter kurz laufen lassen – beugt Gerüchen vor und schont Dichtungen.', 'Run it briefly even in winter – prevents odors and protects seals.'),
+      ('Sanft beschleunigen', 'Accelerate gently', 'Vorausschauend fahren spart Sprit und schont Motor und Bremsen.', 'Anticipatory driving saves fuel and protects engine and brakes.');
   end if;
 end $$;
 

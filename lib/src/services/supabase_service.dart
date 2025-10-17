@@ -72,6 +72,10 @@ class SupabaseService {
 
   Future<String?> getSignedAvatarUrl(String key) async {
     try {
+      // Prüfe ob es bereits eine URL ist (Fallback für alte Daten)
+      if (key.startsWith('http://') || key.startsWith('https://')) {
+        return key;  // Bereits eine URL, nicht nochmal signieren
+      }
       final signed = await client.storage.from('avatars').createSignedUrl(key, 60 * 60);
       final bust = DateTime.now().millisecondsSinceEpoch;
       return '$signed&t=$bust';

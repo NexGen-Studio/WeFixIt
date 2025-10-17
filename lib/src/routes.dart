@@ -5,6 +5,8 @@ import 'features/diagnose/diagnose_screen.dart';
 import 'features/chatbot/chatbot_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/maintenance/create_reminder_screen.dart';
+import 'features/maintenance/maintenance_dashboard_screen.dart';
 import 'widgets/ad_banner.dart';
 import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
@@ -65,10 +67,8 @@ GoRouter createRouter() {
       final location = state.matchedLocation;
       final loggingIn = location == '/auth';
 
-      // Nur bestimmte Routen schützen
-      final isProtected = location.startsWith('/diagnose')
-          || location.startsWith('/asktoni')
-          || location.startsWith('/profile');
+      // Nur bestimmte Routen schützen (KI-Features benötigen Login)
+      final isProtected = location.startsWith('/asktoni');
 
       // Wenn nicht eingeloggt und geschützte Route: zur Auth
       if (!isLoggedIn && isProtected) return '/auth';
@@ -122,6 +122,16 @@ GoRouter createRouter() {
               child: SettingsScreen(),
             ),
           ),
+          GoRoute(
+            path: '/maintenance',
+            builder: (context, state) => const MaintenanceDashboardScreen(),
+            routes: [
+              GoRoute(
+                path: 'create',
+                builder: (context, state) => const CreateReminderScreen(),
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -169,35 +179,17 @@ class _RootScaffoldState extends State<_RootScaffold> {
     final currentIndex = _indexFromLocation(location);
     return Scaffold(
       extendBody: true,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Vollflächiger Verlaufshintergrund - Hell und modern
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFFFFFFF), // Weiß oben
-                  Color(0xFFBBDEFB), // Deutliches Hellblau unten
-                ],
-              ),
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(child: widget.child),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: AdBannerPlaceholder(),
             ),
-          ),
-          // Inhalt + Ads innerhalb von SafeArea
-          SafeArea(
-            child: Column(
-              children: [
-                Expanded(child: widget.child),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: AdBannerPlaceholder(),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -228,7 +220,7 @@ class _RootScaffoldState extends State<_RootScaffold> {
           onTap: _onTap,
           items: [
             BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), label: AppLocalizations.of(context).tr('tabs.home')),
-            BottomNavigationBarItem(icon: const Icon(Icons.car_repair), label: AppLocalizations.of(context).tr('tabs.diagnose')),
+            BottomNavigationBarItem(icon: const Icon(Icons.search), label: AppLocalizations.of(context).tr('tabs.diagnose')),
             BottomNavigationBarItem(icon: const Icon(Icons.chat_bubble_outline), label: AppLocalizations.of(context).tr('tabs.ask_toni')),
             BottomNavigationBarItem(icon: const Icon(Icons.person_outline), label: AppLocalizations.of(context).tr('tabs.profile')),
           ],

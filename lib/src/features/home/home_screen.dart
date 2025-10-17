@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../services/maintenance_service.dart';
 import '../../models/profile.dart';
+import '../../models/maintenance_reminder.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,12 +24,23 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _tipTimer;
   double _tipOpacity = 1.0;
   String? _avatarUrlUi;
+  MaintenanceReminder? _nextReminder;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
     _loadTips();
+    _loadNextReminder();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload Profil wenn zum Screen zurückgekehrt wird
+    if (ModalRoute.of(context)?.isCurrent == true) {
+      _loadProfile();
+    }
   }
 
   void _showImagePreview(String url) {
@@ -66,6 +80,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadProfile() async {
+    // Nur laden wenn eingeloggt
+    if (Supabase.instance.client.auth.currentSession == null) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      return;
+    }
+    
     final svc = SupabaseService(Supabase.instance.client);
     final p = await svc.fetchUserProfile();
     String? avatarUi;
@@ -103,6 +124,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadNextReminder() async {
+    // Nur laden wenn eingeloggt
+    if (Supabase.instance.client.auth.currentSession == null) return;
+
+    try {
+      final svc = MaintenanceService(Supabase.instance.client);
+      final reminder = await svc.fetchNextReminder();
+      if (!mounted) return;
+      setState(() => _nextReminder = reminder);
+    } catch (e) {
+      // Fehler ignorieren, optional loggen
+    }
+  }
+
   @override
   void dispose() {
     _tipTimer?.cancel();
@@ -117,227 +152,406 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${t.tr('home.greeting').replaceAll('!', '')} $name!';
   }
 
+  void _showLoginRequired(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.of(context).home_login_required_title),
+        content: Text(AppLocalizations.of(context).home_login_required_message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(AppLocalizations.of(context).home_login_cancel),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.go('/auth');
+            },
+            child: Text(AppLocalizations.of(context).home_login_confirm),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFAFAFA),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Header Begrüßung (optional mit kleinem Fahrzeugbild)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    _loading ? t.tr('home.greeting') : _greeting(t),
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineLarge
-                        ?.copyWith(color: const Color(0xFF636564), fontWeight: FontWeight.w700),
-                  ),
-                ),
-                if ((_avatarUrlUi ?? '').isNotEmpty)
-                  GestureDetector(
-                    onTap: () => _showImagePreview(_avatarUrlUi!),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundImage: NetworkImage(_avatarUrlUi!),
-                      backgroundColor: Colors.white24,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Header mit Begrüßung
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _loading ? t.tr('home.greeting') : _greeting(t),
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0A0A0A),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            t.home_vehicle_overview,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Reminders / Next maintenance card
-            _InfoCard(
-              title: t.tr('home.reminders'),
-              subtitle: t.tr('home.next_maintenance_placeholder'),
-              leading: const Icon(Icons.event_available, color: Color(0xFFF97316)),
-            ),
-            const SizedBox(height: 12),
-
-            // Grid of quick actions
-            GridView.count(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: [
-                _TileButton(
-                  color: const Color(0xFFDC2626), // Kräftiges Rot - Warnung/Fehler
-                  icon: Icons.car_repair,
-                  label: t.tr('home.read_dtcs'),
-                  onTap: () => context.go('/diagnose'),
-                ),
-                _TileButton(
-                  color: const Color(0xFF0891B2), // Cyan - harmoniert mit Teal
-                  icon: Icons.build,
-                  label: t.tr('home.maintenance'),
-                  onTap: () {},
-                ),
-                _TileButton(
-                  color: const Color(0xFF008080), // teal - Finanzen
-                  icon: Icons.attach_money,
-                  label: t.tr('home.costs'),
-                  onTap: () {},
-                ),
-                _TileButton(
-                  color: const Color(0xFFFBBF24), // Gelb - Ask Toni!
-                  icon: Icons.chat_bubble_outline,
-                  label: t.tr('home.ask_toni'),
-                  onTap: () => context.go('/asktoni'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-            // Quick tips
-            Text(
-              t.tr('home.quick_tips'),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: const Color(0xFF636564), fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Builder(builder: (_) {
-              final title = _tips.isEmpty
-                  ? t.tr('home.tip_1_title')
-                  : (_tips[_tipIndex]['title'] ?? '').toString();
-              final body = _tips.isEmpty
-                  ? t.tr('home.tip_1_body')
-                  : (_tips[_tipIndex]['body'] ?? '').toString();
-              return Card(
-                key: const ValueKey('tips_card_shell'),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                color: const Color(0xFFF8F9FA),
-                elevation: 6,
-                shadowColor: Colors.black.withOpacity(0.15),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.tips_and_updates, color: Colors.amber),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeInOut,
-                          opacity: _tipOpacity,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                body,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black87),
-                              ),
-                            ],
+                    if ((_avatarUrlUi ?? '').isNotEmpty)
+                      GestureDetector(
+                        onTap: () => _showImagePreview(_avatarUrlUi!),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey[300]!, width: 2),
+                          ),
+                          child: CircleAvatar(
+                            radius: 22,
+                            backgroundImage: NetworkImage(_avatarUrlUi!),
+                            backgroundColor: Colors.grey[100],
                           ),
                         ),
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey[300]!, width: 2),
+                        ),
+                        child: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Colors.grey[100],
+                          child: Icon(Icons.person_outline, color: Colors.grey[600], size: 24),
+                        ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({Key? key, required this.title, required this.subtitle, required this.leading}) : super(key: key);
-  final String title;
-  final String subtitle;
-  final Widget leading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: const Color(0xFFF8F9FA),
-      elevation: 6,
-      shadowColor: Colors.black.withOpacity(0.15),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black87)),
-                ],
               ),
             ),
+
+            // Nächste Wartungen (rotierend wie Kurztipps)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _buildRotatingMaintenanceCard(context),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+
+            // "Mein Fahrzeug" Section Header
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  t.home_my_vehicle,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0A0A0A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // Feature Liste
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _buildProFeatureCard(
+                    icon: Icons.search,
+                    iconColor: const Color(0xFFE53935),
+                    iconBg: const Color(0xFFFFEBEE),
+                    title: t.home_read_dtcs,
+                    subtitle: t.home_read_dtcs_subtitle,
+                    onTap: () => context.go('/diagnose'),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProFeatureCard(
+                    icon: Icons.build_outlined,
+                    iconColor: const Color(0xFF1976D2),
+                    iconBg: const Color(0xFFE3F2FD),
+                    title: t.home_maintenance,
+                    subtitle: t.home_maintenance_subtitle,
+                    onTap: () => context.go('/maintenance'),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProFeatureCard(
+                    icon: Icons.payments_outlined,
+                    iconColor: const Color(0xFF388E3C),
+                    iconBg: const Color(0xFFE8F5E9),
+                    title: t.home_costs,
+                    subtitle: t.home_costs_subtitle,
+                    onTap: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  _buildProFeatureCard(
+                    icon: Icons.chat_bubble_outline,
+                    iconColor: const Color(0xFFF57C00),
+                    iconBg: const Color(0xFFFFF3E0),
+                    title: t.home_ask_toni,
+                    subtitle: t.home_ask_toni_subtitle,
+                    onTap: () {
+                      final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+                      if (!isLoggedIn) {
+                        _showLoginRequired(context);
+                      } else {
+                        context.go('/asktoni');
+                      }
+                    },
+                  ),
+                ]),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+
+            // Kurztipps Section
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  t.tr('home.quick_tips'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0A0A0A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // Tip Card
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Builder(builder: (context) {
+                  // Bestimme Sprache basierend auf aktuellem Locale
+                  final locale = Localizations.localeOf(context).languageCode;
+                  final isGerman = locale == 'de';
+                  
+                  final title = _tips.isEmpty
+                      ? t.tr('home.tip_1_title')
+                      : (_tips[_tipIndex][isGerman ? 'title_de' : 'title_en'] ?? '').toString();
+                  final body = _tips.isEmpty
+                      ? t.tr('home.tip_1_body')
+                      : (_tips[_tipIndex][isGerman ? 'body_de' : 'body_en'] ?? '').toString();
+                  return _buildTipCard(title: title, body: body);
+                }),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         ),
       ),
     );
   }
-}
 
-class _TileButton extends StatelessWidget {
-  const _TileButton({required this.color, required this.icon, required this.label, this.onTap});
-  final Color color;
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: onTap,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 15,
-              offset: const Offset(0, 6),
-              spreadRadius: 1,
+  // Rotierende Wartungs-Card (wie Kurztipps)
+  Widget _buildRotatingMaintenanceCard(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    // Placeholder wenn keine Wartung vorhanden
+    if (_nextReminder == null) {
+      return GestureDetector(
+        onTap: () => context.go('/maintenance'),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF1976D2).withOpacity(0.15),
+                const Color(0xFF1976D2).withOpacity(0.08),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.4), width: 1.5),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: Colors.white, size: 32),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1976D2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.event_note, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.home_no_maintenance_title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: Color(0xFF0A0A0A),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      t.home_no_maintenance_subtitle,
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 13,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    final reminder = _nextReminder!;
+    final daysUntil = reminder.dueDate != null
+        ? reminder.dueDate!.difference(DateTime.now()).inDays
+        : null;
+
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    if (daysUntil != null) {
+      if (daysUntil < 0) {
+        statusColor = const Color(0xFFE53935); // Rot: überfällig
+        statusText = t.home_overdue;
+        statusIcon = Icons.warning;
+      } else if (daysUntil == 0) {
+        statusColor = const Color(0xFFF57C00); // Orange: heute
+        statusText = t.home_due_today;
+        statusIcon = Icons.event_available;
+      } else if (daysUntil <= 7) {
+        statusColor = const Color(0xFFF57C00); // Orange: bald
+        statusText = t.home_in_days.replaceAll('{days}', daysUntil.toString());
+        statusIcon = Icons.event_note;
+      } else {
+        statusColor = const Color(0xFF4CAF50); // Grün: ok
+        statusText = t.home_in_days.replaceAll('{days}', daysUntil.toString());
+        statusIcon = Icons.event;
+      }
+    } else {
+      statusColor = const Color(0xFF1976D2); // Blau: kilometer
+      statusText = t.home_due_at_km.replaceAll('{km}', (reminder.dueMileage ?? 0).toString());
+      statusIcon = Icons.speed;
+    }
+
+    return GestureDetector(
+      onTap: () => context.go('/maintenance'),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        opacity: _tipOpacity,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                statusColor.withOpacity(0.15),
+                statusColor.withOpacity(0.08),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(statusIcon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            reminder.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              color: Color(0xFF0A0A0A),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (reminder.description?.isNotEmpty == true) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        reminder.description!,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -346,4 +560,131 @@ class _TileButton extends StatelessWidget {
       ),
     );
   }
+
+  // Professional Feature Card (Tesla/Kleinanzeigen Style)
+  Widget _buildProFeatureCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[200]!, width: 1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0A0A0A),
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Professional Tip Card
+  Widget _buildTipCard({required String title, required String body}) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      opacity: _tipOpacity,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!, width: 1),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.lightbulb_outline,
+                color: Color(0xFFF57C00),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFF0A0A0A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    body,
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 13,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
+
