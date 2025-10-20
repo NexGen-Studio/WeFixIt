@@ -7,6 +7,8 @@ import 'features/profile/profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/maintenance/create_reminder_screen.dart';
 import 'features/maintenance/maintenance_dashboard_screen.dart';
+import 'features/maintenance/maintenance_home_screen.dart';
+import 'features/maintenance/extended_create_reminder_screen.dart';
 import 'widgets/ad_banner.dart';
 import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
@@ -128,9 +130,13 @@ GoRouter createRouter() {
             routes: [
               GoRoute(
                 path: 'create',
-                builder: (context, state) => const CreateReminderScreen(),
+                builder: (context, state) => const ExtendedCreateReminderScreen(),
               ),
             ],
+          ),
+          GoRoute(
+            path: '/maintenance-home',
+            builder: (context, state) => const MaintenanceHomeScreen(),
           ),
         ],
       ),

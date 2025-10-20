@@ -296,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     iconBg: const Color(0xFFE3F2FD),
                     title: t.home_maintenance,
                     subtitle: t.home_maintenance_subtitle,
-                    onTap: () => context.go('/maintenance'),
+                    onTap: () => context.go('/maintenance-home'),
                   ),
                   const SizedBox(height: 12),
                   _buildProFeatureCard(

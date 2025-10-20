@@ -175,6 +175,77 @@ class AppLocalizations {
   String get maintenance_overdue_count => tr('maintenance.overdue_count');
   String get maintenance_completed => tr('maintenance.completed');
   String get maintenance_total => tr('maintenance.total');
+
+  // Extended Maintenance getters (matching assets/i18n keys)
+  String get maintenance_export_title => tr('maintenance.export_title');
+  String get maintenance_export_csv => tr('maintenance.export_csv');
+  String get maintenance_total_cost => tr('maintenance.total_cost');
+
+  String get maintenance_stats_upcoming => tr('maintenance.stats_upcoming');
+  String get maintenance_stats_overdue => tr('maintenance.stats_overdue');
+  String get maintenance_stats_completed => tr('maintenance.stats_completed');
+  String get maintenance_stats_total => tr('maintenance.stats_total');
+
+  String get maintenance_categories => tr('maintenance.categories');
+  String get maintenance_category_oil_change => tr('maintenance.category_oil_change');
+  String get maintenance_category_tire_change => tr('maintenance.category_tire_change');
+  String get maintenance_category_brakes => tr('maintenance.category_brakes');
+  String get maintenance_category_tuv => tr('maintenance.category_tuv');
+  String get maintenance_category_inspection => tr('maintenance.category_inspection');
+  String get maintenance_category_battery => tr('maintenance.category_battery');
+  String get maintenance_category_filter => tr('maintenance.category_filter');
+  String get maintenance_category_insurance => tr('maintenance.category_insurance');
+  String get maintenance_category_tax => tr('maintenance.category_tax');
+  String get maintenance_category_other => tr('maintenance.category_other');
+
+  String get maintenance_suggestions_title => tr('maintenance.suggestions_title');
+
+  String get maintenance_photos_title => tr('maintenance.photos_title');
+  String get maintenance_photos_add => tr('maintenance.photos_add');
+  String get maintenance_documents_title => tr('maintenance.documents_title');
+  String get maintenance_documents_upload_pdf => tr('maintenance.documents_upload_pdf');
+  
+  String get maintenance_notes_title => tr('maintenance.notes_title');
+  String get maintenance_notes_hint => tr('maintenance.notes_hint');
+
+  String get maintenance_workshop => tr('maintenance.workshop');
+  String get maintenance_workshop_name => tr('maintenance.workshop_name');
+  String get maintenance_workshop_name_hint => tr('maintenance.workshop_name_hint');
+  String get maintenance_workshop_address => tr('maintenance.workshop_address');
+  String get maintenance_workshop_address_hint => tr('maintenance.workshop_address_hint');
+
+  String get maintenance_cost_title => tr('maintenance.cost_title');
+  String get maintenance_cost_hint => tr('maintenance.cost_hint');
+  String get maintenance_cost_currency => tr('maintenance.cost_currency');
+
+  String get maintenance_mileage_at_maintenance => tr('maintenance.mileage_at_maintenance');
+
+  String get maintenance_notification_enabled => tr('maintenance.notification_enabled');
+  String get maintenance_notification_subtitle => tr('maintenance.notification_subtitle');
+
+  // Suggestions
+  String get maintenance_suggestion_oil_recommended_title => tr('maintenance.suggestion_oil_recommended_title');
+  String get maintenance_suggestion_oil_due_title => tr('maintenance.suggestion_oil_due_title');
+  String get maintenance_suggestion_oil_soon_title => tr('maintenance.suggestion_oil_soon_title');
+  String get maintenance_suggestion_oil_reason_none => tr('maintenance.suggestion_oil_reason_none');
+  String get maintenance_suggestion_oil_reason_since_km => tr('maintenance.suggestion_oil_reason_since_km');
+
+  String get maintenance_season_summer => tr('maintenance.season_summer');
+  String get maintenance_season_winter => tr('maintenance.season_winter');
+  String get maintenance_suggestion_tire_change_title => tr('maintenance.suggestion_tire_change_title');
+  String get maintenance_suggestion_tire_change_reason_months => tr('maintenance.suggestion_tire_change_reason_months');
+
+  String get maintenance_suggestion_tuv_due_title => tr('maintenance.suggestion_tuv_due_title');
+  String get maintenance_suggestion_tuv_soon_title => tr('maintenance.suggestion_tuv_soon_title');
+  String get maintenance_suggestion_tuv_reason_months => tr('maintenance.suggestion_tuv_reason_months');
+
+  String get maintenance_suggestion_inspection_title => tr('maintenance.suggestion_inspection_title');
+  String get maintenance_suggestion_annual_inspection_title => tr('maintenance.suggestion_annual_inspection_title');
+  String get maintenance_suggestion_inspection_reason_km => tr('maintenance.suggestion_inspection_reason_km');
+  String get maintenance_suggestion_inspection_reason_months => tr('maintenance.suggestion_inspection_reason_months');
+
+  String get maintenance_suggestion_battery_check_title => tr('maintenance.suggestion_battery_check_title');
+  String get maintenance_suggestion_battery_reason_months => tr('maintenance.suggestion_battery_reason_months');
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

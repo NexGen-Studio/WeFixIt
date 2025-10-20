@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/routes.dart';
+import 'src/services/maintenance_notification_service.dart';
 
 // Umschaltbarer Modus für die Launch-Animation:
 // false (Standard): Kein Overlay-Icon – erst System-Icon, dann Splash-Content von 0 -> 1.
@@ -114,6 +115,9 @@ class _SplashScreenState extends State<SplashScreen>
         url: supabaseUrl,
         anonKey: supabaseAnon,
       );
+      
+      // Notification Service initialisieren
+      await MaintenanceNotificationService.initialize();
       
       // Init-Status setzen
       markSupabaseInitialized();

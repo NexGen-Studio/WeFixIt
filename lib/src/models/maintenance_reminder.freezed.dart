@@ -27,23 +27,42 @@ mixin _$MaintenanceReminder {
   @JsonKey(name: 'vehicle_id')
   String? get vehicleId => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
-  String? get description => throw _privateConstructorUsedError;
+  String? get description =>
+      throw _privateConstructorUsedError; // Kategorie & Status
+  MaintenanceCategory? get category => throw _privateConstructorUsedError;
+  MaintenanceStatus get status =>
+      throw _privateConstructorUsedError; // Typ & Fälligkeiten
   @JsonKey(name: 'reminder_type')
   ReminderType get reminderType => throw _privateConstructorUsedError;
   @JsonKey(name: 'due_date')
   DateTime? get dueDate => throw _privateConstructorUsedError;
   @JsonKey(name: 'due_mileage')
-  int? get dueMileage => throw _privateConstructorUsedError;
+  int? get dueMileage => throw _privateConstructorUsedError; // Kilometerdaten
+  @JsonKey(name: 'mileage_at_maintenance')
+  int? get mileageAtMaintenance => throw _privateConstructorUsedError; // Wiederkehrend
   @JsonKey(name: 'is_recurring')
   bool get isRecurring => throw _privateConstructorUsedError;
   @JsonKey(name: 'recurrence_interval_days')
   int? get recurrenceIntervalDays => throw _privateConstructorUsedError;
   @JsonKey(name: 'recurrence_interval_km')
-  int? get recurrenceIntervalKm => throw _privateConstructorUsedError;
+  int? get recurrenceIntervalKm => throw _privateConstructorUsedError; // Werkstatt
+  @JsonKey(name: 'workshop_name')
+  String? get workshopName => throw _privateConstructorUsedError;
+  @JsonKey(name: 'workshop_address')
+  String? get workshopAddress => throw _privateConstructorUsedError; // Kosten & Notizen
+  double? get cost => throw _privateConstructorUsedError;
+  String? get notes => throw _privateConstructorUsedError; // Dateien
+  List<String> get photos => throw _privateConstructorUsedError;
+  List<String> get documents =>
+      throw _privateConstructorUsedError; // Benachrichtigungen
+  @JsonKey(name: 'notification_enabled')
+  bool get notificationEnabled => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_notification_sent')
+  DateTime? get lastNotificationSent => throw _privateConstructorUsedError; // Legacy Felder (backward compatibility)
   @JsonKey(name: 'is_completed')
   bool get isCompleted => throw _privateConstructorUsedError;
   @JsonKey(name: 'completed_at')
-  DateTime? get completedAt => throw _privateConstructorUsedError;
+  DateTime? get completedAt => throw _privateConstructorUsedError; // Timestamps
   @JsonKey(name: 'created_at')
   DateTime get createdAt => throw _privateConstructorUsedError;
   @JsonKey(name: 'updated_at')
@@ -72,12 +91,23 @@ abstract class $MaintenanceReminderCopyWith<$Res> {
     @JsonKey(name: 'vehicle_id') String? vehicleId,
     String title,
     String? description,
+    MaintenanceCategory? category,
+    MaintenanceStatus status,
     @JsonKey(name: 'reminder_type') ReminderType reminderType,
     @JsonKey(name: 'due_date') DateTime? dueDate,
     @JsonKey(name: 'due_mileage') int? dueMileage,
+    @JsonKey(name: 'mileage_at_maintenance') int? mileageAtMaintenance,
     @JsonKey(name: 'is_recurring') bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days') int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') int? recurrenceIntervalKm,
+    @JsonKey(name: 'workshop_name') String? workshopName,
+    @JsonKey(name: 'workshop_address') String? workshopAddress,
+    double? cost,
+    String? notes,
+    List<String> photos,
+    List<String> documents,
+    @JsonKey(name: 'notification_enabled') bool notificationEnabled,
+    @JsonKey(name: 'last_notification_sent') DateTime? lastNotificationSent,
     @JsonKey(name: 'is_completed') bool isCompleted,
     @JsonKey(name: 'completed_at') DateTime? completedAt,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -105,12 +135,23 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
     Object? vehicleId = freezed,
     Object? title = null,
     Object? description = freezed,
+    Object? category = freezed,
+    Object? status = null,
     Object? reminderType = null,
     Object? dueDate = freezed,
     Object? dueMileage = freezed,
+    Object? mileageAtMaintenance = freezed,
     Object? isRecurring = null,
     Object? recurrenceIntervalDays = freezed,
     Object? recurrenceIntervalKm = freezed,
+    Object? workshopName = freezed,
+    Object? workshopAddress = freezed,
+    Object? cost = freezed,
+    Object? notes = freezed,
+    Object? photos = null,
+    Object? documents = null,
+    Object? notificationEnabled = null,
+    Object? lastNotificationSent = freezed,
     Object? isCompleted = null,
     Object? completedAt = freezed,
     Object? createdAt = null,
@@ -143,6 +184,16 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
                     ? _value.description
                     : description // ignore: cast_nullable_to_non_nullable
                         as String?,
+            category:
+                freezed == category
+                    ? _value.category
+                    : category // ignore: cast_nullable_to_non_nullable
+                        as MaintenanceCategory?,
+            status:
+                null == status
+                    ? _value.status
+                    : status // ignore: cast_nullable_to_non_nullable
+                        as MaintenanceStatus,
             reminderType:
                 null == reminderType
                     ? _value.reminderType
@@ -157,6 +208,11 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
                 freezed == dueMileage
                     ? _value.dueMileage
                     : dueMileage // ignore: cast_nullable_to_non_nullable
+                        as int?,
+            mileageAtMaintenance:
+                freezed == mileageAtMaintenance
+                    ? _value.mileageAtMaintenance
+                    : mileageAtMaintenance // ignore: cast_nullable_to_non_nullable
                         as int?,
             isRecurring:
                 null == isRecurring
@@ -173,6 +229,46 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
                     ? _value.recurrenceIntervalKm
                     : recurrenceIntervalKm // ignore: cast_nullable_to_non_nullable
                         as int?,
+            workshopName:
+                freezed == workshopName
+                    ? _value.workshopName
+                    : workshopName // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            workshopAddress:
+                freezed == workshopAddress
+                    ? _value.workshopAddress
+                    : workshopAddress // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            cost:
+                freezed == cost
+                    ? _value.cost
+                    : cost // ignore: cast_nullable_to_non_nullable
+                        as double?,
+            notes:
+                freezed == notes
+                    ? _value.notes
+                    : notes // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            photos:
+                null == photos
+                    ? _value.photos
+                    : photos // ignore: cast_nullable_to_non_nullable
+                        as List<String>,
+            documents:
+                null == documents
+                    ? _value.documents
+                    : documents // ignore: cast_nullable_to_non_nullable
+                        as List<String>,
+            notificationEnabled:
+                null == notificationEnabled
+                    ? _value.notificationEnabled
+                    : notificationEnabled // ignore: cast_nullable_to_non_nullable
+                        as bool,
+            lastNotificationSent:
+                freezed == lastNotificationSent
+                    ? _value.lastNotificationSent
+                    : lastNotificationSent // ignore: cast_nullable_to_non_nullable
+                        as DateTime?,
             isCompleted:
                 null == isCompleted
                     ? _value.isCompleted
@@ -214,12 +310,23 @@ abstract class _$$MaintenanceReminderImplCopyWith<$Res>
     @JsonKey(name: 'vehicle_id') String? vehicleId,
     String title,
     String? description,
+    MaintenanceCategory? category,
+    MaintenanceStatus status,
     @JsonKey(name: 'reminder_type') ReminderType reminderType,
     @JsonKey(name: 'due_date') DateTime? dueDate,
     @JsonKey(name: 'due_mileage') int? dueMileage,
+    @JsonKey(name: 'mileage_at_maintenance') int? mileageAtMaintenance,
     @JsonKey(name: 'is_recurring') bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days') int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') int? recurrenceIntervalKm,
+    @JsonKey(name: 'workshop_name') String? workshopName,
+    @JsonKey(name: 'workshop_address') String? workshopAddress,
+    double? cost,
+    String? notes,
+    List<String> photos,
+    List<String> documents,
+    @JsonKey(name: 'notification_enabled') bool notificationEnabled,
+    @JsonKey(name: 'last_notification_sent') DateTime? lastNotificationSent,
     @JsonKey(name: 'is_completed') bool isCompleted,
     @JsonKey(name: 'completed_at') DateTime? completedAt,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -246,12 +353,23 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
     Object? vehicleId = freezed,
     Object? title = null,
     Object? description = freezed,
+    Object? category = freezed,
+    Object? status = null,
     Object? reminderType = null,
     Object? dueDate = freezed,
     Object? dueMileage = freezed,
+    Object? mileageAtMaintenance = freezed,
     Object? isRecurring = null,
     Object? recurrenceIntervalDays = freezed,
     Object? recurrenceIntervalKm = freezed,
+    Object? workshopName = freezed,
+    Object? workshopAddress = freezed,
+    Object? cost = freezed,
+    Object? notes = freezed,
+    Object? photos = null,
+    Object? documents = null,
+    Object? notificationEnabled = null,
+    Object? lastNotificationSent = freezed,
     Object? isCompleted = null,
     Object? completedAt = freezed,
     Object? createdAt = null,
@@ -284,6 +402,16 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
                 ? _value.description
                 : description // ignore: cast_nullable_to_non_nullable
                     as String?,
+        category:
+            freezed == category
+                ? _value.category
+                : category // ignore: cast_nullable_to_non_nullable
+                    as MaintenanceCategory?,
+        status:
+            null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                    as MaintenanceStatus,
         reminderType:
             null == reminderType
                 ? _value.reminderType
@@ -298,6 +426,11 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
             freezed == dueMileage
                 ? _value.dueMileage
                 : dueMileage // ignore: cast_nullable_to_non_nullable
+                    as int?,
+        mileageAtMaintenance:
+            freezed == mileageAtMaintenance
+                ? _value.mileageAtMaintenance
+                : mileageAtMaintenance // ignore: cast_nullable_to_non_nullable
                     as int?,
         isRecurring:
             null == isRecurring
@@ -314,6 +447,46 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
                 ? _value.recurrenceIntervalKm
                 : recurrenceIntervalKm // ignore: cast_nullable_to_non_nullable
                     as int?,
+        workshopName:
+            freezed == workshopName
+                ? _value.workshopName
+                : workshopName // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        workshopAddress:
+            freezed == workshopAddress
+                ? _value.workshopAddress
+                : workshopAddress // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        cost:
+            freezed == cost
+                ? _value.cost
+                : cost // ignore: cast_nullable_to_non_nullable
+                    as double?,
+        notes:
+            freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        photos:
+            null == photos
+                ? _value._photos
+                : photos // ignore: cast_nullable_to_non_nullable
+                    as List<String>,
+        documents:
+            null == documents
+                ? _value._documents
+                : documents // ignore: cast_nullable_to_non_nullable
+                    as List<String>,
+        notificationEnabled:
+            null == notificationEnabled
+                ? _value.notificationEnabled
+                : notificationEnabled // ignore: cast_nullable_to_non_nullable
+                    as bool,
+        lastNotificationSent:
+            freezed == lastNotificationSent
+                ? _value.lastNotificationSent
+                : lastNotificationSent // ignore: cast_nullable_to_non_nullable
+                    as DateTime?,
         isCompleted:
             null == isCompleted
                 ? _value.isCompleted
@@ -348,17 +521,29 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
     @JsonKey(name: 'vehicle_id') this.vehicleId,
     required this.title,
     this.description,
+    this.category,
+    this.status = MaintenanceStatus.planned,
     @JsonKey(name: 'reminder_type') required this.reminderType,
     @JsonKey(name: 'due_date') this.dueDate,
     @JsonKey(name: 'due_mileage') this.dueMileage,
+    @JsonKey(name: 'mileage_at_maintenance') this.mileageAtMaintenance,
     @JsonKey(name: 'is_recurring') this.isRecurring = false,
     @JsonKey(name: 'recurrence_interval_days') this.recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') this.recurrenceIntervalKm,
+    @JsonKey(name: 'workshop_name') this.workshopName,
+    @JsonKey(name: 'workshop_address') this.workshopAddress,
+    this.cost,
+    this.notes,
+    final List<String> photos = const [],
+    final List<String> documents = const [],
+    @JsonKey(name: 'notification_enabled') this.notificationEnabled = true,
+    @JsonKey(name: 'last_notification_sent') this.lastNotificationSent,
     @JsonKey(name: 'is_completed') this.isCompleted = false,
     @JsonKey(name: 'completed_at') this.completedAt,
     @JsonKey(name: 'created_at') required this.createdAt,
     @JsonKey(name: 'updated_at') required this.updatedAt,
-  });
+  }) : _photos = photos,
+       _documents = documents;
 
   factory _$MaintenanceReminderImpl.fromJson(Map<String, dynamic> json) =>
       _$$MaintenanceReminderImplFromJson(json);
@@ -375,6 +560,13 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
   final String title;
   @override
   final String? description;
+  // Kategorie & Status
+  @override
+  final MaintenanceCategory? category;
+  @override
+  @JsonKey()
+  final MaintenanceStatus status;
+  // Typ & Fälligkeiten
   @override
   @JsonKey(name: 'reminder_type')
   final ReminderType reminderType;
@@ -384,6 +576,11 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
   @override
   @JsonKey(name: 'due_mileage')
   final int? dueMileage;
+  // Kilometerdaten
+  @override
+  @JsonKey(name: 'mileage_at_maintenance')
+  final int? mileageAtMaintenance;
+  // Wiederkehrend
   @override
   @JsonKey(name: 'is_recurring')
   final bool isRecurring;
@@ -393,12 +590,53 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
   @override
   @JsonKey(name: 'recurrence_interval_km')
   final int? recurrenceIntervalKm;
+  // Werkstatt
+  @override
+  @JsonKey(name: 'workshop_name')
+  final String? workshopName;
+  @override
+  @JsonKey(name: 'workshop_address')
+  final String? workshopAddress;
+  // Kosten & Notizen
+  @override
+  final double? cost;
+  @override
+  final String? notes;
+  // Dateien
+  final List<String> _photos;
+  // Dateien
+  @override
+  @JsonKey()
+  List<String> get photos {
+    if (_photos is EqualUnmodifiableListView) return _photos;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_photos);
+  }
+
+  final List<String> _documents;
+  @override
+  @JsonKey()
+  List<String> get documents {
+    if (_documents is EqualUnmodifiableListView) return _documents;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_documents);
+  }
+
+  // Benachrichtigungen
+  @override
+  @JsonKey(name: 'notification_enabled')
+  final bool notificationEnabled;
+  @override
+  @JsonKey(name: 'last_notification_sent')
+  final DateTime? lastNotificationSent;
+  // Legacy Felder (backward compatibility)
   @override
   @JsonKey(name: 'is_completed')
   final bool isCompleted;
   @override
   @JsonKey(name: 'completed_at')
   final DateTime? completedAt;
+  // Timestamps
   @override
   @JsonKey(name: 'created_at')
   final DateTime createdAt;
@@ -408,7 +646,7 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
 
   @override
   String toString() {
-    return 'MaintenanceReminder(id: $id, userId: $userId, vehicleId: $vehicleId, title: $title, description: $description, reminderType: $reminderType, dueDate: $dueDate, dueMileage: $dueMileage, isRecurring: $isRecurring, recurrenceIntervalDays: $recurrenceIntervalDays, recurrenceIntervalKm: $recurrenceIntervalKm, isCompleted: $isCompleted, completedAt: $completedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'MaintenanceReminder(id: $id, userId: $userId, vehicleId: $vehicleId, title: $title, description: $description, category: $category, status: $status, reminderType: $reminderType, dueDate: $dueDate, dueMileage: $dueMileage, mileageAtMaintenance: $mileageAtMaintenance, isRecurring: $isRecurring, recurrenceIntervalDays: $recurrenceIntervalDays, recurrenceIntervalKm: $recurrenceIntervalKm, workshopName: $workshopName, workshopAddress: $workshopAddress, cost: $cost, notes: $notes, photos: $photos, documents: $documents, notificationEnabled: $notificationEnabled, lastNotificationSent: $lastNotificationSent, isCompleted: $isCompleted, completedAt: $completedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -423,17 +661,37 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
             (identical(other.title, title) || other.title == title) &&
             (identical(other.description, description) ||
                 other.description == description) &&
+            (identical(other.category, category) ||
+                other.category == category) &&
+            (identical(other.status, status) || other.status == status) &&
             (identical(other.reminderType, reminderType) ||
                 other.reminderType == reminderType) &&
             (identical(other.dueDate, dueDate) || other.dueDate == dueDate) &&
             (identical(other.dueMileage, dueMileage) ||
                 other.dueMileage == dueMileage) &&
+            (identical(other.mileageAtMaintenance, mileageAtMaintenance) ||
+                other.mileageAtMaintenance == mileageAtMaintenance) &&
             (identical(other.isRecurring, isRecurring) ||
                 other.isRecurring == isRecurring) &&
             (identical(other.recurrenceIntervalDays, recurrenceIntervalDays) ||
                 other.recurrenceIntervalDays == recurrenceIntervalDays) &&
             (identical(other.recurrenceIntervalKm, recurrenceIntervalKm) ||
                 other.recurrenceIntervalKm == recurrenceIntervalKm) &&
+            (identical(other.workshopName, workshopName) ||
+                other.workshopName == workshopName) &&
+            (identical(other.workshopAddress, workshopAddress) ||
+                other.workshopAddress == workshopAddress) &&
+            (identical(other.cost, cost) || other.cost == cost) &&
+            (identical(other.notes, notes) || other.notes == notes) &&
+            const DeepCollectionEquality().equals(other._photos, _photos) &&
+            const DeepCollectionEquality().equals(
+              other._documents,
+              _documents,
+            ) &&
+            (identical(other.notificationEnabled, notificationEnabled) ||
+                other.notificationEnabled == notificationEnabled) &&
+            (identical(other.lastNotificationSent, lastNotificationSent) ||
+                other.lastNotificationSent == lastNotificationSent) &&
             (identical(other.isCompleted, isCompleted) ||
                 other.isCompleted == isCompleted) &&
             (identical(other.completedAt, completedAt) ||
@@ -446,24 +704,35 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     userId,
     vehicleId,
     title,
     description,
+    category,
+    status,
     reminderType,
     dueDate,
     dueMileage,
+    mileageAtMaintenance,
     isRecurring,
     recurrenceIntervalDays,
     recurrenceIntervalKm,
+    workshopName,
+    workshopAddress,
+    cost,
+    notes,
+    const DeepCollectionEquality().hash(_photos),
+    const DeepCollectionEquality().hash(_documents),
+    notificationEnabled,
+    lastNotificationSent,
     isCompleted,
     completedAt,
     createdAt,
     updatedAt,
-  );
+  ]);
 
   /// Create a copy of MaintenanceReminder
   /// with the given fields replaced by the non-null parameter values.
@@ -489,13 +758,25 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
     @JsonKey(name: 'vehicle_id') final String? vehicleId,
     required final String title,
     final String? description,
+    final MaintenanceCategory? category,
+    final MaintenanceStatus status,
     @JsonKey(name: 'reminder_type') required final ReminderType reminderType,
     @JsonKey(name: 'due_date') final DateTime? dueDate,
     @JsonKey(name: 'due_mileage') final int? dueMileage,
+    @JsonKey(name: 'mileage_at_maintenance') final int? mileageAtMaintenance,
     @JsonKey(name: 'is_recurring') final bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days')
     final int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') final int? recurrenceIntervalKm,
+    @JsonKey(name: 'workshop_name') final String? workshopName,
+    @JsonKey(name: 'workshop_address') final String? workshopAddress,
+    final double? cost,
+    final String? notes,
+    final List<String> photos,
+    final List<String> documents,
+    @JsonKey(name: 'notification_enabled') final bool notificationEnabled,
+    @JsonKey(name: 'last_notification_sent')
+    final DateTime? lastNotificationSent,
     @JsonKey(name: 'is_completed') final bool isCompleted,
     @JsonKey(name: 'completed_at') final DateTime? completedAt,
     @JsonKey(name: 'created_at') required final DateTime createdAt,
@@ -516,7 +797,11 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
   @override
   String get title;
   @override
-  String? get description;
+  String? get description; // Kategorie & Status
+  @override
+  MaintenanceCategory? get category;
+  @override
+  MaintenanceStatus get status; // Typ & Fälligkeiten
   @override
   @JsonKey(name: 'reminder_type')
   ReminderType get reminderType;
@@ -525,7 +810,10 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
   DateTime? get dueDate;
   @override
   @JsonKey(name: 'due_mileage')
-  int? get dueMileage;
+  int? get dueMileage; // Kilometerdaten
+  @override
+  @JsonKey(name: 'mileage_at_maintenance')
+  int? get mileageAtMaintenance; // Wiederkehrend
   @override
   @JsonKey(name: 'is_recurring')
   bool get isRecurring;
@@ -534,13 +822,33 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
   int? get recurrenceIntervalDays;
   @override
   @JsonKey(name: 'recurrence_interval_km')
-  int? get recurrenceIntervalKm;
+  int? get recurrenceIntervalKm; // Werkstatt
+  @override
+  @JsonKey(name: 'workshop_name')
+  String? get workshopName;
+  @override
+  @JsonKey(name: 'workshop_address')
+  String? get workshopAddress; // Kosten & Notizen
+  @override
+  double? get cost;
+  @override
+  String? get notes; // Dateien
+  @override
+  List<String> get photos;
+  @override
+  List<String> get documents; // Benachrichtigungen
+  @override
+  @JsonKey(name: 'notification_enabled')
+  bool get notificationEnabled;
+  @override
+  @JsonKey(name: 'last_notification_sent')
+  DateTime? get lastNotificationSent; // Legacy Felder (backward compatibility)
   @override
   @JsonKey(name: 'is_completed')
   bool get isCompleted;
   @override
   @JsonKey(name: 'completed_at')
-  DateTime? get completedAt;
+  DateTime? get completedAt; // Timestamps
   @override
   @JsonKey(name: 'created_at')
   DateTime get createdAt;

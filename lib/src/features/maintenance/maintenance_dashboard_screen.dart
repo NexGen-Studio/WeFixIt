@@ -28,7 +28,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   Future<void> _loadReminders() async {
     setState(() => _loading = true);
     try {
-      final reminders = await _service.fetchReminders();
+      final reminders = await _service.fetchReminders(null, null);
       if (!mounted) return;
       setState(() {
         _reminders = reminders;
