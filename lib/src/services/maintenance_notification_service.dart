@@ -65,29 +65,35 @@ class MaintenanceNotificationService {
 
     final id = reminder.id.hashCode;
 
-    await _notifications.zonedSchedule(
-      id,
-      '🔧 Wartung fällig',
-      '${reminder.title} ist morgen fällig!',
-      tz.TZDateTime.from(notificationTime, tz.local),
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'maintenance_reminders',
-          'Wartungserinnerungen',
-          channelDescription: 'Benachrichtigungen für anstehende Wartungen',
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+    try {
+      await _notifications.zonedSchedule(
+        id,
+        '🔧 Wartung fällig',
+        '${reminder.title} ist morgen fällig!',
+        tz.TZDateTime.from(notificationTime, tz.local),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'maintenance_reminders',
+            'Wartungserinnerungen',
+            channelDescription: 'Benachrichtigungen für anstehende Wartungen',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
         ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-    );
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      // Fehler beim Planen der Benachrichtigung (z.B. fehlende Berechtigung)
+      // Ignoriere den Fehler und setze trotzdem die Wartung
+      print('Konnte Benachrichtigung nicht planen: $e');
+    }
   }
 
   /// Plant Benachrichtigungen für überfällige Wartungen

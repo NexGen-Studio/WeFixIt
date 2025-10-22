@@ -47,7 +47,7 @@ class MaintenanceService {
     final user = _client.auth.currentUser;
     if (user == null) return [];
 
-    final categoryStr = category.toString().split('.').last;
+    final categoryStr = category.toJsonValue();
     final res = await _client
         .from('maintenance_reminders')
         .select()
@@ -127,7 +127,7 @@ class MaintenanceService {
       throw Exception('Bitte melde dich an, um Wartungen anzulegen');
     }
 
-    final categoryStr = category?.toString().split('.').last;
+    final categoryStr = category?.toJsonValue();
 
     final data = {
       'user_id': user.id,
@@ -199,7 +199,7 @@ class MaintenanceService {
     final data = <String, dynamic>{};
     if (title != null) data['title'] = title;
     if (description != null) data['description'] = description;
-    if (category != null) data['category'] = category.toString().split('.').last;
+    if (category != null) data['category'] = category.toJsonValue();
     if (dueDate != null) data['due_date'] = dueDate.toIso8601String();
     if (dueMileage != null) data['due_mileage'] = dueMileage;
     if (mileageAtMaintenance != null) data['mileage_at_maintenance'] = mileageAtMaintenance;

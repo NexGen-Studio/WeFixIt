@@ -33,6 +33,33 @@ enum MaintenanceCategory {
   other,
 }
 
+extension MaintenanceCategoryExtension on MaintenanceCategory {
+  String toJsonValue() {
+    switch (this) {
+      case MaintenanceCategory.oilChange:
+        return 'oil_change';
+      case MaintenanceCategory.tireChange:
+        return 'tire_change';
+      case MaintenanceCategory.brakes:
+        return 'brakes';
+      case MaintenanceCategory.tuv:
+        return 'tuv';
+      case MaintenanceCategory.inspection:
+        return 'inspection';
+      case MaintenanceCategory.battery:
+        return 'battery';
+      case MaintenanceCategory.filter:
+        return 'filter';
+      case MaintenanceCategory.insurance:
+        return 'insurance';
+      case MaintenanceCategory.tax:
+        return 'tax';
+      case MaintenanceCategory.other:
+        return 'other';
+    }
+  }
+}
+
 enum MaintenanceStatus {
   @JsonValue('planned')
   planned,

@@ -198,6 +198,14 @@ class AppLocalizations {
   String get maintenance_category_tax => tr('maintenance.category_tax');
   String get maintenance_category_other => tr('maintenance.category_other');
 
+  String get maintenance_tires_summer => tr('maintenance.tires_summer');
+  String get maintenance_tires_winter => tr('maintenance.tires_winter');
+
+  String get maintenance_custom_category_hint => tr('maintenance.custom_category_hint');
+  String get maintenance_custom_category_save => tr('maintenance.custom_category_save');
+  String get maintenance_custom_category_delete_title => tr('maintenance.custom_category_delete_title');
+  String get maintenance_custom_category_delete_message => tr('maintenance.custom_category_delete_message');
+
   String get maintenance_suggestions_title => tr('maintenance.suggestions_title');
 
   String get maintenance_photos_title => tr('maintenance.photos_title');

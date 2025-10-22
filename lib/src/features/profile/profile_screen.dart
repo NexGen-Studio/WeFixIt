@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../models/profile.dart';
@@ -22,6 +23,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _lastCtrl = TextEditingController();
   String? _avatarKey;  // Storage key (wird in DB gespeichert)
   String? _avatarUrlUi;  // Signierte URL (nur für UI)
+  String? _vehiclePhotoUrl;  // Vehicle photo URL (public URL)
   bool _saving = false;
 
   @override
@@ -81,6 +83,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _lastCtrl.text = p?.lastName ?? '';
       _avatarKey = p?.avatarUrl;  // Speichere Key
       _avatarUrlUi = avatarUrlUi;  // Speichere signierte URL für UI
+      _vehiclePhotoUrl = p?.vehiclePhotoUrl;  // Vehicle photo URL
     });
   }
 
@@ -100,6 +103,74 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _pickVehiclePhoto() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
+
+    final t = AppLocalizations.of(context);
+
+    // Calculate aspect ratio to match Home display: width = 90% of screen, height = 100 px
+    final screenWidth = MediaQuery.of(context).size.width;
+    final displayWidth = screenWidth * 0.9;
+    final displayHeight = 100.0; // pixels as used on Home
+
+    // Use ImageCropper to let user pan/zoom within a fixed aspect ratio frame
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      aspectRatio: CropAspectRatio(ratioX: displayWidth, ratioY: displayHeight),
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: t.tr('profile.crop_title'),
+          toolbarColor: const Color(0xFF0F141A),
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: const Color(0xFF2563EB),
+          hideBottomControls: false,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: true,
+          backgroundColor: const Color(0xFF0F141A),
+          dimmedLayerColor: Colors.black.withOpacity(0.6),
+        ),
+        IOSUiSettings(
+          title: t.tr('profile.crop_title'),
+          aspectRatioLockEnabled: true,
+          rotateButtonsHidden: true,
+          resetAspectRatioEnabled: false,
+        ),
+      ],
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 90,
+    );
+
+    final pathToUpload = cropped?.path ?? picked.path; // fallback if user cancels crop
+
+    final svc = SupabaseService(Supabase.instance.client);
+    final result = await svc.uploadVehiclePhoto(pathToUpload);
+    if (result != null) {
+      await _load(); // Reload to ensure UI reflects DB
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.vehicle_photo_uploaded'))));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('common.upload_error'))));
+    }
+  }
+
+  Future<void> _useAvatarAsVehicle() async {
+    final t = AppLocalizations.of(context);
+    if ((_avatarKey ?? '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.upload_avatar_first'))));
+      return;
+    }
+    final svc = SupabaseService(Supabase.instance.client);
+    final result = await svc.copyAvatarToVehiclePhoto();
+    if (result != null) {
+      await _load(); // Reload to ensure UI reflects DB
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.copied_as_vehicle'))));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.copy_error'))));
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -111,6 +182,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       firstName: _firstCtrl.text.trim().isNotEmpty ? _firstCtrl.text.trim() : null,
       lastName: _lastCtrl.text.trim().isNotEmpty ? _lastCtrl.text.trim() : null,
       avatarUrl: _avatarKey,  // Speichere nur den Key in der DB!
+      vehiclePhotoUrl: _vehiclePhotoUrl,  // Vehicle photo URL
     );
     await svc.saveUserProfile(profile);
     // Reload to ensure UI reflects DB
@@ -415,6 +487,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        // Vehicle photo section
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _GlassButton(
+                                label: t.tr('profile.choose_vehicle_photo'),
+                                onPressed: _pickVehiclePhoto,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2563EB),
+                                  side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                onPressed: _useAvatarAsVehicle,
+                                child: Text(t.tr('profile.use_avatar_as_vehicle'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if ((_vehiclePhotoUrl ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: GestureDetector(
+                              onTap: () => _showImagePreview(_vehiclePhotoUrl!),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  height: 100,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey[300]!, width: 1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Image.network(_vehiclePhotoUrl!, fit: BoxFit.cover),
+                                ),
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         _GlassButton(label: _saving ? t.profile_saving : t.profile_save, onPressed: _saving ? null : _save),
                       ],

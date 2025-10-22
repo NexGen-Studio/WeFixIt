@@ -185,7 +185,7 @@ class _RootScaffoldState extends State<_RootScaffold> {
     final currentIndex = _indexFromLocation(location);
     return Scaffold(
       extendBody: true,
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0F141A),
       body: SafeArea(
         child: Column(
           children: [
@@ -199,16 +199,16 @@ class _RootScaffoldState extends State<_RootScaffold> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFF1A2028),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 20,
+              offset: const Offset(0, -6),
             ),
           ],
         ),
@@ -216,8 +216,8 @@ class _RootScaffoldState extends State<_RootScaffold> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF2563EB),
-          unselectedItemColor: const Color(0xFF64748B),
+          selectedItemColor: const Color(0xFFFFB129),
+          unselectedItemColor: Colors.white70,
           selectedIconTheme: const IconThemeData(size: 28),
           unselectedIconTheme: const IconThemeData(size: 24),
           selectedFontSize: 14,

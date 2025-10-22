@@ -2,6 +2,20 @@
 
 Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prompts_phases.json` wider und listet bewusst alle Abweichungen/Designanpassungen auf.
 
+> Hinweis: Diese Datei wird fortlaufend gepflegt und nach Änderungen am Wartungs-Feature sofort aktualisiert.
+
+## Wartungen – Vollständiges System (FERTIG)
+
+- Kategorien: Ölwechsel, Reifenwechsel, Bremsen, TÜV/AU, Inspektion, Batterie, Filter, Versicherung, Steuer, Sonstiges.
+- Erweiterte Details: Werkstatt (Name, Adresse), Notizen, Kilometerstand bei Wartung, Kosten (mit Währung).
+- Medien: Foto-Upload (Bilder), Dokumente-Upload (PDF), Supabase Storage-Anbindung.
+- Status & Logik: Geplant, Erledigt, Überfällig; wiederkehrend (3/6/12 Monate) bzw. km-basiert.
+- Intelligente Vorschläge: Ölwechsel/TÜV/Reifen/Inspektion/Batterie basierend auf Historie und Kilometerstand.
+- Benachrichtigungen: Lokale Push-Notifications (Reminder vor Fälligkeit, Overdue-Hinweis), Timezone-Support.
+- Export: CSV und detaillierter PDF/Report (Statistiken, Summen, Filter).
+- UI: Neues Grid-Dashboard mit Stats, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
+- Routing & Integration: Home-Link, neue Routen, i18n (de/en) für alle Texte.
+
 ## Phase 1 – MVP
 
 - **[Master Build]**
@@ -73,28 +87,17 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[OBD & Media Stubs]**
   - Status: AUSSTEHEND (UI-Hooks vorhanden; echte OBD-Funktionen folgen als Stubs mit klaren Schnittstellen)
 
-- **[Einfache Wartungserinnerungen]**
-  - Status: ERLEDIGT ✅
-  - Details:
-    - Supabase Schema erstellt (`maintenance_reminders` Tabelle mit RLS)
-    - Freezed Model (`MaintenanceReminder`) mit Date & Mileage Support
-    - `MaintenanceService` für CRUD Operations
-    - Moderner Wartungs-Screen im Tesla/Kleinanzeigen-Design:
-      - Liste aller Erinnerungen (anstehend/erledigt)
-      - Farbcodierte Status-Badges (Rot: überfällig, Orange: bald fällig, Grün: noch Zeit, Blau: kilometer-basiert)
-      - Toggle für erledigte Erinnerungen
-      - FloatingActionButton für neue Erinnerungen
-    - Professioneller Add-Dialog:
-      - Typ-Auswahl: Datum oder Kilometer
-      - Wiederkehrende Erinnerungen (3/6/12 Monate oder km-basiert)
-      - DatePicker Integration
-      - Moderne Form Validation
-    - Home-Screen Integration:
-      - Nächste anstehende Wartung prominent angezeigt
-      - Gradient-Card mit Status-Indikator
-      - Direct Navigation zu Details
-    - Route `/maintenance` hinzugefügt
-    - Kostenlos für ALLE User (kein Login required für Liste, Login nur für Anlegen/Bearbeiten)
+- **[Wartungen (vollständig)]**
+  - Status: ERLEDIGT ✅ (siehe Abschnitt „Wartungen – Vollständiges System“)
+  - Details (Ergänzungen gegenüber Basis):
+    - Kategorien-Dropdown (mit Übersetzungen) statt Freitext
+    - Werkstattfelder, Kostenfeld (+ Summen im Dashboard), Notizenfeld
+    - Foto-/Dokument-Upload inkl. Anzeige
+    - Push-Notifications (Planung/Overdue, Test), Timezone-Init
+    - Export (CSV & PDF/Report) aus dem Dashboard
+    - Intelligente Vorschläge im Dashboard
+    - Neues Grid-Dashboard mit Stats/Kategorien/Actions
+    - i18n: Alle neuen Texte in `assets/i18n/de.json` und `assets/i18n/en.json`
 
 - **[KFZ-Kosten Tracker]**
   - Status: AUSSTEHEND (Schema wird ergänzt)
@@ -162,6 +165,10 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Hintergrund]**: Heller, professioneller Look (#FAFAFA) mit weißen Cards und Borders (statt dunkler automotive-Look); Tesla/Kleinanzeigen-inspiriert.
 
 ## Nächste Aufgaben (Kurzfristige Roadmap)
+
+- **[Dokumentation & Pflege]**
+  - Status: LAUFEND
+  - `MVP_PROGRESS.md` wird bei jeder Änderung am Wartungsmodul aktualisiert (Quelle: `WARTUNGSERINNERUNGEN_SETUP.md`, `WARTUNGEN_FEATURES_ROADMAP.md`).
 
 - **[Profil vervollständigen]**: Formular (Anzeigename, Nickname), Avatar-/Fahrzeugfoto-Upload; Sprache ist in Settings verschoben (de/en) – Supabase-Anbindung vorhanden.
 - **[Home personalisieren]**: „Hallo {Name}!“, kleines Fahrzeugfoto anzeigen.

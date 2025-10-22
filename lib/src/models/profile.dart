@@ -6,6 +6,7 @@ class UserProfile {
   final String? nickname;
   final String? avatarUrl;
   final String? emailObfuscated;
+  final String? vehiclePhotoUrl;
 
   const UserProfile({
     required this.id,
@@ -15,6 +16,7 @@ class UserProfile {
     this.nickname,
     this.avatarUrl,
     this.emailObfuscated,
+    this.vehiclePhotoUrl,
   });
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
@@ -26,6 +28,7 @@ class UserProfile {
       nickname: map['nickname'] as String?,
       avatarUrl: map['avatar_url'] as String?,
       emailObfuscated: map['email_obfuscated'] as String?,
+      vehiclePhotoUrl: map['vehicle_photo_url'] as String?,
     );
   }
 
@@ -36,6 +39,7 @@ class UserProfile {
       if (displayName != null) 'display_name': displayName,
       if (nickname != null) 'nickname': nickname,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
+      if (vehiclePhotoUrl != null) 'vehicle_photo_url': vehiclePhotoUrl,
     };
   }
 }

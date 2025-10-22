@@ -58,18 +58,18 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     final t = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0F141A),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF0F141A),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF0A0A0A)),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.go('/home'),
         ),
         title: Text(
           t.maintenance_dashboard_title,
-          style: TextStyle(
-            color: Color(0xFF0A0A0A),
+          style: const TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
@@ -132,16 +132,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
 
                     const SizedBox(height: 32),
 
-                    // Quick Actions
-                    Text(
-                      t.maintenance_quick_access,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0A0A0A),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                    // Quick Actions (Titel entfernt)
                     Row(
                       children: [
                         Expanded(
@@ -180,10 +171,10 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                         children: [
                           Text(
                             t.maintenance_overdue_badge,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0A0A0A),
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -215,10 +206,10 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                     // Anstehende Wartungen
                     Text(
                       t.maintenance_upcoming_reminders,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0A0A0A),
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -228,7 +219,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                           padding: EdgeInsets.all(32),
                           child: Text(
                             t.maintenance_no_upcoming,
-                            style: TextStyle(color: Colors.grey),
+                            style: const TextStyle(color: Colors.white70),
                           ),
                         ),
                       )
@@ -244,10 +235,10 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                     if (_recentCompleted.isNotEmpty) ...[
                       Text(
                         t.maintenance_recently_completed,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0A0A0A),
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -284,9 +275,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF151C23),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: const Color(0xFF22303D)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,9 +295,9 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
-              color: Colors.grey[600],
+              color: Colors.white70,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -332,7 +323,7 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: const Color(0xFF151C23),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -340,7 +331,7 @@ class _QuickActionCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[200]!),
+            border: Border.all(color: const Color(0xFF22303D)),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -360,7 +351,7 @@ class _QuickActionCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF0A0A0A),
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -584,10 +575,10 @@ class _ReminderCard extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(compact ? 12 : 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFF151C23),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: reminder.isCompleted ? Colors.grey[300]! : statusColor.withOpacity(0.3),
+            color: reminder.isCompleted ? const Color(0xFF22303D) : statusColor.withOpacity(0.4),
           ),
         ),
       child: Row(
@@ -614,7 +605,7 @@ class _ReminderCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: compact ? 14 : 15,
                     fontWeight: FontWeight.w700,
-                    color: reminder.isCompleted ? Colors.grey[600] : const Color(0xFF0A0A0A),
+                    color: reminder.isCompleted ? Colors.white54 : Colors.white,
                     decoration: reminder.isCompleted ? TextDecoration.lineThrough : null,
                   ),
                 ),
@@ -624,9 +615,9 @@ class _ReminderCard extends StatelessWidget {
                     reminder.dueDate != null
                         ? _formatDate(reminder.dueDate!)
                         : '${reminder.dueMileage ?? 0} km',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
-                      color: Colors.grey[600],
+                      color: Colors.white70,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

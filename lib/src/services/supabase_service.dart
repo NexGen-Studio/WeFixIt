@@ -45,13 +45,52 @@ class SupabaseService {
   Future<String?> uploadVehiclePhoto(String path) async {
     final user = client.auth.currentUser;
     if (user == null) return null;
-    final fileName = 'veh_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final response = await client.storage.from('vehicle_photos').upload(fileName, File(path));
-    if (response.isNotEmpty) {
-      final publicUrl = client.storage.from('vehicle_photos').getPublicUrl(fileName);
-      return publicUrl;
+    try {
+      final key = 'vehicle_${user.id}.jpg';
+      // Overwrite same key for single vehicle photo per user
+      await client.storage
+          .from('vehicle_photos')
+          .upload(key, File(path), fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+      // Return public URL
+      final publicUrl = client.storage.from('vehicle_photos').getPublicUrl(key);
+      final bust = DateTime.now().millisecondsSinceEpoch;
+      final finalUrl = '$publicUrl?t=$bust';
+      // Update profile immediately
+      await client.from('profiles').upsert({
+        'id': user.id,
+        'vehicle_photo_url': finalUrl,
+      });
+      return finalUrl;
+    } catch (e) {
+      print('Error uploading vehicle photo: $e');
+      return null;
     }
-    return null;
+  }
+  
+  Future<String?> copyAvatarToVehiclePhoto() async {
+    final user = client.auth.currentUser;
+    if (user == null) return null;
+    try {
+      // Download avatar
+      final avatarKey = 'avatar_${user.id}.jpg';
+      final avatarData = await client.storage.from('avatars').download(avatarKey);
+      // Upload as vehicle photo
+      final vehicleKey = 'vehicle_${user.id}.jpg';
+      await client.storage
+          .from('vehicle_photos')
+          .uploadBinary(vehicleKey, avatarData, fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+      final publicUrl = client.storage.from('vehicle_photos').getPublicUrl(vehicleKey);
+      final bust = DateTime.now().millisecondsSinceEpoch;
+      // Update profile immediately
+      await client.from('profiles').upsert({
+        'id': user.id,
+        'vehicle_photo_url': '$publicUrl?t=$bust',
+      });
+      return '$publicUrl?t=$bust';
+    } catch (e) {
+      print('Error copying avatar to vehicle: $e');
+      return null;
+    }
   }
 
   Future<String?> uploadAvatarPhoto(String path) async {
