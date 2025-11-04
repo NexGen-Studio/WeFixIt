@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,6 +26,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double _tipOpacity = 1.0;
   String? _avatarUrlUi;
   MaintenanceReminder? _nextReminder;
+  List<MaintenanceReminder> _upcomingReminders = [];
+  int _currentReminderIndex = 0;
+  Timer? _reminderRotationTimer;
+  PageController? _reminderPageController;
   Map<String, dynamic>? _vehicle;
   double? _monthlyCosts;
   int _healthScore = 100;
@@ -40,6 +45,99 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadVehicle();
     _loadMonthlyCosts();
     _loadHealthScore();
+  }
+
+  String _categoryLabel(AppLocalizations t, MaintenanceCategory? cat) {
+    switch (cat) {
+      case MaintenanceCategory.oilChange:
+        return t.maintenance_category_oil_change;
+      case MaintenanceCategory.tireChange:
+        return t.maintenance_category_tire_change;
+      case MaintenanceCategory.brakes:
+        return t.maintenance_category_brakes;
+      case MaintenanceCategory.tuv:
+        return t.maintenance_category_tuv;
+      case MaintenanceCategory.inspection:
+        return t.maintenance_category_inspection;
+      case MaintenanceCategory.battery:
+        return t.maintenance_category_battery;
+      case MaintenanceCategory.filter:
+        return t.maintenance_category_filter;
+      case MaintenanceCategory.insurance:
+        return t.maintenance_category_insurance;
+      case MaintenanceCategory.tax:
+        return t.maintenance_category_tax;
+      case MaintenanceCategory.other:
+        return t.maintenance_category_other;
+      default:
+        return '';
+    }
+  }
+
+  // --- Kategorie-/Status-Hilfsfunktionen für Next-Reminder-Card ---
+  IconData _categoryIcon(MaintenanceCategory? cat) {
+    switch (cat) {
+      case MaintenanceCategory.oilChange:
+        return Icons.oil_barrel_outlined;
+      case MaintenanceCategory.tireChange:
+        return Icons.tire_repair;
+      case MaintenanceCategory.brakes:
+        return Icons.handyman_outlined;
+      case MaintenanceCategory.tuv:
+        return Icons.verified_outlined;
+      case MaintenanceCategory.inspection:
+        return Icons.build_circle_outlined;
+      case MaintenanceCategory.battery:
+        return Icons.battery_charging_full;
+      case MaintenanceCategory.filter:
+        return Icons.filter_alt_outlined;
+      case MaintenanceCategory.insurance:
+        return Icons.shield_outlined;
+      case MaintenanceCategory.tax:
+        return Icons.receipt_long_outlined;
+      case MaintenanceCategory.other:
+        return Icons.more_horiz;
+      default:
+        return Icons.event_note;
+    }
+  }
+
+  Color _categoryColor(MaintenanceCategory? cat) {
+    switch (cat) {
+      case MaintenanceCategory.oilChange:
+        return const Color(0xFFFFB74D);
+      case MaintenanceCategory.tireChange:
+        return const Color(0xFF64B5F6);
+      case MaintenanceCategory.brakes:
+        return const Color(0xFFEF5350);
+      case MaintenanceCategory.tuv:
+        return const Color(0xFF66BB6A);
+      case MaintenanceCategory.inspection:
+        return const Color(0xFF7E57C2);
+      case MaintenanceCategory.battery:
+        return const Color(0xFFFFD54F);
+      case MaintenanceCategory.filter:
+        return const Color(0xFF26C6DA);
+      case MaintenanceCategory.insurance:
+        return const Color(0xFF42A5F5);
+      case MaintenanceCategory.tax:
+        return const Color(0xFFFFA726);
+      case MaintenanceCategory.other:
+        return const Color(0xFF90A4AE);
+      default:
+        return const Color(0xFF1976D2);
+    }
+  }
+
+  Color _statusColor(MaintenanceReminder r) {
+    if (r.isCompleted) return Colors.grey;
+    if (r.reminderType == ReminderType.date && r.dueDate != null) {
+      final d = r.dueDate!.difference(DateTime.now()).inDays;
+      if (d < 0) return const Color(0xFFE53935);
+      if (d <= 7) return const Color(0xFFF57C00);
+      return const Color(0xFF4CAF50);
+    }
+    return const Color(0xFF1976D2);
   }
 
   @override
@@ -132,17 +230,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadNextReminder() async {
-    // Nur laden wenn eingeloggt
     if (Supabase.instance.client.auth.currentSession == null) return;
 
     try {
       final svc = MaintenanceService(Supabase.instance.client);
       final reminder = await svc.fetchNextReminder();
+      final reminders = await svc.fetchUpcomingReminders(limit: 10);
       if (!mounted) return;
-      setState(() => _nextReminder = reminder);
+      setState(() {
+        _nextReminder = reminder;
+        _upcomingReminders = reminders;
+      });
       _loadHealthScore();
+      _startReminderRotation();
     } catch (e) {
       // Fehler ignorieren, optional loggen
+    }
+  }
+
+  void _startReminderRotation() {
+    _reminderRotationTimer?.cancel();
+    if (_upcomingReminders.length > 1) {
+      _reminderPageController = PageController();
+      _reminderRotationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          _currentReminderIndex = (_currentReminderIndex + 1) % _upcomingReminders.length;
+        });
+        _reminderPageController?.animateToPage(
+          _currentReminderIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      });
     }
   }
 
@@ -268,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onTap: () => _showImagePreview(_avatarUrlUi!),
                         child: CircleAvatar(
                           radius: 18,
-                          backgroundImage: NetworkImage(_avatarUrlUi!),
+                          foregroundImage: CachedNetworkImageProvider(_avatarUrlUi!),
                           backgroundColor: Colors.transparent,
                         ),
                       )
@@ -520,29 +643,90 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 16),
           // Maintenance notice placed BELOW the tiles
-          GestureDetector(
-            onTap: () => context.go('/maintenance'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _nextReminder == null ? t.home_no_maintenance_title : _nextReminder!.title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _nextReminder == null
-                      ? t.home_no_maintenance_subtitle
-                      : (_nextReminder!.dueDate != null
-                          ? (_nextReminder!.dueDate!.difference(DateTime.now()).inDays <= 0
-                              ? t.home_due_today
-                              : t.home_in_days.replaceAll('{days}', _nextReminder!.dueDate!.difference(DateTime.now()).inDays.toString()))
-                          : t.home_due_at_km.replaceAll('{km}', (_nextReminder!.dueMileage ?? 0).toString())),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
+          if (_upcomingReminders.isEmpty)
+            GestureDetector(
+              onTap: () => context.go('/maintenance'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.home_no_maintenance_title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(t.home_no_maintenance_subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 80,
+              child: PageView.builder(
+                controller: _reminderPageController,
+                itemCount: _upcomingReminders.length,
+                onPageChanged: (index) {
+                  setState(() => _currentReminderIndex = index);
+                },
+                itemBuilder: (context, index) {
+                  final reminder = _upcomingReminders[index];
+                  return GestureDetector(
+                    onTap: () => context.go('/maintenance'),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF151C23),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _categoryColor(reminder.category).withOpacity(0.6), width: 1.5),
+                      ),
+                      child: Row(
+                        children: [
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: _categoryColor(reminder.category).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _categoryIcon(reminder.category),
+                                  color: _categoryColor(reminder.category),
+                                  size: 20,
+                                ),
+                              ),
+                              if (reminder.category != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _categoryLabel(t, reminder.category),
+                                  style: const TextStyle(fontSize: 11, color: Colors.white70),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(reminder.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  reminder.dueDate != null
+                                      ? DateFormat('dd.MM.yyyy').format(reminder.dueDate!)
+                                      : t.home_due_at_km.replaceAll('{km}', (reminder.dueMileage ?? 0).toString()),
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
         ],
       );
   }
@@ -758,6 +942,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tipTimer?.cancel();
+    _reminderRotationTimer?.cancel();
+    _reminderPageController?.dispose();
     super.dispose();
   }
 

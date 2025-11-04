@@ -31,11 +31,14 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     setState(() => _loading = true);
     try {
       final reminders = await _service.fetchReminders(
-        isCompleted: _showCompleted ? null : false,
+        null,
+        _showCompleted ? MaintenanceStatus.completed : null,
       );
       if (!mounted) return;
       setState(() {
-        _reminders = reminders;
+        _reminders = _showCompleted
+            ? reminders
+            : reminders.where((r) => !r.isCompleted).toList();
         _loading = false;
       });
     } catch (e) {
@@ -52,9 +55,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       await _service.completeReminder(reminder.id);
       _loadReminders();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✓ Als erledigt markiert')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,9 +89,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       await _service.deleteReminder(reminder.id);
       _loadReminders();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✓ Gelöscht')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

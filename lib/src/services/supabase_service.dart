@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile.dart';
 
 class SupabaseService {
@@ -51,10 +52,9 @@ class SupabaseService {
       await client.storage
           .from('vehicle_photos')
           .upload(key, File(path), fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
-      // Return public URL
+      // Return public URL (keine Cache-Buster anhängen)
       final publicUrl = client.storage.from('vehicle_photos').getPublicUrl(key);
-      final bust = DateTime.now().millisecondsSinceEpoch;
-      final finalUrl = '$publicUrl?t=$bust';
+      final finalUrl = publicUrl;
       // Update profile immediately
       await client.from('profiles').upsert({
         'id': user.id,
@@ -80,13 +80,12 @@ class SupabaseService {
           .from('vehicle_photos')
           .uploadBinary(vehicleKey, avatarData, fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
       final publicUrl = client.storage.from('vehicle_photos').getPublicUrl(vehicleKey);
-      final bust = DateTime.now().millisecondsSinceEpoch;
       // Update profile immediately
       await client.from('profiles').upsert({
         'id': user.id,
-        'vehicle_photo_url': '$publicUrl?t=$bust',
+        'vehicle_photo_url': publicUrl,
       });
-      return '$publicUrl?t=$bust';
+      return publicUrl;
     } catch (e) {
       print('Error copying avatar to vehicle: $e');
       return null;
@@ -103,21 +102,45 @@ class SupabaseService {
         .upload(key, File(path), fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
     // Store the key in profiles.avatar_url (used as storage key)
     await client.from('profiles').upsert({'id': user.id, 'avatar_url': key});
-    // Return a short-lived signed URL for UI display (bucket is private)
+    // Return a short-lived signed URL für UI (bucket ist privat). Cache diese URL lokal.
     final signed = await client.storage.from('avatars').createSignedUrl(key, 60 * 60);
-    final bust = DateTime.now().millisecondsSinceEpoch;
-    return '$signed&t=$bust';
+    // Cache aktualisieren (55 Minuten TTL)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'avatar_signed_url_'+key;
+      final expKey = 'avatar_signed_exp_'+key;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final ttlMs = 55 * 60 * 1000; // 55 Minuten
+      await prefs.setString(cacheKey, signed);
+      await prefs.setInt(expKey, nowMs + ttlMs);
+    } catch (_) {}
+    return signed;
   }
 
   Future<String?> getSignedAvatarUrl(String key) async {
     try {
-      // Prüfe ob es bereits eine URL ist (Fallback für alte Daten)
+      // Bereits vollständige URL? Dann direkt verwenden (kein erneutes Signieren)
       if (key.startsWith('http://') || key.startsWith('https://')) {
-        return key;  // Bereits eine URL, nicht nochmal signieren
+        return key;
       }
+
+      // SharedPreferences-Cache prüfen
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'avatar_signed_url_'+key;
+      final expKey = 'avatar_signed_exp_'+key;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final cachedUrl = prefs.getString(cacheKey);
+      final expMs = prefs.getInt(expKey) ?? 0;
+      if (cachedUrl != null && nowMs < expMs) {
+        return cachedUrl;
+      }
+
+      // Neue Signierung (1 Stunde gültig), aber wir cachen nur 55 Minuten
       final signed = await client.storage.from('avatars').createSignedUrl(key, 60 * 60);
-      final bust = DateTime.now().millisecondsSinceEpoch;
-      return '$signed&t=$bust';
+      final ttlMs = 55 * 60 * 1000; // 55 Minuten
+      await prefs.setString(cacheKey, signed);
+      await prefs.setInt(expKey, nowMs + ttlMs);
+      return signed;
     } catch (_) {
       return null;
     }

@@ -8,6 +8,25 @@ class MaintenanceService {
 
   MaintenanceService(this._client);
 
+  /// Einzelne Wartungserinnerung abrufen
+  Future<MaintenanceReminder?> getReminder(String id) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final res = await _client
+          .from('maintenance_reminders')
+          .select()
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .single();
+      return MaintenanceReminder.fromJson(res);
+    } catch (e) {
+      print('Fehler beim Abrufen der Wartung: $e');
+      return null;
+    }
+  }
+
   /// Alle Wartungserinnerungen des Users abrufen
   Future<List<MaintenanceReminder>> fetchReminders(
     String? vehicleId,
@@ -80,6 +99,28 @@ class MaintenanceService {
     return MaintenanceReminder.fromJson(res.first);
   }
 
+  /// Mehrere anstehende Wartungen abrufen
+  Future<List<MaintenanceReminder>> fetchUpcomingReminders({
+    String? vehicleId,
+    int limit = 10,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return [];
+
+    var query = _client
+        .from('maintenance_reminders')
+        .select()
+        .eq('user_id', user.id)
+        .eq('status', 'planned');
+
+    if (vehicleId != null) {
+      query = query.eq('vehicle_id', vehicleId);
+    }
+
+    final res = await query.order('due_date', ascending: true).limit(limit);
+    return res.map((json) => MaintenanceReminder.fromJson(json)).toList();
+  }
+
   /// Statistiken abrufen
   Future<Map<String, int>> fetchStats() async {
     final user = _client.auth.currentUser;
@@ -120,7 +161,10 @@ class MaintenanceService {
     bool isRecurring = false,
     int? recurrenceIntervalDays,
     int? recurrenceIntervalKm,
+    Map<String, dynamic>? recurrenceRule,
     bool notificationEnabled = true,
+    int? notifyOffsetMinutes,
+    
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -150,7 +194,10 @@ class MaintenanceService {
         'recurrence_interval_days': recurrenceIntervalDays,
       if (recurrenceIntervalKm != null)
         'recurrence_interval_km': recurrenceIntervalKm,
+      if (recurrenceRule != null)
+        'recurrence_rule': recurrenceRule,
       'notification_enabled': notificationEnabled,
+      'notify_offset_minutes': notifyOffsetMinutes,
       'status': 'planned',
     };
 
@@ -164,7 +211,11 @@ class MaintenanceService {
     
     // Plane Benachrichtigung
     if (notificationEnabled && dueDate != null) {
-      await MaintenanceNotificationService.scheduleMaintenanceReminder(reminder);
+      await MaintenanceNotificationService.scheduleMaintenanceReminder(
+        reminder,
+        offsetMinutes: notifyOffsetMinutes,
+        notifyEnabledOverride: notificationEnabled,
+      );
     }
 
     return reminder;
@@ -188,8 +239,11 @@ class MaintenanceService {
     bool? isRecurring,
     int? recurrenceIntervalDays,
     int? recurrenceIntervalKm,
+    Map<String, dynamic>? recurrenceRule,
     bool? notificationEnabled,
     MaintenanceStatus? status,
+    int? notifyOffsetMinutes,
+    
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -214,6 +268,7 @@ class MaintenanceService {
       data['recurrence_interval_days'] = recurrenceIntervalDays;
     if (recurrenceIntervalKm != null)
       data['recurrence_interval_km'] = recurrenceIntervalKm;
+    if (recurrenceRule != null) data['recurrence_rule'] = recurrenceRule;
     if (notificationEnabled != null) data['notification_enabled'] = notificationEnabled;
     if (status != null) {
       final statusStr = status == MaintenanceStatus.planned
@@ -223,6 +278,7 @@ class MaintenanceService {
               : 'overdue';
       data['status'] = statusStr;
     }
+    if (notifyOffsetMinutes != null) data['notify_offset_minutes'] = notifyOffsetMinutes;
 
     await _client
         .from('maintenance_reminders')
@@ -242,8 +298,12 @@ class MaintenanceService {
           .single();
       final reminder = MaintenanceReminder.fromJson(updated);
       await MaintenanceNotificationService.cancelNotification(id);
-      if (reminder.notificationEnabled && reminder.dueDate != null) {
-        await MaintenanceNotificationService.scheduleMaintenanceReminder(reminder);
+      if ((notificationEnabled ?? reminder.notificationEnabled) && reminder.dueDate != null) {
+        await MaintenanceNotificationService.scheduleMaintenanceReminder(
+          reminder,
+          offsetMinutes: notifyOffsetMinutes,
+          notifyEnabledOverride: notificationEnabled ?? reminder.notificationEnabled,
+        );
       }
     }
   }

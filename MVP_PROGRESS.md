@@ -13,7 +13,8 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - Intelligente Vorschläge: Ölwechsel/TÜV/Reifen/Inspektion/Batterie basierend auf Historie und Kilometerstand.
 - Benachrichtigungen: Lokale Push-Notifications (Reminder vor Fälligkeit, Overdue-Hinweis), Timezone-Support.
 - Export: CSV und detaillierter PDF/Report (Statistiken, Summen, Filter).
-- UI: Neues Grid-Dashboard mit Stats, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
+- UI: Neues Grid-Dashboard mit Stats
+, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
 - Routing & Integration: Home-Link, neue Routen, i18n (de/en) für alle Texte.
 
 ## Phase 1 – MVP
@@ -196,3 +197,81 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Branding]**: Icon/Splash-Konfigurationen/Assets entfernt (Rollback). Neue Umsetzung wird separat geplant.
 - **[Android Studio Run]**: App immer mit Defines starten: `--dart-define-from-file=env.example`.
 - **[RevenueCat/AdMob]**: Produkt-/App-IDs in den nächsten Schritten hinterlegen.
+
+## Heute erledigte Arbeiten (23. Oktober 2025)
+
+- **[Erweiterte Benachrichtigungen – UI]** ✅
+  - Glocke unter `Fälligkeitsdatum` mit Standard „10 Min. vorher“.
+  - Auswahl-Sheet mit Presets: „Zum Zeitpunkt des Ereignisses“, „10 Min. vorher“, „1 Stunde vorher“, „1 Tag vorher“, sowie „Angepasst“ (freie Minutenangabe).
+  - Zwei Pills: „Erneut erinnern am …“ (Datum/Uhrzeit) und „Wiederholen bis …“ (Enddatum für Wiederholung).
+  - Unten auf der Seite den alten Bereich „Wiederkehrend & Benachrichtigungen“ entfernt.
+
+- **[Benachrichtigungs-Logik – Service]** ✅
+  - `MaintenanceNotificationService.scheduleMaintenanceReminder()` akzeptiert jetzt `offsetMinutes`, `remindAgainAt` und `notifyEnabledOverride`.
+  - Berücksichtigt globalen Toggle (`SharedPreferences: notifications_enabled_global`).
+  - Sofort-Benachrichtigung bei „heute“ oder „überfällig“ bleibt bestehen (zur Umgehung von OS-Verzögerungen), zusätzlich kann `remindAgainAt` geplant werden.
+  - Zukünftige Termine werden mit konfigurierbarem Offset geplant (Fallback: 1 Tag).
+
+- **[Globaler Toggle – Settings]** ✅
+  - Neue Karte in `Settings` mit Schalter „Benachrichtigungen aktivieren“. Speicherung in `SharedPreferences` unter `notifications_enabled_global`.
+
+- **[Datenbank-Erweiterungen]** ✅
+  - Supabase Migration angewendet: Spalten `notify_offset_minutes int default 10`, `remind_again_at timestamptz`, `repeat_until timestamptz` zu `maintenance_reminders` ergänzt.
+
+- **[Model/Service Persistenz]** ✅
+  - `MaintenanceReminder` (Freezed) erweitert: `notifyOffsetMinutes`, `remindAgainAt`, `repeatUntil` (+ JSON Keys).
+  - `MaintenanceService.createReminder/updateReminder` persistiert `notify_offset_minutes`, `remind_again_at`, `repeat_until` und übergibt `offsetMinutes`/`remindAgainAt` an den Notification-Service.
+
+- **[i18n (de/en)]** ✅
+  - Neue Keys für Reminder-Presets, „Erneut erinnern“, „Wiederholen bis“, globalen Settings-Toggle und Kurzform Minuten (`common.minutes_short`).
+  - Bezeichnung „Art der Erinnerung“ → „Erinnerung“.
+
+- **[Hinweis]**
+  - Für die neuen Freezed-/JSON-Felder lokal Code generieren:
+    - `flutter pub run build_runner build --delete-conflicting-outputs`
+
+## Heute erledigte Arbeiten (24. Oktober 2025)
+
+- **[Erweiterte Wartungserinnerungen – UI-Verbesserungen]** ✅
+  - **Zeitauswahl hinzugefügt**: Nach dem Datum-Picker wird automatisch ein Zeit-Picker angezeigt. Anzeige kombiniert Datum + Uhrzeit (z. B. "23.12.2024 14:30").
+  - **Dark-Theme für alle Picker**: DatePicker, TimePicker und Bottom Sheets verwenden einheitliches dunkles Design (0xFF151C23 Hintergrund, 0xFF1976D2 Primary).
+  
+- **[Wiederholungs-UI komplett überarbeitet]** ✅
+  - **Alte Elemente entfernt**: "- Zahl +" Buttons und beschreibender Text ("Dieses Ergebnis wird wiederholt") wurden entfernt.
+  - **Neue Radio-Button-Optionen**: Saubere Auswahl mit benutzerdefinierten `_buildRepeatOption` Widgets.
+  - **Optionen**: "Nicht wiederholen", "Jeden Tag", "Jede Woche", "Jeden Monat", "Jedes Jahr".
+  - **Wochentage-Auswahl**: Bei "Jede Woche" werden FilterChips für Mo-So angezeigt (mit Dark-Theme Styling).
+  
+- **[Monat/Jahr-Auswahl neu gestaltet]** ✅
+  - **Monatlich**: Zwei Optionen mit `_buildSecondaryButton`:
+    - "Im [Monat]. am [Tag]. wiederholen"
+    - "Am [N]. [Wochentag] wiederholen"
+  - **Jährlich**: 
+    - Gleiche Optionen wie monatlich
+    - **Plus**: Verbesserter CupertinoPicker für Monatsauswahl mit vollständigen Monatsnamen (Januar, Februar, etc.) statt Kurzformen
+    - Kompaktere Höhe (120px statt 160px)
+    - Dark-Theme Container mit abgerundeten Ecken
+  
+- **[Laufzeit-Sektion hinzugefügt]** ✅
+  - **Für immer**: Standard-Option für unbegrenzte Wiederholung.
+  - **Bestimmte Anzahl**: TextField für numerische Eingabe, wie oft die Wartung wiederholt werden soll.
+  - **Bis**: DatePicker für Enddatum der Wiederholung.
+  - **Sichtbarkeit**: Sektion wird nur angezeigt, wenn Wiederholung aktiviert ist.
+  - **Persistierung**: Werte werden in `_recurrenceDuration`, `_recurrenceCount`, `_recurrenceUntil` gespeichert und in `_repeatRule` als `count`/`until` hinzugefügt.
+  
+- **[Erinnerungs-UI optimiert]** ✅
+  - **Dark-Theme**: Konsistenter dunkler Hintergrund (0xFF151C23).
+  - **SwitchListTile**: Ein-/Ausschalten der Benachrichtigungen mit verbessertem Styling.
+  - **Integrierter CupertinoPicker**: Direkte Auswahl von Betrag (1-60) und Einheit (Minute/Stunde/Tag) im selben Sheet.
+  - **Speichern-Button hinzugefügt**: Großer, prominenter Button zum Bestätigen der Auswahl.
+  - **Nested Modal entfernt**: Picker ist jetzt direkt im Haupt-Sheet integriert.
+  
+- **[Scrollbare Bottom Sheets]** ✅
+  - **DraggableScrollableSheet**: Wiederholungs-Screen verwendet jetzt ein ziehbares, scrollbares Sheet.
+  - **Größen**: initialChildSize: 0.9, minChildSize: 0.5, maxChildSize: 0.95.
+  - **Löst Overflow-Probleme**: Bei vielen Optionen (monatlich/jährlich + Laufzeit) kann der User scrollen.
+  
+- **[Code-Bereinigung]** ✅
+  - **_RepeatAmount Widget entfernt**: Das alte Widget für "- Zahl +" Buttons wurde aus dem Code gelöscht.
+  - **Helper-Methoden hinzugefügt**: `_buildRepeatOption` und `_buildSecondaryButton` für konsistentes UI-Design.
+  - **State-Variablen ergänzt**: `_recurrenceDuration`, `_recurrenceCount`, `_recurrenceUntil` für Laufzeit-Logik.

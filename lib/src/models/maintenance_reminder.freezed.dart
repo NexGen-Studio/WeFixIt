@@ -45,7 +45,10 @@ mixin _$MaintenanceReminder {
   @JsonKey(name: 'recurrence_interval_days')
   int? get recurrenceIntervalDays => throw _privateConstructorUsedError;
   @JsonKey(name: 'recurrence_interval_km')
-  int? get recurrenceIntervalKm => throw _privateConstructorUsedError; // Werkstatt
+  int? get recurrenceIntervalKm => throw _privateConstructorUsedError;
+  @JsonKey(name: 'recurrence_rule')
+  Map<String, dynamic>? get recurrenceRule =>
+      throw _privateConstructorUsedError; // Werkstatt
   @JsonKey(name: 'workshop_name')
   String? get workshopName => throw _privateConstructorUsedError;
   @JsonKey(name: 'workshop_address')
@@ -58,7 +61,9 @@ mixin _$MaintenanceReminder {
   @JsonKey(name: 'notification_enabled')
   bool get notificationEnabled => throw _privateConstructorUsedError;
   @JsonKey(name: 'last_notification_sent')
-  DateTime? get lastNotificationSent => throw _privateConstructorUsedError; // Legacy Felder (backward compatibility)
+  DateTime? get lastNotificationSent => throw _privateConstructorUsedError;
+  @JsonKey(name: 'notify_offset_minutes')
+  int get notifyOffsetMinutes => throw _privateConstructorUsedError; // Legacy Felder (backward compatibility)
   @JsonKey(name: 'is_completed')
   bool get isCompleted => throw _privateConstructorUsedError;
   @JsonKey(name: 'completed_at')
@@ -100,6 +105,7 @@ abstract class $MaintenanceReminderCopyWith<$Res> {
     @JsonKey(name: 'is_recurring') bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days') int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') int? recurrenceIntervalKm,
+    @JsonKey(name: 'recurrence_rule') Map<String, dynamic>? recurrenceRule,
     @JsonKey(name: 'workshop_name') String? workshopName,
     @JsonKey(name: 'workshop_address') String? workshopAddress,
     double? cost,
@@ -108,6 +114,7 @@ abstract class $MaintenanceReminderCopyWith<$Res> {
     List<String> documents,
     @JsonKey(name: 'notification_enabled') bool notificationEnabled,
     @JsonKey(name: 'last_notification_sent') DateTime? lastNotificationSent,
+    @JsonKey(name: 'notify_offset_minutes') int notifyOffsetMinutes,
     @JsonKey(name: 'is_completed') bool isCompleted,
     @JsonKey(name: 'completed_at') DateTime? completedAt,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -144,6 +151,7 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
     Object? isRecurring = null,
     Object? recurrenceIntervalDays = freezed,
     Object? recurrenceIntervalKm = freezed,
+    Object? recurrenceRule = freezed,
     Object? workshopName = freezed,
     Object? workshopAddress = freezed,
     Object? cost = freezed,
@@ -152,6 +160,7 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
     Object? documents = null,
     Object? notificationEnabled = null,
     Object? lastNotificationSent = freezed,
+    Object? notifyOffsetMinutes = null,
     Object? isCompleted = null,
     Object? completedAt = freezed,
     Object? createdAt = null,
@@ -229,6 +238,11 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
                     ? _value.recurrenceIntervalKm
                     : recurrenceIntervalKm // ignore: cast_nullable_to_non_nullable
                         as int?,
+            recurrenceRule:
+                freezed == recurrenceRule
+                    ? _value.recurrenceRule
+                    : recurrenceRule // ignore: cast_nullable_to_non_nullable
+                        as Map<String, dynamic>?,
             workshopName:
                 freezed == workshopName
                     ? _value.workshopName
@@ -269,6 +283,11 @@ class _$MaintenanceReminderCopyWithImpl<$Res, $Val extends MaintenanceReminder>
                     ? _value.lastNotificationSent
                     : lastNotificationSent // ignore: cast_nullable_to_non_nullable
                         as DateTime?,
+            notifyOffsetMinutes:
+                null == notifyOffsetMinutes
+                    ? _value.notifyOffsetMinutes
+                    : notifyOffsetMinutes // ignore: cast_nullable_to_non_nullable
+                        as int,
             isCompleted:
                 null == isCompleted
                     ? _value.isCompleted
@@ -319,6 +338,7 @@ abstract class _$$MaintenanceReminderImplCopyWith<$Res>
     @JsonKey(name: 'is_recurring') bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days') int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') int? recurrenceIntervalKm,
+    @JsonKey(name: 'recurrence_rule') Map<String, dynamic>? recurrenceRule,
     @JsonKey(name: 'workshop_name') String? workshopName,
     @JsonKey(name: 'workshop_address') String? workshopAddress,
     double? cost,
@@ -327,6 +347,7 @@ abstract class _$$MaintenanceReminderImplCopyWith<$Res>
     List<String> documents,
     @JsonKey(name: 'notification_enabled') bool notificationEnabled,
     @JsonKey(name: 'last_notification_sent') DateTime? lastNotificationSent,
+    @JsonKey(name: 'notify_offset_minutes') int notifyOffsetMinutes,
     @JsonKey(name: 'is_completed') bool isCompleted,
     @JsonKey(name: 'completed_at') DateTime? completedAt,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -362,6 +383,7 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
     Object? isRecurring = null,
     Object? recurrenceIntervalDays = freezed,
     Object? recurrenceIntervalKm = freezed,
+    Object? recurrenceRule = freezed,
     Object? workshopName = freezed,
     Object? workshopAddress = freezed,
     Object? cost = freezed,
@@ -370,6 +392,7 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
     Object? documents = null,
     Object? notificationEnabled = null,
     Object? lastNotificationSent = freezed,
+    Object? notifyOffsetMinutes = null,
     Object? isCompleted = null,
     Object? completedAt = freezed,
     Object? createdAt = null,
@@ -447,6 +470,11 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
                 ? _value.recurrenceIntervalKm
                 : recurrenceIntervalKm // ignore: cast_nullable_to_non_nullable
                     as int?,
+        recurrenceRule:
+            freezed == recurrenceRule
+                ? _value._recurrenceRule
+                : recurrenceRule // ignore: cast_nullable_to_non_nullable
+                    as Map<String, dynamic>?,
         workshopName:
             freezed == workshopName
                 ? _value.workshopName
@@ -487,6 +515,11 @@ class __$$MaintenanceReminderImplCopyWithImpl<$Res>
                 ? _value.lastNotificationSent
                 : lastNotificationSent // ignore: cast_nullable_to_non_nullable
                     as DateTime?,
+        notifyOffsetMinutes:
+            null == notifyOffsetMinutes
+                ? _value.notifyOffsetMinutes
+                : notifyOffsetMinutes // ignore: cast_nullable_to_non_nullable
+                    as int,
         isCompleted:
             null == isCompleted
                 ? _value.isCompleted
@@ -530,6 +563,8 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
     @JsonKey(name: 'is_recurring') this.isRecurring = false,
     @JsonKey(name: 'recurrence_interval_days') this.recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') this.recurrenceIntervalKm,
+    @JsonKey(name: 'recurrence_rule')
+    final Map<String, dynamic>? recurrenceRule,
     @JsonKey(name: 'workshop_name') this.workshopName,
     @JsonKey(name: 'workshop_address') this.workshopAddress,
     this.cost,
@@ -538,11 +573,13 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
     final List<String> documents = const [],
     @JsonKey(name: 'notification_enabled') this.notificationEnabled = true,
     @JsonKey(name: 'last_notification_sent') this.lastNotificationSent,
+    @JsonKey(name: 'notify_offset_minutes') this.notifyOffsetMinutes = 10,
     @JsonKey(name: 'is_completed') this.isCompleted = false,
     @JsonKey(name: 'completed_at') this.completedAt,
     @JsonKey(name: 'created_at') required this.createdAt,
     @JsonKey(name: 'updated_at') required this.updatedAt,
-  }) : _photos = photos,
+  }) : _recurrenceRule = recurrenceRule,
+       _photos = photos,
        _documents = documents;
 
   factory _$MaintenanceReminderImpl.fromJson(Map<String, dynamic> json) =>
@@ -590,6 +627,17 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
   @override
   @JsonKey(name: 'recurrence_interval_km')
   final int? recurrenceIntervalKm;
+  final Map<String, dynamic>? _recurrenceRule;
+  @override
+  @JsonKey(name: 'recurrence_rule')
+  Map<String, dynamic>? get recurrenceRule {
+    final value = _recurrenceRule;
+    if (value == null) return null;
+    if (_recurrenceRule is EqualUnmodifiableMapView) return _recurrenceRule;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
   // Werkstatt
   @override
   @JsonKey(name: 'workshop_name')
@@ -629,6 +677,9 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
   @override
   @JsonKey(name: 'last_notification_sent')
   final DateTime? lastNotificationSent;
+  @override
+  @JsonKey(name: 'notify_offset_minutes')
+  final int notifyOffsetMinutes;
   // Legacy Felder (backward compatibility)
   @override
   @JsonKey(name: 'is_completed')
@@ -646,7 +697,7 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
 
   @override
   String toString() {
-    return 'MaintenanceReminder(id: $id, userId: $userId, vehicleId: $vehicleId, title: $title, description: $description, category: $category, status: $status, reminderType: $reminderType, dueDate: $dueDate, dueMileage: $dueMileage, mileageAtMaintenance: $mileageAtMaintenance, isRecurring: $isRecurring, recurrenceIntervalDays: $recurrenceIntervalDays, recurrenceIntervalKm: $recurrenceIntervalKm, workshopName: $workshopName, workshopAddress: $workshopAddress, cost: $cost, notes: $notes, photos: $photos, documents: $documents, notificationEnabled: $notificationEnabled, lastNotificationSent: $lastNotificationSent, isCompleted: $isCompleted, completedAt: $completedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'MaintenanceReminder(id: $id, userId: $userId, vehicleId: $vehicleId, title: $title, description: $description, category: $category, status: $status, reminderType: $reminderType, dueDate: $dueDate, dueMileage: $dueMileage, mileageAtMaintenance: $mileageAtMaintenance, isRecurring: $isRecurring, recurrenceIntervalDays: $recurrenceIntervalDays, recurrenceIntervalKm: $recurrenceIntervalKm, recurrenceRule: $recurrenceRule, workshopName: $workshopName, workshopAddress: $workshopAddress, cost: $cost, notes: $notes, photos: $photos, documents: $documents, notificationEnabled: $notificationEnabled, lastNotificationSent: $lastNotificationSent, notifyOffsetMinutes: $notifyOffsetMinutes, isCompleted: $isCompleted, completedAt: $completedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -677,6 +728,10 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
                 other.recurrenceIntervalDays == recurrenceIntervalDays) &&
             (identical(other.recurrenceIntervalKm, recurrenceIntervalKm) ||
                 other.recurrenceIntervalKm == recurrenceIntervalKm) &&
+            const DeepCollectionEquality().equals(
+              other._recurrenceRule,
+              _recurrenceRule,
+            ) &&
             (identical(other.workshopName, workshopName) ||
                 other.workshopName == workshopName) &&
             (identical(other.workshopAddress, workshopAddress) ||
@@ -692,6 +747,8 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
                 other.notificationEnabled == notificationEnabled) &&
             (identical(other.lastNotificationSent, lastNotificationSent) ||
                 other.lastNotificationSent == lastNotificationSent) &&
+            (identical(other.notifyOffsetMinutes, notifyOffsetMinutes) ||
+                other.notifyOffsetMinutes == notifyOffsetMinutes) &&
             (identical(other.isCompleted, isCompleted) ||
                 other.isCompleted == isCompleted) &&
             (identical(other.completedAt, completedAt) ||
@@ -720,6 +777,7 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
     isRecurring,
     recurrenceIntervalDays,
     recurrenceIntervalKm,
+    const DeepCollectionEquality().hash(_recurrenceRule),
     workshopName,
     workshopAddress,
     cost,
@@ -728,6 +786,7 @@ class _$MaintenanceReminderImpl implements _MaintenanceReminder {
     const DeepCollectionEquality().hash(_documents),
     notificationEnabled,
     lastNotificationSent,
+    notifyOffsetMinutes,
     isCompleted,
     completedAt,
     createdAt,
@@ -768,6 +827,8 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
     @JsonKey(name: 'recurrence_interval_days')
     final int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') final int? recurrenceIntervalKm,
+    @JsonKey(name: 'recurrence_rule')
+    final Map<String, dynamic>? recurrenceRule,
     @JsonKey(name: 'workshop_name') final String? workshopName,
     @JsonKey(name: 'workshop_address') final String? workshopAddress,
     final double? cost,
@@ -777,6 +838,7 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
     @JsonKey(name: 'notification_enabled') final bool notificationEnabled,
     @JsonKey(name: 'last_notification_sent')
     final DateTime? lastNotificationSent,
+    @JsonKey(name: 'notify_offset_minutes') final int notifyOffsetMinutes,
     @JsonKey(name: 'is_completed') final bool isCompleted,
     @JsonKey(name: 'completed_at') final DateTime? completedAt,
     @JsonKey(name: 'created_at') required final DateTime createdAt,
@@ -822,7 +884,10 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
   int? get recurrenceIntervalDays;
   @override
   @JsonKey(name: 'recurrence_interval_km')
-  int? get recurrenceIntervalKm; // Werkstatt
+  int? get recurrenceIntervalKm;
+  @override
+  @JsonKey(name: 'recurrence_rule')
+  Map<String, dynamic>? get recurrenceRule; // Werkstatt
   @override
   @JsonKey(name: 'workshop_name')
   String? get workshopName;
@@ -842,7 +907,10 @@ abstract class _MaintenanceReminder implements MaintenanceReminder {
   bool get notificationEnabled;
   @override
   @JsonKey(name: 'last_notification_sent')
-  DateTime? get lastNotificationSent; // Legacy Felder (backward compatibility)
+  DateTime? get lastNotificationSent;
+  @override
+  @JsonKey(name: 'notify_offset_minutes')
+  int get notifyOffsetMinutes; // Legacy Felder (backward compatibility)
   @override
   @JsonKey(name: 'is_completed')
   bool get isCompleted;

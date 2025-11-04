@@ -28,6 +28,7 @@ _$MaintenanceReminderImpl _$$MaintenanceReminderImplFromJson(
   isRecurring: json['is_recurring'] as bool? ?? false,
   recurrenceIntervalDays: (json['recurrence_interval_days'] as num?)?.toInt(),
   recurrenceIntervalKm: (json['recurrence_interval_km'] as num?)?.toInt(),
+  recurrenceRule: json['recurrence_rule'] as Map<String, dynamic>?,
   workshopName: json['workshop_name'] as String?,
   workshopAddress: json['workshop_address'] as String?,
   cost: (json['cost'] as num?)?.toDouble(),
@@ -43,6 +44,7 @@ _$MaintenanceReminderImpl _$$MaintenanceReminderImplFromJson(
       json['last_notification_sent'] == null
           ? null
           : DateTime.parse(json['last_notification_sent'] as String),
+  notifyOffsetMinutes: (json['notify_offset_minutes'] as num?)?.toInt() ?? 10,
   isCompleted: json['is_completed'] as bool? ?? false,
   completedAt:
       json['completed_at'] == null
@@ -69,6 +71,7 @@ Map<String, dynamic> _$$MaintenanceReminderImplToJson(
   'is_recurring': instance.isRecurring,
   'recurrence_interval_days': instance.recurrenceIntervalDays,
   'recurrence_interval_km': instance.recurrenceIntervalKm,
+  'recurrence_rule': instance.recurrenceRule,
   'workshop_name': instance.workshopName,
   'workshop_address': instance.workshopAddress,
   'cost': instance.cost,
@@ -77,6 +80,7 @@ Map<String, dynamic> _$$MaintenanceReminderImplToJson(
   'documents': instance.documents,
   'notification_enabled': instance.notificationEnabled,
   'last_notification_sent': instance.lastNotificationSent?.toIso8601String(),
+  'notify_offset_minutes': instance.notifyOffsetMinutes,
   'is_completed': instance.isCompleted,
   'completed_at': instance.completedAt?.toIso8601String(),
   'created_at': instance.createdAt.toIso8601String(),

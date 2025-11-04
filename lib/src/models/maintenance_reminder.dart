@@ -90,6 +90,7 @@ class MaintenanceReminder with _$MaintenanceReminder {
     @JsonKey(name: 'is_recurring') @Default(false) bool isRecurring,
     @JsonKey(name: 'recurrence_interval_days') int? recurrenceIntervalDays,
     @JsonKey(name: 'recurrence_interval_km') int? recurrenceIntervalKm,
+    @JsonKey(name: 'recurrence_rule') Map<String, dynamic>? recurrenceRule,
     // Werkstatt
     @JsonKey(name: 'workshop_name') String? workshopName,
     @JsonKey(name: 'workshop_address') String? workshopAddress,
@@ -102,6 +103,7 @@ class MaintenanceReminder with _$MaintenanceReminder {
     // Benachrichtigungen
     @JsonKey(name: 'notification_enabled') @Default(true) bool notificationEnabled,
     @JsonKey(name: 'last_notification_sent') DateTime? lastNotificationSent,
+    @JsonKey(name: 'notify_offset_minutes') @Default(10) int notifyOffsetMinutes,
     // Legacy Felder (backward compatibility)
     @JsonKey(name: 'is_completed') @Default(false) bool isCompleted,
     @JsonKey(name: 'completed_at') DateTime? completedAt,

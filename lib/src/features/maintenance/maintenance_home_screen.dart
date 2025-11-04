@@ -397,9 +397,6 @@ class _MaintenanceHomeScreenState extends State<MaintenanceHomeScreen> {
       final exportService = MaintenanceExportService();
       await exportService.exportToCsv(_allReminders);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CSV erfolgreich exportiert! 📊')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -413,9 +410,6 @@ class _MaintenanceHomeScreenState extends State<MaintenanceHomeScreen> {
       final exportService = MaintenanceExportService();
       await exportService.exportStatsReport(_allReminders, _stats, _totalCost);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report erfolgreich exportiert! 📄')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -723,9 +717,9 @@ class _SuggestionCard extends StatelessWidget {
       case MaintenanceCategory.insurance:
         return Icons.shield_outlined;
       case MaintenanceCategory.tax:
-        return Icons.account_balance_outlined;
+        return Icons.receipt_long_outlined;
       case MaintenanceCategory.other:
-        return Icons.build_outlined;
+        return Icons.more_horiz;
     }
   }
 }

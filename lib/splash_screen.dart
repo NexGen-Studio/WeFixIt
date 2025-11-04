@@ -5,8 +5,8 @@ import 'src/routes.dart';
 import 'src/services/maintenance_notification_service.dart';
 
 // Umschaltbarer Modus für die Launch-Animation:
-// false (Standard): Kein Overlay-Icon – erst System-Icon, dann Splash-Content von 0 -> 1.
-// true: Vorheriger Modus mit Overlay-Icon (Fortsetzung der System-Animation).
+// false (Standard): Kein Overlay-Icon – direkt nach der nativen Launch-Animation
+// den Splash-Content anzeigen (ohne zusätzliche Effekte).
 const bool kUseOverlayContinuation = false;
 
 class SplashScreen extends StatefulWidget {
@@ -116,8 +116,10 @@ class _SplashScreenState extends State<SplashScreen>
         anonKey: supabaseAnon,
       );
       
-      // Notification Service initialisieren
+      // Notification Service initialisieren & Setup-Notification senden
       await MaintenanceNotificationService.initialize();
+      // Sofort eine Setup-Notification senden, damit App in Benachrichtigungsliste erscheint
+      await MaintenanceNotificationService.sendWelcomeNotification();
       
       // Init-Status setzen
       markSupabaseInitialized();
@@ -147,48 +149,20 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoWidth = screenWidth * 0.75; // Noch größer
+    final logoWidth = screenWidth * 0.9; // Größer (90% der Breite)
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0D1218),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Splash-Content (zoom/fade-in)
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              return Opacity(
-                opacity: _contentOpacity.value,
-                child: Transform.scale(
-                  scale: _contentScaleIn.value,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Dein zentrales Logo im Splash
-                        Image.asset('assets/images/app_icon.png', width: logoWidth),
-                        const SizedBox(height: 6), // Weniger Abstand
-                        SlideTransition(
-                          position: _textSlide,
-                          child: FadeTransition(
-                            opacity: _textOpacity,
-                            child: Transform.translate(
-                              offset: const Offset(-8, 0), // Etwas nach links
-                              child: Image.asset(
-                                'assets/images/splash_text.png',
-                                width: logoWidth * 1.25, // Größer
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+          // Splash-Content: direkt anzeigen, ohne zusätzliche Animation
+          Center(
+            child: Image.asset(
+              'assets/images/splash_screen.png',
+              width: logoWidth,
+              fit: BoxFit.contain,
+            ),
           ),
 
           // Optional: Overlay-Continuation nur im Legacy-Modus zeichnen
@@ -200,7 +174,11 @@ class _SplashScreenState extends State<SplashScreen>
                 return Center(
                   child: Transform.scale(
                     scale: _iconScaleOut.value,
-                    child: Image.asset('assets/images/app_icon.png', width: logoWidth),
+                    child: Image.asset(
+                      'assets/images/app_icon.png',
+                      width: logoWidth * 0.6,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 );
               },

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../../i18n/app_localizations.dart';
 import '../../models/maintenance_reminder.dart';
 import '../../services/maintenance_service.dart';
+import '../../services/maintenance_notification_service.dart';
 
 /// Erweiterter Create/Edit Screen für Wartungen mit allen Features
 class ExtendedCreateReminderScreen extends StatefulWidget {
@@ -20,6 +24,8 @@ class ExtendedCreateReminderScreen extends StatefulWidget {
   State<ExtendedCreateReminderScreen> createState() => _ExtendedCreateReminderScreenState();
 }
 
+
+
 class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
@@ -30,14 +36,25 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
   final _notesCtrl = TextEditingController();
   final _mileageCtrl = TextEditingController();
   final _mileageAtMaintenanceCtrl = TextEditingController();
+  final TextEditingController _dueDateTextCtrl = TextEditingController();
 
   MaintenanceCategory? _category;
   ReminderType _type = ReminderType.date;
   DateTime? _dueDate;
-  bool _isRecurring = false;
+  TimeOfDay? _dueTime;
+  bool _isRecurring = false; // wird UI-seitig ersetzt
   int? _intervalMonths;
-  bool _notificationEnabled = true;
+  bool _notificationEnabled = true; // steuert Glocke EIN/AUS
+  List<int> _notifyOffsetMinutes = [10]; // Liste für Mehrfachauswahl: Standard 10 Min. vorher
+  int _customNotifyMinutes = 60; // Für "Angepasst" Option
+  int? _repeatEveryDays; // Wiederholen-Intervall in Tagen (null = nicht wiederholen)
+  Map<String, dynamic>? _repeatRule;
   bool _loading = false;
+  
+  // Laufzeit-Optionen
+  String _recurrenceDuration = 'forever'; // 'forever', 'count', 'until'
+  int _recurrenceCount = 1;
+  DateTime? _recurrenceUntil;
 
   List<String> _photoKeys = [];
   List<String> _documentKeys = [];
@@ -61,6 +78,855 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     _initLocalData();
     if (widget.existing != null) {
       _loadExisting();
+    }
+  }
+
+  void _openRepeatScreen() {
+    final t = AppLocalizations.of(context);
+    
+    int? tempDays = _repeatEveryDays;
+    final Set<int> weekDays = <int>{}; 
+    final Set<int> monthDays = <int>{}; // Für Monatstage-Auswahl
+    int factor = 1; 
+    // Separate Intervalle für jede Option
+    int dayInterval = 1;
+    int weekInterval = 1;
+    int monthInterval = 1;
+    int yearInterval = 1;
+    bool monthlyByNth = false;
+    bool monthlyByDate = false;
+    bool monthlyByCustomDays = false;
+    bool yearlyByNth = false;
+    int selectedMonth = (_dueDate ?? DateTime.now()).month;
+    String tempDuration = _recurrenceDuration;
+    int tempCount = _recurrenceCount;
+    DateTime? tempUntil = _recurrenceUntil;
+    
+    // Werte aus _repeatRule laden, falls vorhanden
+    if (_repeatRule != null) {
+      final type = _repeatRule!['type'];
+      final interval = _repeatRule!['interval'] ?? 1;
+      
+      if (type == 'daily') {
+        factor = 1;
+        dayInterval = interval;
+      } else if (type == 'weekly') {
+        factor = 7;
+        weekInterval = interval;
+        final days = _repeatRule!['days'] as List?;
+        if (days != null) weekDays.addAll(days.cast<int>());
+      } else if (type == 'monthly') {
+        factor = 30;
+        monthInterval = interval;
+        if (_repeatRule!.containsKey('daysOfMonth')) {
+          monthlyByCustomDays = true;
+          final days = _repeatRule!['daysOfMonth'] as List?;
+          if (days != null) monthDays.addAll(days.cast<int>());
+        } else if (_repeatRule!.containsKey('nth')) {
+          monthlyByNth = true;
+        } else {
+          monthlyByDate = true;
+        }
+      } else if (type == 'yearly') {
+        factor = 365;
+        yearInterval = interval;
+        selectedMonth = _repeatRule!['month'] ?? selectedMonth;
+        if (_repeatRule!.containsKey('nth')) {
+          yearlyByNth = true;
+        }
+      }
+    }
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF151C23),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isDismissible: true,
+      enableDrag: true,
+      builder: (ctx) {
+        
+        // factor wurde bereits aus _repeatRule gesetzt, falls vorhanden
+        // Falls nicht, versuche aus tempDays zu berechnen
+        if (_repeatRule == null && tempDays != null && tempDays! > 0) {
+          if (tempDays! % 365 == 0) { 
+            factor = 365; 
+            yearInterval = tempDays! ~/ 365;
+          }
+          else if (tempDays! % 30 == 0) { 
+            factor = 30; 
+            monthInterval = tempDays! ~/ 30;
+          }
+          else if (tempDays! % 7 == 0) { 
+            factor = 7; 
+            weekInterval = tempDays! ~/ 7;
+          }
+          else { 
+            factor = 1; 
+            dayInterval = tempDays!;
+          }
+        }
+        
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            return GestureDetector(
+              onTap: () {
+                // Tastatur schließen bei Klick außerhalb
+                FocusScope.of(ctx).unfocus();
+              },
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.9,
+                minChildSize: 0.5,
+                maxChildSize: 0.95,
+                expand: false,
+                builder: (_, scrollController) {
+                  return SingleChildScrollView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                    child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36, 
+                          height: 4, 
+                          decoration: BoxDecoration(
+                            color: Colors.white24, 
+                            borderRadius: BorderRadius.circular(2)
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: () {
+                              // Auto-Save beim Schließen
+                              setState(() {
+                                _repeatEveryDays = tempDays;
+                                _recurrenceDuration = tempDuration;
+                                _recurrenceCount = tempCount;
+                                _recurrenceUntil = tempUntil;
+                                
+                                // Baue RecurrenceRule
+                                if (tempDays == null || tempDays! <= 0) {
+                                  _repeatRule = null;
+                                } else if (factor == 1) {
+                                  _repeatRule = {'type': 'daily', 'interval': dayInterval};
+                                } else if (factor == 7) {
+                                  _repeatRule = {'type': 'weekly', 'interval': weekInterval, 'days': weekDays.toList()};
+                                } else if (factor == 30) {
+                                  final base = _dueDate ?? DateTime.now();
+                                  final nth = ((base.day - 1) ~/ 7) + 1;
+                                  if (monthlyByCustomDays && monthDays.isNotEmpty) {
+                                    _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'daysOfMonth': monthDays.toList()};
+                                  } else if (monthlyByNth) {
+                                    _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'nth': nth, 'weekday': base.weekday};
+                                  } else {
+                                    _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'dayOfMonth': base.day};
+                                  }
+                                } else if (factor == 365) {
+                                  final baseDate = _dueDate ?? DateTime.now();
+                                  final base = DateTime(baseDate.year, selectedMonth, baseDate.day);
+                                  final nth = ((base.day - 1) ~/ 7) + 1;
+                                  _repeatRule = yearlyByNth
+                                      ? {'type': 'yearly', 'interval': yearInterval, 'month': selectedMonth, 'nth': nth, 'weekday': base.weekday}
+                                      : {'type': 'yearly', 'interval': yearInterval, 'month': selectedMonth, 'day': base.day};
+                                }
+                                
+                                // Laufzeit-Info zur Rule hinzufügen
+                                if (_repeatRule != null) {
+                                  if (tempDuration == 'count') {
+                                    _repeatRule!['count'] = tempCount;
+                                  } else if (tempDuration == 'until' && tempUntil != null) {
+                                    _repeatRule!['until'] = tempUntil!.toIso8601String();
+                                  }
+                                }
+                              });
+                              Navigator.pop(ctx);
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            t.maintenance_repeat_title, 
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700, 
+                              fontSize: 20,
+                              color: Colors.white,
+                            )
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Nicht wiederholen
+                      _buildRepeatOption(
+                        value: null,
+                        groupValue: tempDays,
+                        label: t.maintenance_repeat_none,
+                        onTap: () => setSt(() { tempDays = null; factor = 1; }),
+                      ),
+                      
+                      // Jeden/Alle X Tag(e)
+                      Row(
+                        children: [
+                          Radio<int>(
+                            value: 1,
+                            groupValue: factor == 1 && tempDays != null ? factor : null,
+                            onChanged: (_) => setSt(() { factor = 1; tempDays = dayInterval * 1; }),
+                            activeColor: const Color(0xFF1976D2),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            dayInterval == 1 ? 'Jeden' : 'Alle',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 40,
+                            child: TextField(
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
+                                ),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              ),
+                              controller: TextEditingController(text: dayInterval.toString())..selection = TextSelection.fromPosition(TextPosition(offset: dayInterval.toString().length)),
+                              onChanged: (val) {
+                                final parsed = int.tryParse(val);
+                                if (parsed != null && parsed > 0) {
+                                  setSt(() {
+                                    dayInterval = parsed;
+                                    tempDays = dayInterval * 1;
+                                  });
+                                }
+                              },
+                              onTap: () => setSt(() { factor = 1; tempDays = dayInterval * 1; }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            dayInterval == 1 ? 'Tag' : 'Tage',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      
+                      // Jede/Alle X Woche(n)
+                      Row(
+                        children: [
+                          Radio<int>(
+                            value: 7,
+                            groupValue: factor == 7 && tempDays != null ? factor : null,
+                            onChanged: (_) => setSt(() { factor = 7; tempDays = weekInterval * 7; }),
+                            activeColor: const Color(0xFF1976D2),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            weekInterval == 1 ? 'Jede' : 'Alle',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 40,
+                            child: TextField(
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
+                                ),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              ),
+                              controller: TextEditingController(text: weekInterval.toString())..selection = TextSelection.fromPosition(TextPosition(offset: weekInterval.toString().length)),
+                              onChanged: (val) {
+                                final parsed = int.tryParse(val);
+                                if (parsed != null && parsed > 0) {
+                                  setSt(() {
+                                    weekInterval = parsed;
+                                    tempDays = weekInterval * 7;
+                                  });
+                                }
+                              },
+                              onTap: () => setSt(() { factor = 7; tempDays = weekInterval * 7; }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            weekInterval == 1 ? 'Woche' : 'Wochen',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      
+                      // Wochentage-Auswahl
+                      if (factor == 7) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(left: 48, top: 12, bottom: 12),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: List.generate(7, (i) {
+                              final idx = i + 1;
+                              final labels = [
+                                t.weekday_mo, t.weekday_tu, t.weekday_we,
+                                t.weekday_th, t.weekday_fr, t.weekday_sa, t.weekday_su,
+                              ];
+                              final selected = weekDays.contains(idx);
+                              return FilterChip(
+                                label: Text(labels[i]),
+                                selected: selected,
+                                backgroundColor: const Color(0xFF1F2933),
+                                selectedColor: const Color(0xFF1976D2),
+                                checkmarkColor: Colors.white,
+                                labelStyle: TextStyle(
+                                  color: selected ? Colors.white : Colors.white70,
+                                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                                onSelected: (_) => setSt(() {
+                                  if (selected) weekDays.remove(idx);
+                                  else weekDays.add(idx);
+                                }),
+                              );
+                            }),
+                          ),
+                        ),
+                      ],
+                      
+                      // Jeder/Alle X Monat(e)
+                      Row(
+                        children: [
+                          Radio<int>(
+                            value: 30,
+                            groupValue: factor == 30 && tempDays != null ? factor : null,
+                            onChanged: (_) => setSt(() { factor = 30; tempDays = monthInterval * 30; }),
+                            activeColor: const Color(0xFF1976D2),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            monthInterval == 1 ? 'Jeder' : 'Alle',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 40,
+                            child: TextField(
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
+                                ),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              ),
+                              controller: TextEditingController(text: monthInterval.toString())..selection = TextSelection.fromPosition(TextPosition(offset: monthInterval.toString().length)),
+                              onChanged: (val) {
+                                final parsed = int.tryParse(val);
+                                if (parsed != null && parsed > 0) {
+                                  setSt(() {
+                                    monthInterval = parsed;
+                                    tempDays = monthInterval * 30;
+                                  });
+                                }
+                              },
+                              onTap: () => setSt(() { factor = 30; tempDays = monthInterval * 30; }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            monthInterval == 1 ? 'Monat' : 'Monate',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      
+                      // Monats-Optionen (zentriert)
+                      if (factor == 30) ...[
+                        Center(
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildSecondaryButton(
+                                  'Am ${(_dueDate ?? DateTime.now()).day}. wiederholen',
+                                  isSelected: monthlyByDate && !monthlyByNth && !monthlyByCustomDays,
+                                  onTap: () => setSt(() { monthlyByDate = true; monthlyByNth = false; monthlyByCustomDays = false; }),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildSecondaryButton(
+                                  'Am ${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}. ${DateFormat.EEEE(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())} wiederholen',
+                                  isSelected: monthlyByNth && !monthlyByDate && !monthlyByCustomDays,
+                                  onTap: () => setSt(() { monthlyByNth = true; monthlyByDate = false; monthlyByCustomDays = false; }),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildSecondaryButton(
+                                  'Datumsangaben für die Wiederholung auswählen',
+                                  isSelected: monthlyByCustomDays,
+                                  onTap: () => setSt(() { monthlyByDate = false; monthlyByNth = false; monthlyByCustomDays = true; }),
+                                ),
+                              ...(monthlyByCustomDays ? [
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: List.generate(31, (i) {
+                                    final day = i + 1;
+                                    final isSelected = monthDays.contains(day);
+                                    return GestureDetector(
+                                      onTap: () => setSt(() {
+                                        if (isSelected) monthDays.remove(day);
+                                        else monthDays.add(day);
+                                      }),
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: isSelected ? const Color(0xFF1976D2) : Colors.transparent,
+                                          border: Border.all(
+                                            color: isSelected ? const Color(0xFF1976D2) : Colors.white30,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '$day',
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Colors.white70,
+                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ] : []),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      
+                      // Jedes/Alle X Jahr(e)
+                      Row(
+                        children: [
+                          Radio<int>(
+                            value: 365,
+                            groupValue: factor == 365 && tempDays != null ? factor : null,
+                            onChanged: (_) => setSt(() { factor = 365; tempDays = yearInterval * 365; }),
+                            activeColor: const Color(0xFF1976D2),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            yearInterval == 1 ? 'Jedes' : 'Alle',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 40,
+                            child: TextField(
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
+                                ),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              ),
+                              controller: TextEditingController(text: yearInterval.toString())..selection = TextSelection.fromPosition(TextPosition(offset: yearInterval.toString().length)),
+                              onChanged: (val) {
+                                final parsed = int.tryParse(val);
+                                if (parsed != null && parsed > 0) {
+                                  setSt(() {
+                                    yearInterval = parsed;
+                                    tempDays = yearInterval * 365;
+                                  });
+                                }
+                              },
+                              onTap: () => setSt(() { factor = 365; tempDays = yearInterval * 365; }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            yearInterval == 1 ? 'Jahr' : 'Jahre',
+                            style: const TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      
+                      // Jahres-Optionen (zentriert)
+                      if (factor == 365) ...[
+                      Center(
+                      child: Container(
+                      constraints: const BoxConstraints(maxWidth: 320),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSecondaryButton(
+                        'Im ${DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))}. am ${(_dueDate ?? DateTime.now()).day}. wiederholen',
+                        isSelected: !yearlyByNth,
+                        onTap: () => setSt(() => yearlyByNth = false),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildSecondaryButton(
+                        'Am ${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}. ${DateFormat.E(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())} im ${DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))} wiederholen',
+                        isSelected: yearlyByNth,
+                        onTap: () => setSt(() => yearlyByNth = true),
+                        ),
+                        const SizedBox(height: 12),
+                        // Monatspicker
+                        Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                        color: const Color(0xFF1F2933),
+                        borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: CupertinoPicker(
+                        backgroundColor: Colors.transparent,
+                        itemExtent: 32,
+                        scrollController: FixedExtentScrollController(
+                        initialItem: selectedMonth - 1
+                        ),
+                        onSelectedItemChanged: (i) {
+                        setSt(() => selectedMonth = i + 1);
+                        },
+                        children: List.generate(12, (i) {
+                        final month = DateTime(2000, i + 1, 1);
+                        final label = DateFormat.MMMM(Localizations.localeOf(context).languageCode).format(month);
+                        return Center(
+                        child: Text(
+                        label,
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                        );
+                        }),
+                        ),
+                        ),
+                        ],
+                      ),
+                      ),
+                      ),
+                      ],
+                      
+                      // Laufzeit-Sektion (nur wenn Wiederholung aktiviert)
+                      if (tempDays != null && tempDays! > 0) ...[
+                        const SizedBox(height: 24),
+                        const Divider(color: Colors.white24),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Laufzeit',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Für immer
+                        _buildRepeatOption(
+                          value: 'forever',
+                          groupValue: tempDuration,
+                          label: 'Für immer',
+                          onTap: () => setSt(() => tempDuration = 'forever'),
+                        ),
+                        
+                        // Bestimmte Anzahl
+                        _buildRepeatOption(
+                          value: 'count',
+                          groupValue: tempDuration,
+                          label: 'Bestimmte Anzahl',
+                          onTap: () => setSt(() => tempDuration = 'count'),
+                        ),
+                        
+                        if (tempDuration == 'count') ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 48, top: 8, bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1F2933),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: TextField(
+                                      style: const TextStyle(color: Colors.white),
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        hintText: 'Anzahl',
+                                        hintStyle: TextStyle(color: Colors.white54),
+                                      ),
+                                      controller: TextEditingController(text: tempCount.toString())..selection = TextSelection.fromPosition(TextPosition(offset: tempCount.toString().length)),
+                                      onChanged: (val) {
+                                        final parsed = int.tryParse(val);
+                                        if (parsed != null && parsed > 0) {
+                                          tempCount = parsed;
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        
+                        // Bis
+                        _buildRepeatOption(
+                          value: 'until',
+                          groupValue: tempDuration,
+                          label: 'Bis',
+                          onTap: () => setSt(() => tempDuration = 'until'),
+                        ),
+                        
+                        if (tempDuration == 'until') ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 48, top: 8, bottom: 8),
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: tempUntil ?? DateTime.now().add(const Duration(days: 30)),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 3650)),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: const ColorScheme.dark(
+                                          primary: Colors.white,
+                                          surface: Color(0xFF11161C),
+                                          onSurface: Colors.white,
+                                        ),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
+                                );
+                                if (date != null) {
+                                  setSt(() => tempUntil = date);
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.white30),
+                                backgroundColor: const Color(0xFF1F2933),
+                              ),
+                              child: Text(
+                                tempUntil != null
+                                    ? DateFormat('dd.MM.yyyy').format(tempUntil!)
+                                    : 'Datum wählen',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      // Auto-Save beim Dismiss (außerhalb klicken)
+      setState(() {
+        _repeatEveryDays = tempDays;
+        _recurrenceDuration = tempDuration;
+        _recurrenceCount = tempCount;
+        _recurrenceUntil = tempUntil;
+        
+        // Baue RecurrenceRule
+        if (tempDays == null || tempDays! <= 0) {
+          _repeatRule = null;
+        } else if (factor == 1) {
+          _repeatRule = {'type': 'daily', 'interval': dayInterval};
+        } else if (factor == 7) {
+          _repeatRule = {'type': 'weekly', 'interval': weekInterval, 'days': weekDays.toList()};
+        } else if (factor == 30) {
+          final base = _dueDate ?? DateTime.now();
+          final nth = ((base.day - 1) ~/ 7) + 1;
+          if (monthlyByCustomDays && monthDays.isNotEmpty) {
+            _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'daysOfMonth': monthDays.toList()};
+          } else if (monthlyByNth) {
+            _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'nth': nth, 'weekday': base.weekday};
+          } else {
+            _repeatRule = {'type': 'monthly', 'interval': monthInterval, 'dayOfMonth': base.day};
+          }
+        } else if (factor == 365) {
+          final baseDate = _dueDate ?? DateTime.now();
+          final base = DateTime(baseDate.year, selectedMonth, baseDate.day);
+          final nth = ((base.day - 1) ~/ 7) + 1;
+          _repeatRule = yearlyByNth
+              ? {'type': 'yearly', 'interval': yearInterval, 'month': selectedMonth, 'nth': nth, 'weekday': base.weekday}
+              : {'type': 'yearly', 'interval': yearInterval, 'month': selectedMonth, 'day': base.day};
+        }
+        
+        // Laufzeit-Info zur Rule hinzufügen
+        if (_repeatRule != null) {
+          if (tempDuration == 'count') {
+            _repeatRule!['count'] = tempCount;
+          } else if (tempDuration == 'until' && tempUntil != null) {
+            _repeatRule!['until'] = tempUntil!.toIso8601String();
+          }
+        }
+      });
+    });
+  }
+
+  String _repeatPreviewLabel(AppLocalizations t) {
+    if (_repeatEveryDays == null || _repeatEveryDays! <= 0) return t.maintenance_repeat_none;
+    
+    if (_repeatRule == null) {
+      return 'Alle ${_repeatEveryDays} Tage';
+    }
+    
+    final type = _repeatRule!['type'];
+    final interval = _repeatRule!['interval'] ?? 1;
+    
+    if (type == 'daily') {
+      return interval == 1 ? 'Jeden Tag' : 'Alle $interval Tage';
+    } else if (type == 'weekly') {
+      final days = _repeatRule!['days'] as List?;
+      final weekdayNamesShort = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+      if (days != null && days.isNotEmpty) {
+        if (interval == 1 && days.length == 1) {
+          // Bei einem Tag und Intervall 1: "Jeden Mittwoch"
+          final weekdayName = weekdayNamesShort[(days[0] as int) - 1];
+          return 'Jeden $weekdayName';
+        } else {
+          // Bei mehreren Tagen oder Intervall > 1: "Alle X Wochen am Mo, Mi"
+          final weekdayNamesAbbr = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+          final dayLabels = days.map((d) => weekdayNamesAbbr[(d as int) - 1]).join(', ');
+          return interval == 1 ? 'Jede Woche am $dayLabels' : 'Alle $interval Wochen am $dayLabels';
+        }
+      }
+      return interval == 1 ? 'Jede Woche' : 'Alle $interval Wochen';
+    } else if (type == 'monthly') {
+      final daysOfMonth = _repeatRule!['daysOfMonth'] as List?;
+      if (daysOfMonth != null && daysOfMonth.isNotEmpty) {
+        final dayList = daysOfMonth.map((d) => '$d.').join(', ');
+        return interval == 1 ? 'Jeden Monat am $dayList' : 'Alle $interval Monate am $dayList';
+      }
+      final dayOfMonth = _repeatRule!['dayOfMonth'];
+      final nth = _repeatRule!['nth'];
+      if (dayOfMonth != null) {
+        return interval == 1 ? 'Jeden Monat am $dayOfMonth.' : 'Alle $interval Monate am $dayOfMonth.';
+      } else if (nth != null) {
+        final weekday = _repeatRule!['weekday'];
+        final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+        final weekdayName = weekdayNames[(weekday as int) - 1];
+        return interval == 1 ? 'Jeden Monat am $nth. $weekdayName' : 'Alle $interval Monate am $nth. $weekdayName';
+      }
+      return interval == 1 ? 'Jeden Monat' : 'Alle $interval Monate';
+    } else if (type == 'yearly') {
+      final month = _repeatRule!['month'];
+      final day = _repeatRule!['day'];
+      final nth = _repeatRule!['nth'];
+      final monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+      final monthName = month != null ? monthNames[(month as int) - 1] : '';
+      
+      if (day != null) {
+        // Am X. Tag im Monat
+        return interval == 1 ? 'Jedes Jahr am $day. $monthName' : 'Alle $interval Jahre am $day. $monthName';
+      } else if (nth != null) {
+        // Am X. Wochentag im Monat
+        final weekday = _repeatRule!['weekday'];
+        final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+        final weekdayName = weekdayNames[(weekday as int) - 1];
+        return interval == 1 ? 'Jedes Jahr am $nth. $weekdayName im $monthName' : 'Alle $interval Jahre am $nth. $weekdayName im $monthName';
+      }
+      
+      return interval == 1 ? 'Jedes Jahr im $monthName' : 'Alle $interval Jahre im $monthName';
+    }
+    
+    return 'Alle ${_repeatEveryDays} Tage';
+  }
+
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    final initial = _dueDate ?? now;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.white,
+              surface: Color(0xFF11161C),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (date != null) {
+      // Nach Datum-Auswahl: Uhrzeit-Picker anzeigen
+      if (!mounted) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: _dueTime ?? TimeOfDay.now(),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.dark(
+                primary: Colors.white,
+                surface: Color(0xFF11161C),
+                onSurface: Colors.white,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+      
+      if (!mounted) return;
+      setState(() {
+        _dueDate = DateTime(date.year, date.month, date.day);
+        if (time != null) {
+          _dueTime = time;
+          _dueDateTextCtrl.text = '${DateFormat('dd.MM.yyyy').format(_dueDate!)} ${time.format(context)}';
+        } else {
+          _dueDateTextCtrl.text = DateFormat('dd.MM.yyyy').format(_dueDate!);
+        }
+      });
     }
   }
 
@@ -169,6 +1035,9 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     _category = e.category;
     _type = e.reminderType;
     _dueDate = e.dueDate;
+    if (_dueDate != null) {
+      _dueDateTextCtrl.text = DateFormat('dd.MM.yyyy').format(_dueDate!);
+    }
     if (e.dueMileage != null) _mileageCtrl.text = e.dueMileage.toString();
     if (e.mileageAtMaintenance != null) {
       _mileageAtMaintenanceCtrl.text = e.mileageAtMaintenance.toString();
@@ -176,9 +1045,32 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     _workshopNameCtrl.text = e.workshopName ?? '';
     _workshopAddressCtrl.text = e.workshopAddress ?? '';
     if (e.cost != null) _costCtrl.text = e.cost.toString();
-    _notesCtrl.text = e.notes ?? '';
+    
+    // Notizen laden und Meta-Tags parsen
+    String rawNotes = e.notes ?? '';
+    final metaRegex = RegExp(r'\[meta:(.*?)\]');
+    final metaMatch = metaRegex.firstMatch(rawNotes);
+    if (metaMatch != null) {
+      // Meta-Tags parsen
+      final metaContent = metaMatch.group(1) ?? '';
+      final metaParts = metaContent.split(',');
+      for (final part in metaParts) {
+        if (part == 'summer') _tireSummer = true;
+        else if (part == 'winter') _tireWinter = true;
+        else if (part.startsWith('custom:')) {
+          _customSelectedLabel = part.substring(7);
+        }
+      }
+      // Meta-Zeile aus Notizen entfernen
+      rawNotes = rawNotes.replaceAll(metaRegex, '').trim();
+    }
+    _notesCtrl.text = rawNotes;
+    
     _isRecurring = e.isRecurring;
     _notificationEnabled = e.notificationEnabled;
+    _notifyOffsetMinutes = [e.notifyOffsetMinutes];
+    _repeatEveryDays = e.isRecurring ? e.recurrenceIntervalDays : null;
+    _repeatRule = e.recurrenceRule;
     _photoKeys = e.photos.toList();
     _documentKeys = e.documents.toList();
   }
@@ -193,6 +1085,25 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
     if (result == null || result.files.single.path == null) return;
     setState(() => _localDocuments.add(File(result.files.single.path!)));
+  }
+
+  /// Kombiniert _dueDate und _dueTime zu einem DateTime
+  /// Erstellt das DateTime in lokaler Zeit und konvertiert zu UTC für Supabase
+  DateTime? _getCombinedDateTime() {
+    if (_dueDate == null) return null;
+    
+    // Erstelle DateTime in lokaler Zeit
+    final localDateTime = DateTime(
+      _dueDate!.year,
+      _dueDate!.month,
+      _dueDate!.day,
+      _dueTime?.hour ?? 0,
+      _dueTime?.minute ?? 0,
+    );
+    
+    // Konvertiere zu UTC für Speicherung in Supabase
+    // Wenn User 10:23 lokal eingibt, wird 09:23 UTC gespeichert (bei UTC+1)
+    return localDateTime.toUtc();
   }
 
   Future<void> _save() async {
@@ -230,13 +1141,15 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
       }
 
       if (widget.existing == null) {
+        _notifyOffsetMinutes.sort();
+
         // Neu erstellen
-        await svc.createReminder(
+        final created = await svc.createReminder(
           title: _titleCtrl.text.trim(),
           description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           category: _category,
           reminderType: _type,
-          dueDate: _type == ReminderType.date ? _dueDate : null,
+          dueDate: _type == ReminderType.date ? _getCombinedDateTime() : null,
           dueMileage: _type == ReminderType.mileage && _mileageCtrl.text.isNotEmpty
               ? int.tryParse(_mileageCtrl.text)
               : null,
@@ -249,18 +1162,37 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
           notes: effectiveNotes.isEmpty ? null : effectiveNotes,
           photos: _photoKeys.isEmpty ? null : _photoKeys,
           documents: _documentKeys.isEmpty ? null : _documentKeys,
-          isRecurring: _isRecurring,
-          recurrenceIntervalDays: _isRecurring && _intervalMonths != null ? _intervalMonths! * 30 : null,
+          isRecurring: _repeatEveryDays != null && _repeatEveryDays! > 0,
+          recurrenceIntervalDays: _repeatEveryDays,
+          recurrenceRule: _repeatRule,
           notificationEnabled: _notificationEnabled,
+          notifyOffsetMinutes: _notifyOffsetMinutes.isEmpty ? 10 : _notifyOffsetMinutes.first,
         );
+        
+        // Notification wurde bereits von createReminder für den ersten Offset geplant
+        // Plane zusätzliche Benachrichtigungen für weitere Offsets (falls mehrere gewählt)
+        if (_notificationEnabled && _notifyOffsetMinutes.length > 1) {
+          for (int i = 1; i < _notifyOffsetMinutes.length; i++) {
+            try {
+              await MaintenanceNotificationService.scheduleMaintenanceReminder(
+                created,
+                offsetMinutes: _notifyOffsetMinutes[i],
+              );
+            } catch (e) {
+              print('Fehler beim Planen zusätzlicher Notification (${_notifyOffsetMinutes[i]} Min): $e');
+            }
+          }
+        }
       } else {
-        // Aktualisieren
+        // Aktualisieren (updateReminder plant bereits die Notification intern)
+        _notifyOffsetMinutes.sort();
+
         await svc.updateReminder(
           id: widget.existing!.id,
           title: _titleCtrl.text.trim(),
           description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           category: _category,
-          dueDate: _type == ReminderType.date ? _dueDate : null,
+          dueDate: _type == ReminderType.date ? _getCombinedDateTime() : null,
           dueMileage: _type == ReminderType.mileage && _mileageCtrl.text.isNotEmpty
               ? int.tryParse(_mileageCtrl.text)
               : null,
@@ -273,10 +1205,30 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
           notes: effectiveNotes.isEmpty ? null : effectiveNotes,
           photos: _photoKeys.isEmpty ? null : _photoKeys,
           documents: _documentKeys.isEmpty ? null : _documentKeys,
-          isRecurring: _isRecurring,
-          recurrenceIntervalDays: _isRecurring && _intervalMonths != null ? _intervalMonths! * 30 : null,
+          isRecurring: _repeatEveryDays != null && _repeatEveryDays! > 0,
+          recurrenceIntervalDays: _repeatEveryDays,
+          recurrenceRule: _repeatRule,
           notificationEnabled: _notificationEnabled,
+          notifyOffsetMinutes: _notifyOffsetMinutes.isEmpty ? 10 : _notifyOffsetMinutes.first,
         );
+        
+        // Plane zusätzliche Benachrichtigungen für weitere Offsets (falls mehrere gewählt)
+        if (_notificationEnabled && _notifyOffsetMinutes.length > 1) {
+          // Hole aktualisierte Wartung
+          final updated = await svc.getReminder(widget.existing!.id);
+          if (updated != null) {
+            for (int i = 1; i < _notifyOffsetMinutes.length; i++) {
+              try {
+                await MaintenanceNotificationService.scheduleMaintenanceReminder(
+                  updated,
+                  offsetMinutes: _notifyOffsetMinutes[i],
+                );
+              } catch (e) {
+                print('Fehler beim Planen zusätzlicher Notification (${_notifyOffsetMinutes[i]} Min): $e');
+              }
+            }
+          }
+        }
       }
 
       // Werkstatt merken
@@ -294,6 +1246,349 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     }
   }
 
+  String _offsetLabel(AppLocalizations t, int minutes) {
+    if (minutes == 0) return t.maintenance_reminder_at_event;
+    if (minutes == 10) return t.maintenance_reminder_10m;
+    if (minutes == 60) return t.maintenance_reminder_1h;
+    if (minutes == 24 * 60) return t.maintenance_reminder_1d;
+    
+    // Bessere Formatierung für große Werte
+    if (minutes >= 1440) {
+      final days = (minutes / 1440).round();
+      return '$days Tag${days > 1 ? 'e' : ''} vorher';
+    } else if (minutes >= 60) {
+      final hours = (minutes / 60).round();
+      return '$hours Std. vorher';
+    }
+    return '$minutes Min. vorher';
+  }
+  
+  String _notificationLabel(AppLocalizations t) {
+    if (_notifyOffsetMinutes.isEmpty) return 'Keine';
+    final labels = _notifyOffsetMinutes.map((m) => _offsetLabel(t, m)).toList();
+    return labels.join(', ');
+  }
+  
+  String _repeatLabel(AppLocalizations t) {
+    // Nutze die verbesserte _repeatPreviewLabel Methode
+    return _repeatPreviewLabel(t);
+  }
+
+  void _openReminderSheet() {
+    final t = AppLocalizations.of(context);
+    
+    bool tempEnabled = _notificationEnabled;
+    List<int> tempSelected = List.from(_notifyOffsetMinutes);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF151C23),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isDismissible: true,
+      enableDrag: true,
+      builder: (ctx) {
+        bool showCustomPicker = false;
+        int customAmount = 1;
+        int customUnit = 1; // 0=Min, 1=Std, 2=Tag
+        int? dynamicCustomValue;
+        
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            // Custom-Werte dynamisch neu berechnen
+            final customValues = tempSelected.where((m) => m != 0 && m != 10 && m != 60 && m != 1440).toList();
+            return DraggableScrollableSheet(
+              initialChildSize: 0.85,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (_, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Titel mit Zurück-Button
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: () {
+                              // Auto-Save beim Schließen
+                              setState(() {
+                                _notificationEnabled = tempEnabled;
+                                _notifyOffsetMinutes = tempSelected;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Erinnerung',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Ein/Aus Switch
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1F2933),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Ein',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Switch(
+                              value: tempEnabled,
+                              onChanged: (v) => setSt(() => tempEnabled = v),
+                              activeColor: const Color(0xFF1976D2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      if (tempEnabled) ...[
+                        const SizedBox(height: 24),
+                        
+                        // Preset-Optionen mit Checkboxen
+                        CheckboxListTile(
+                          value: tempSelected.contains(0),
+                          onChanged: (checked) {
+                            setSt(() {
+                              if (checked == true) {
+                                tempSelected.add(0);
+                              } else {
+                                tempSelected.remove(0);
+                              }
+                            });
+                          },
+                          title: Text(t.maintenance_reminder_at_event, style: const TextStyle(color: Colors.white)),
+                          activeColor: const Color(0xFF1976D2),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        CheckboxListTile(
+                          value: tempSelected.contains(10),
+                          onChanged: (checked) {
+                            setSt(() {
+                              if (checked == true) {
+                                tempSelected.add(10);
+                              } else {
+                                tempSelected.remove(10);
+                              }
+                            });
+                          },
+                          title: Text(t.maintenance_reminder_10m, style: const TextStyle(color: Colors.white)),
+                          activeColor: const Color(0xFF1976D2),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        CheckboxListTile(
+                          value: tempSelected.contains(60),
+                          onChanged: (checked) {
+                            setSt(() {
+                              if (checked == true) {
+                                tempSelected.add(60);
+                              } else {
+                                tempSelected.remove(60);
+                              }
+                            });
+                          },
+                          title: Text(t.maintenance_reminder_1h, style: const TextStyle(color: Colors.white)),
+                          activeColor: const Color(0xFF1976D2),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        CheckboxListTile(
+                          value: tempSelected.contains(1440),
+                          onChanged: (checked) {
+                            setSt(() {
+                              if (checked == true) {
+                                tempSelected.add(1440);
+                              } else {
+                                tempSelected.remove(1440);
+                              }
+                            });
+                          },
+                          title: Text(t.maintenance_reminder_1d, style: const TextStyle(color: Colors.white)),
+                          activeColor: const Color(0xFF1976D2),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        
+                        // Zeige alle custom Werte als Checkboxen (persistent)
+                        ...customValues.map((minutes) {
+                          return CheckboxListTile(
+                            value: tempSelected.contains(minutes),
+                            onChanged: (checked) {
+                              setSt(() {
+                                if (checked == true) {
+                                  tempSelected.add(minutes);
+                                } else {
+                                  tempSelected.remove(minutes);
+                                }
+                              });
+                            },
+                            title: Text(_offsetLabel(t, minutes), style: const TextStyle(color: Colors.white)),
+                            activeColor: const Color(0xFF1976D2),
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        }).toList(),
+                        
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: Colors.white24),
+                        const SizedBox(height: 16),
+                        
+                        // "Angepasst" Section
+                        InkWell(
+                          onTap: () => setSt(() => showCustomPicker = !showCustomPicker),
+                          child: Row(
+                            children: [
+                              Icon(
+                                showCustomPicker ? Icons.remove : Icons.add,
+                                color: const Color(0xFF4CAF50),
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                t.maintenance_reminder_custom,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        if (showCustomPicker) ...[
+                          const SizedBox(height: 16),
+                          // Dynamische Custom-Option als Checkbox
+                          Builder(
+                            builder: (_) {
+                              final mult = customUnit == 0 ? 1 : customUnit == 1 ? 60 : 1440;
+                              final minutes = customAmount * mult;
+                              final unitText = customUnit == 0 ? 'Min' : customUnit == 1 ? 'Std' : 'Tag';
+                              final label = '$customAmount $unitText. vorher';
+                              
+                              return CheckboxListTile(
+                                value: tempSelected.contains(minutes),
+                                onChanged: (checked) {
+                                  setSt(() {
+                                    if (checked == true) {
+                                      tempSelected.add(minutes);
+                                    } else {
+                                      tempSelected.remove(minutes);
+                                    }
+                                  });
+                                },
+                                title: Text(label, style: const TextStyle(color: Colors.white)),
+                                activeColor: const Color(0xFF1976D2),
+                                contentPadding: EdgeInsets.zero,
+                                controlAffinity: ListTileControlAffinity.leading,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            height: 180,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1F2933),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                // Betrag
+                                Expanded(
+                                  child: CupertinoPicker(
+                                    backgroundColor: Colors.transparent,
+                                    itemExtent: 36,
+                                    scrollController: FixedExtentScrollController(initialItem: customAmount - 1),
+                                    onSelectedItemChanged: (i) {
+                                      setSt(() {
+                                        customAmount = i + 1;
+                                        // Auto-update dynamicCustomValue
+                                        final mult = customUnit == 0 ? 1 : customUnit == 1 ? 60 : 1440;
+                                        dynamicCustomValue = customAmount * mult;
+                                      });
+                                    },
+                                    children: List.generate(120, (i) {
+                                      return Center(
+                                        child: Text(
+                                          '${i + 1}',
+                                          style: const TextStyle(color: Colors.white, fontSize: 18),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                                // Einheit
+                                Expanded(
+                                  flex: 2,
+                                  child: CupertinoPicker(
+                                    backgroundColor: Colors.transparent,
+                                    itemExtent: 36,
+                                    scrollController: FixedExtentScrollController(initialItem: customUnit),
+                                    onSelectedItemChanged: (i) {
+                                      setSt(() {
+                                        customUnit = i;
+                                        // Auto-update dynamicCustomValue
+                                        final mult = i == 0 ? 1 : i == 1 ? 60 : 1440;
+                                        dynamicCustomValue = customAmount * mult;
+                                      });
+                                    },
+                                    children: const [
+                                      Center(child: Text('Minute', style: TextStyle(color: Colors.white, fontSize: 18))),
+                                      Center(child: Text('Stunde', style: TextStyle(color: Colors.white, fontSize: 18))),
+                                      Center(child: Text('Tag', style: TextStyle(color: Colors.white, fontSize: 18))),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 16),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    ).then((_) {
+      // Auto-Save beim Dismiss (außerhalb klicken)
+      setState(() {
+        _notificationEnabled = tempEnabled;
+        _notifyOffsetMinutes = tempSelected;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -307,11 +1602,14 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
             // Kategorie (Icons statt Textchips)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,24 +1633,50 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                     Row(
                       children: [
                         Expanded(
-                          child: CheckboxListTile(
-                            value: _tireSummer,
-                            onChanged: (v) => setState(() => _tireSummer = v ?? false),
-                            title: Text(t.maintenance_tires_summer, style: const TextStyle(color: Colors.white)),
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: const Color(0xFF1976D2),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _tireSummer,
+                                onChanged: (v) => setState(() => _tireSummer = v ?? false),
+                                activeColor: const Color(0xFF1976D2),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  t.maintenance_tires_summer,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 16),
                         Expanded(
-                          child: CheckboxListTile(
-                            value: _tireWinter,
-                            onChanged: (v) => setState(() => _tireWinter = v ?? false),
-                            title: Text(t.maintenance_tires_winter, style: const TextStyle(color: Colors.white)),
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: const Color(0xFF1976D2),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _tireWinter,
+                                onChanged: (v) => setState(() => _tireWinter = v ?? false),
+                                activeColor: const Color(0xFF1976D2),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  t.maintenance_tires_winter,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -437,7 +1761,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  t.maintenance_reminder_type,
+                  t.maintenance_reminders,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -466,56 +1790,93 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                         ),
                       ],
                     ),
-                  const SizedBox(height: 12),
-                  if (_type == ReminderType.date)
-                    Focus(
-                      focusNode: _dateFocusNode,
-                      child: ListTile(
-                        title: Text(
-                          _dueDate == null ? t.maintenance_due_date_label : '${_dueDate!.day}.${_dueDate!.month}.${_dueDate!.year}',
-                          style: const TextStyle(color: Colors.white),
+                    const SizedBox(height: 12),
+                    if (_type == ReminderType.date)
+                      TextFormField(
+                        controller: _dueDateTextCtrl,
+                        readOnly: true,
+                        onTap: _pickDueDate,
+                        decoration: InputDecoration(
+                          labelText: t.maintenance_due_date_label,
+                          hintText: t.maintenance_due_date_hint,
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          hintStyle: const TextStyle(color: Colors.white54),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: const Color(0xFF151C23),
+                          suffixIcon: const Icon(Icons.calendar_today, color: Colors.white70),
                         ),
-                        trailing: const Icon(Icons.calendar_today, color: Colors.white70),
-                        onTap: () async {
-                          _dateFocusNode.requestFocus();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _dueDate ?? DateTime.now(),
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 3650)),
-                          );
-                          if (picked != null) {
-                            setState(() => _dueDate = picked);
-                            _dateFocusNode.unfocus();
-                          }
-                        },
-                        tileColor: const Color(0xFF151C23),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        style: const TextStyle(color: Colors.white),
+                        validator: (_) => _type == ReminderType.date && _dueDate == null ? t.maintenance_due_date_required : null,
+                      )
+                    else
+                      TextFormField(
+                        controller: _mileageCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: t.maintenance_due_mileage_label,
+                          hintText: t.maintenance_due_mileage_hint,
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          hintStyle: const TextStyle(color: Colors.white54),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: const Color(0xFF151C23),
+                        ),
+                        style: const TextStyle(color: Colors.white),
+                        validator: (_) => _type == ReminderType.mileage && _mileageCtrl.text.trim().isEmpty ? t.maintenance_due_mileage_required : null,
                       ),
-                    )
-                  else
-                    TextFormField(
-                      controller: _mileageCtrl,
-                      decoration: InputDecoration(
-                        labelText: t.maintenance_mileage_label,
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        hintText: t.maintenance_mileage_hint,
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        suffixText: t.maintenance_mileage_suffix,
-                        suffixStyle: const TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                        fillColor: const Color(0xFF151C23),
-                      ),
-                      style: const TextStyle(color: Colors.white),
-                      keyboardType: TextInputType.number,
-                    ),
                 ],
               ),
             ],
             ),
 
             const SizedBox(height: 24),
+
+            // Glocke-Row + Wiederholen-Button (ohne Card, direkt auf Hintergrund)
+            if (_type == ReminderType.date) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _openReminderSheet,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  child: Row(
+                    children: [
+                      Icon(_notificationEnabled ? Icons.notifications_active : Icons.notifications_off, color: Colors.white70),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _notificationLabel(t),
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.white70),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _openRepeatScreen,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.repeat, color: Colors.white70),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _repeatLabel(t),
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Werkstatt (mit Autocomplete)
             Column(
@@ -606,38 +1967,38 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                       controller: _costCtrl,
                       decoration: InputDecoration(
                         labelText: t.maintenance_cost_title,
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      hintText: t.maintenance_cost_hint,
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      suffixText: t.maintenance_cost_currency,
-                      suffixStyle: const TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: const Color(0xFF151C23),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintText: t.maintenance_cost_hint,
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        suffixText: t.maintenance_cost_currency,
+                        suffixStyle: const TextStyle(color: Colors.white70),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFF151C23),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _mileageAtMaintenanceCtrl,
-                    decoration: InputDecoration(
-                      labelText: t.maintenance_mileage_at_maintenance,
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      hintText: t.maintenance_mileage_hint,
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      suffixText: t.maintenance_mileage_suffix,
-                      suffixStyle: const TextStyle(color: Colors.white70),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: const Color(0xFF151C23),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _mileageAtMaintenanceCtrl,
+                      decoration: InputDecoration(
+                        labelText: t.maintenance_mileage_at_maintenance,
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintText: t.maintenance_mileage_hint,
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        suffixText: t.maintenance_mileage_suffix,
+                        suffixStyle: const TextStyle(color: Colors.white70),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFF151C23),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: TextInputType.number,
                     ),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
             ),
 
             const SizedBox(height: 24),
@@ -685,40 +2046,156 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                   ),
                 ),
                 const SizedBox(height: 12),
-                Column(
-                  children: [
-                  if (_localPhotos.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _localPhotos.map((f) => Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(f, width: 80, height: 80, fit: BoxFit.cover),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () => setState(() => _localPhotos.remove(f)),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                child: const Icon(Icons.close, color: Colors.white, size: 16),
+                // Existierende Fotos aus der DB
+                if (_photoKeys.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _photoKeys.map((key) => FutureBuilder<String?>(
+                          future: MaintenanceService(Supabase.instance.client).getSignedUrl(key),
+                          builder: (context, snapshot) {
+                            final url = snapshot.data;
+                            return Stack(
+                              children: [
+                                GestureDetector(
+                                  onTap: url == null ? null : () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (dialogCtx) => Stack(
+                                        children: [
+                                          GestureDetector(
+                                            onTap: () => Navigator.pop(dialogCtx),
+                                            child: Container(
+                                              color: Colors.black,
+                                              child: InteractiveViewer(
+                                                child: Image.network(url!),
+                                              ),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            top: 20,
+                                            right: 20,
+                                            child: GestureDetector(
+                                              onTap: () => Navigator.pop(dialogCtx),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(6),
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.red,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(Icons.close, color: Colors.white, size: 24),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: url == null
+                                        ? Container(
+                                            width: 80,
+                                            height: 80,
+                                            color: const Color(0xFF0F141A),
+                                            child: const Center(child: CircularProgressIndicator()),
+                                          )
+                                        : Image.network(url, width: 80, height: 80, fit: BoxFit.cover),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _photoKeys.remove(key)),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        )).toList(),
+                      ),
+                    ),
+                if (_photoKeys.isNotEmpty && _localPhotos.isNotEmpty) const SizedBox(height: 8),
+                // Lokale Fotos (noch nicht hochgeladen)
+                if (_localPhotos.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _localPhotos.map((f) => Stack(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (dialogCtx) => Stack(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () => Navigator.pop(dialogCtx),
+                                        child: Container(
+                                          color: Colors.black,
+                                          child: InteractiveViewer(
+                                            child: Image.file(f),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 20,
+                                        right: 20,
+                                        child: GestureDetector(
+                                          onTap: () => Navigator.pop(dialogCtx),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.close, color: Colors.white, size: 24),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(f, width: 80, height: 80, fit: BoxFit.cover),
                               ),
                             ),
-                          ),
-                        ],
-                      )).toList(),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _localPhotos.remove(f)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )).toList(),
+                      ),
                     ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
                     onPressed: _pickPhoto,
                     icon: const Icon(Icons.add_a_photo),
                     label: Text(t.maintenance_photos_add),
                   ),
-                  ],
                 ),
               ],
             ),
@@ -740,6 +2217,32 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                 const SizedBox(height: 12),
                 Column(
                 children: [
+                  // Existierende Dokumente aus der DB
+                  if (_documentKeys.isNotEmpty)
+                    Column(
+                      children: _documentKeys.map((key) => FutureBuilder<String?>(
+                        future: MaintenanceService(Supabase.instance.client).getSignedUrl(key),
+                        builder: (context, snapshot) {
+                          final url = snapshot.data;
+                          return ListTile(
+                            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                            title: Text('PDF Dokument', style: const TextStyle(color: Colors.white)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, color: Colors.white70),
+                              onPressed: () => setState(() => _documentKeys.remove(key)),
+                            ),
+                            onTap: url == null ? null : () async {
+                              final uri = Uri.parse(url);
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            },
+                            tileColor: const Color(0xFF0F141A),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          );
+                        },
+                      )).toList(),
+                    ),
+                  if (_documentKeys.isNotEmpty && _localDocuments.isNotEmpty) const SizedBox(height: 8),
+                  // Lokale Dokumente (noch nicht hochgeladen)
                   if (_localDocuments.isNotEmpty)
                     Column(
                       children: _localDocuments.map((f) => ListTile(
@@ -766,72 +2269,24 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
 
             const SizedBox(height: 24),
 
-            // Wiederkehrend & Benachrichtigungen
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.maintenance_recurring,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Column(
-                children: [
-                  SwitchListTile(
-                    title: Text(t.maintenance_recurring, style: const TextStyle(color: Colors.white)),
-                    subtitle: Text(t.maintenance_recurring_subtitle, style: const TextStyle(color: Colors.white70)),
-                    value: _isRecurring,
-                    onChanged: (v) => setState(() => _isRecurring = v),
-                    activeColor: const Color(0xFF1976D2),
-                  ),
-                  if (_isRecurring) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [3, 6, 12].map((months) {
-                        final isSelected = _intervalMonths == months;
-                        return ChoiceChip(
-                          label: Text('$months ${t.maintenance_interval_12_months.split(' ')[1]}'),
-                          selected: isSelected,
-                          onSelected: (_) => setState(() => _intervalMonths = months),
-                        );
-                      }).toList(),
+            // Speichern-Button (unten)
+            SizedBox(
+              width: double.infinity,
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      onPressed: _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1976D2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(t.maintenance_save, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     ),
-                  ],
-                  const Divider(),
-                  SwitchListTile(
-                    title: Text(t.maintenance_notification_enabled, style: const TextStyle(color: Colors.white)),
-                    subtitle: Text(t.maintenance_notification_subtitle, style: const TextStyle(color: Colors.white70)),
-                    value: _notificationEnabled,
-                    onChanged: (v) => setState(() => _notificationEnabled = v),
-                    activeColor: const Color(0xFF1976D2),
-                  ),
-                  const SizedBox(height: 24),
-                  // Speichern-Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: _loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : ElevatedButton(
-                            onPressed: _save,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1976D2),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: Text(t.maintenance_save, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          ),
-                  ),
-                  ],
-                ),
-              ],
             ),
 
             const SizedBox(height: 100),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -970,17 +2425,8 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
   void _checkLogin() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Bitte melde dich an, um Wartungen zu erstellen'),
-          backgroundColor: Colors.red,
-          action: SnackBarAction(
-            label: 'Anmelden',
-            textColor: Colors.white,
-            onPressed: () => context.go('/login'),
-          ),
-        ),
-      );
+      // User not logged in - redirect to login
+      context.go('/auth');
     }
   }
 
@@ -1020,6 +2466,80 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     _customCategoryCtrl.dispose();
     super.dispose();
   }
+}
+
+Widget _buildRepeatOption<T>({
+  required T value,
+  required T? groupValue,
+  required String label,
+  required VoidCallback onTap,
+  Widget? customChild,
+}) {
+  final isSelected = value == groupValue;
+  
+  // Wenn customChild vorhanden ist, zeige es statt des Standard-Layouts
+  if (customChild != null) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: customChild,
+      ),
+    );
+  }
+  
+  // Standard-Layout: Einfacher Radio-Button ohne Hintergrund
+  return GestureDetector(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            color: isSelected ? const Color(0xFF1976D2) : Colors.white54,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildSecondaryButton(String label, {required bool isSelected, required VoidCallback onTap}) {
+  return OutlinedButton(
+    onPressed: onTap,
+    style: OutlinedButton.styleFrom(
+      side: BorderSide(
+        color: isSelected ? const Color(0xFF1976D2) : Colors.white30,
+        width: isSelected ? 2 : 1,
+      ),
+      backgroundColor: isSelected ? const Color(0xFF1976D2).withOpacity(0.1) : const Color(0xFF1F2933),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+    ),
+  );
 }
 
 class _CategoryIconTile extends StatelessWidget {

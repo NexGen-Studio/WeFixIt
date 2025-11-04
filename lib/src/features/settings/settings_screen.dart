@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../i18n/app_localizations.dart';
 import '../../state/locale_provider.dart';
@@ -83,6 +84,8 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     const _LanguageTile(),
+                    const SizedBox(height: 16),
+                    const _NotificationsTile(),
                     
                     // Konto-Section nur für eingeloggte User
                     if (isLoggedIn) ...[
@@ -107,6 +110,86 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationsTile extends StatefulWidget {
+  const _NotificationsTile();
+  @override
+  State<_NotificationsTile> createState() => _NotificationsTileState();
+}
+
+class _NotificationsTileState extends State<_NotificationsTile> {
+  bool _enabled = true;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _enabled = prefs.getBool('notifications_enabled_global') ?? true;
+      _loading = false;
+    });
+  }
+
+  Future<void> _set(bool value) async {
+    setState(() => _enabled = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled_global', value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.notifications_active_outlined, color: Color(0xFFFF9800), size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.settings_notifications,
+                  style: const TextStyle(
+                    color: Color(0xFF0A0A0A),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  t.settings_notifications_global_toggle,
+                  style: const TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          _loading
+              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : Switch(value: _enabled, onChanged: _set),
+        ],
       ),
     );
   }

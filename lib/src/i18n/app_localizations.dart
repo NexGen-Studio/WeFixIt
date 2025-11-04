@@ -75,6 +75,7 @@ class AppLocalizations {
   String get maintenance_mark_incomplete => tr('maintenance.mark_incomplete');
   String get maintenance_edit => tr('maintenance.edit');
   String get maintenance_delete => tr('maintenance.delete');
+  String get maintenance_delete_maintenance => tr('maintenance.delete_maintenance');
   String get maintenance_completed_success => tr('maintenance.completed_success');
   String get maintenance_uncompleted_success => tr('maintenance.uncompleted_success');
   
@@ -169,6 +170,9 @@ class AppLocalizations {
   String get settings_confirm_password => tr('settings.confirm_password');
   String get settings_cancel => tr('settings.cancel');
   String get settings_save => tr('settings.save');
+  String get settings_notifications => tr('settings.notifications');
+  String get settings_notifications_global_toggle => tr('settings.notifications_global_toggle');
+  String get common_minutes_short => tr('common.minutes_short');
 
   // Maintenance Overview additional getters
   String get maintenance_upcoming => tr('maintenance.upcoming');
@@ -229,7 +233,48 @@ class AppLocalizations {
   String get maintenance_mileage_at_maintenance => tr('maintenance.mileage_at_maintenance');
 
   String get maintenance_notification_enabled => tr('maintenance.notification_enabled');
+  String get maintenance_notification_title => tr('maintenance.notification_title');
   String get maintenance_notification_subtitle => tr('maintenance.notification_subtitle');
+  String get maintenance_reminder_at_event => tr('maintenance.reminder_at_event');
+  String get maintenance_reminder_10m => tr('maintenance.reminder_10m');
+  String get maintenance_reminder_1h => tr('maintenance.reminder_1h');
+  String get maintenance_reminder_1d => tr('maintenance.reminder_1d');
+  String get maintenance_reminder_custom => tr('maintenance.reminder_custom');
+  String get maintenance_remind_again => tr('maintenance.remind_again');
+  String get maintenance_remind_clear => tr('maintenance.remind_clear');
+  String get maintenance_repeat_until => tr('maintenance.repeat_until');
+  String get maintenance_repeat_clear => tr('maintenance.repeat_clear');
+  String get maintenance_reminders => tr('maintenance.reminders');
+  String get maintenance_repeat_button => tr('maintenance.repeat_button');
+  String get maintenance_repeat_title => tr('maintenance.repeat_title');
+  String get maintenance_repeat_desc_none => tr('maintenance.repeat_desc_none');
+  String get maintenance_repeat_desc_set => tr('maintenance.repeat_desc_set');
+  String get maintenance_repeat_none => tr('maintenance.repeat_none');
+  String get maintenance_repeat_every_day => tr('maintenance.repeat_every_day');
+  String get maintenance_repeat_every_week => tr('maintenance.repeat_every_week');
+  String get maintenance_repeat_every_month => tr('maintenance.repeat_every_month');
+  String get maintenance_repeat_every_year => tr('maintenance.repeat_every_year');
+
+  // New getters for extended reminder UI
+  String get maintenance_due_date_hint => tr('maintenance.due_date_hint');
+  String get maintenance_due_date_required => tr('maintenance.due_date_required');
+  String get maintenance_due_mileage_label => tr('maintenance.due_mileage_label');
+  String get maintenance_due_mileage_hint => tr('maintenance.due_mileage_hint');
+  String get maintenance_due_mileage_required => tr('maintenance.due_mileage_required');
+  String get maintenance_repeat_monthly_by_day => tr('maintenance.repeat_monthly_by_day');
+  String get maintenance_repeat_monthly_by_nth_weekday => tr('maintenance.repeat_monthly_by_nth_weekday');
+  String get maintenance_repeat_yearly_by_day => tr('maintenance.repeat_yearly_by_day');
+  String get maintenance_repeat_yearly_by_nth_weekday => tr('maintenance.repeat_yearly_by_nth_weekday');
+  String get weekday_mo => tr('weekday_mo');
+  String get weekday_tu => tr('weekday_tu');
+  String get weekday_we => tr('weekday_we');
+  String get weekday_th => tr('weekday_th');
+  String get weekday_fr => tr('weekday_fr');
+  String get weekday_sa => tr('weekday_sa');
+  String get weekday_su => tr('weekday_su');
+  String get unit_minute => tr('unit_minute');
+  String get unit_hour => tr('unit_hour');
+  String get unit_day => tr('unit_day');
 
   // Suggestions
   String get maintenance_suggestion_oil_recommended_title => tr('maintenance.suggestion_oil_recommended_title');

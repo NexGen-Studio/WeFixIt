@@ -47,7 +47,6 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
-
 		<!-- URL Scheme für Supabase Passwort-Reset: wefixit://reset-password -->
 		<key>CFBundleURLTypes</key>
 		<array>
