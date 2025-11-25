@@ -6,6 +6,7 @@ import 'i18n/app_localizations.dart';
 import 'routes.dart';
 import 'theme.dart';
 import 'state/locale_provider.dart';
+import 'services/navigation_service.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -13,6 +14,10 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = createRouter();
+    
+    // Setze Router für Navigation Service (für Notifications)
+    NavigationService.setRouter(router);
+    
     final locale = ref.watch(appLocaleProvider);
     return MaterialApp.router(
       title: 'WeFixIt',

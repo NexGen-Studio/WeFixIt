@@ -71,9 +71,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return Scaffold(
+      backgroundColor: const Color(0xFF0B1117),
       appBar: AppBar(
-        title: Text(t.tr('auth.title')),
+        backgroundColor: const Color(0xFF151C23),
+        title: Text(t.tr('auth.title'), style: const TextStyle(color: Colors.white)),
         leading: BackButton(
+          color: Colors.white,
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -94,23 +97,63 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(t.tr(_isSignUp ? 'auth.subtitle_signup' : 'auth.subtitle_login')),
+                    Text(
+                      t.tr(_isSignUp ? 'auth.subtitle_signup' : 'auth.subtitle_login'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 16),
+                    ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(labelText: t.tr('auth.email')),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: t.tr('auth.email'),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: const Color(0xFF1A1F26),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE53935)),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE53935), width: 2),
+                        ),
+                      ),
                       validator: (v) => (v == null || v.isEmpty) ? t.tr('auth.email_required') : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _passCtrl,
                       obscureText: !_showPassword,
+                      style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: t.tr('auth.password'),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: const Color(0xFF1A1F26),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE53935)),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE53935), width: 2),
+                        ),
                         suffixIcon: IconButton(
                           onPressed: () => setState(() => _showPassword = !_showPassword),
-                          icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                          icon: Icon(
+                            _showPassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.white54,
+                          ),
                         ),
                       ),
                       validator: (v) => (v == null || v.length < 6) ? t.tr('auth.password_required') : null,
@@ -125,6 +168,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         child: Text(
                           _isSignUp ? t.tr('auth.switch_to_login') : t.tr('auth.switch_to_signup'),
                           textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.blue),
                         ),
                       ),
                     ),
@@ -170,17 +214,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         child: Text(
                           t.tr('auth.forgot_password'),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13),
+                          style: const TextStyle(fontSize: 13, color: Colors.blue),
                         ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     if (_error != null)
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      Text(_error!, style: const TextStyle(color: Color(0xFFE53935))),
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _loading ? null : _submit,
-                      child: Text(_isSignUp ? t.tr('auth.signup') : t.tr('auth.login')),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        _isSignUp ? t.tr('auth.signup') : t.tr('auth.login'),
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],

@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/maintenance_reminder.dart';
 import 'maintenance_notification_service.dart';
+import 'costs_service.dart';
+import 'category_service.dart';
 
 class MaintenanceService {
   final SupabaseClient _client;
@@ -218,6 +220,32 @@ class MaintenanceService {
       );
     }
 
+    // Auto-Sync: Kosteneintrag erstellen wenn Kosten angegeben
+    if (cost != null && cost > 0) {
+      try {
+        final CostsService costsService = CostsService();
+        final CategoryService categoryService = CategoryService();
+        
+        // Kategorie-Mapping: Wartungskategorie → Kostenkategorie
+        final categoryName = category?.toJsonValue() ?? 'maintenance';
+        final costCategory = await categoryService.findSystemCategoryByName(categoryName);
+        
+        if (costCategory != null) {
+          await costsService.createCostFromMaintenance(
+            maintenanceReminderId: reminder.id,
+            categoryId: costCategory.id,
+            title: title,
+            amount: cost,
+            date: dueDate ?? DateTime.now(),
+            mileage: mileageAtMaintenance,
+          );
+        }
+      } catch (e) {
+        print('Error creating cost entry from maintenance: $e');
+        // Fehler beim Kosten-Sync nicht propagieren
+      }
+    }
+
     return reminder;
   }
 
@@ -365,6 +393,8 @@ class MaintenanceService {
       throw Exception('Bitte melde dich an');
     }
 
+    final reminder = await getReminder(id);
+
     // Storniere Benachrichtigung
     await MaintenanceNotificationService.cancelNotification(id);
 
@@ -373,6 +403,20 @@ class MaintenanceService {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
+
+    if (reminder != null) {
+      final filesToRemove = <String>[]
+        ..addAll(reminder.photos)
+        ..addAll(reminder.documents);
+
+      if (filesToRemove.isNotEmpty) {
+        try {
+          await _client.storage.from('maintenance-files').remove(filesToRemove);
+        } catch (e) {
+          print('⚠️ Fehler beim Löschen von Anhängen: $e');
+        }
+      }
+    }
   }
 
   /// Foto hochladen

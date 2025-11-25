@@ -10,19 +10,27 @@ class DiagnoseScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Anmeldung erforderlich'),
-        content: const Text('Für KI-Diagnosen musst du dich anmelden. Fehlercodes auslesen und löschen ist immer kostenlos!'),
+        backgroundColor: const Color(0xFF1A1F26),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Anmeldung erforderlich', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Für KI-Diagnosen musst du dich anmelden. Fehlercodes auslesen und löschen ist immer kostenlos!',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Abbrechen'),
+            child: const Text('Abbrechen', style: TextStyle(color: Color(0xFFF8AD20))),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               context.go('/auth');
             },
-            child: const Text('Jetzt anmelden'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF8AD20),
+            ),
+            child: const Text('Jetzt anmelden', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -33,7 +41,7 @@ class DiagnoseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0B1117),
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -50,16 +58,16 @@ class DiagnoseScreen extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0A0A0A),
+                        color: Colors.white,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       t.tr('diagnose.subtitle'),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: Colors.grey[600],
+                        color: Colors.white70,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -127,10 +135,10 @@ class DiagnoseScreen extends StatelessWidget {
                   children: [
                     Text(
                       t.diagnose_how_it_works,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0A0A0A),
+                        color: Colors.white,
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -175,7 +183,7 @@ class DiagnoseScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: Colors.white,
+      color: const Color(0xFF151C23),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -183,7 +191,7 @@ class DiagnoseScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[200]!, width: 1),
+            border: Border.all(color: Colors.white12, width: 1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
@@ -203,7 +211,7 @@ class DiagnoseScreen extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF0A0A0A),
+                    color: Colors.white,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -225,7 +233,7 @@ class DiagnoseScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
             ],
           ),
         ),
@@ -241,9 +249,9 @@ class DiagnoseScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF151C23),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
+        border: Border.all(color: Colors.white12, width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,10 +259,10 @@ class DiagnoseScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
+              color: const Color(0xFF1A1F26),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: const Color(0xFF616161), size: 20),
+            child: Icon(icon, color: const Color(0xFFF8AD20), size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -266,14 +274,14 @@ class DiagnoseScreen extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: Color(0xFF0A0A0A),
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    color: Colors.grey[600],
+                  style: const TextStyle(
+                    color: Colors.white70,
                     fontSize: 13,
                     height: 1.4,
                     fontWeight: FontWeight.w500,

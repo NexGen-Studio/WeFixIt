@@ -90,6 +90,29 @@ class AppLocalizations {
   String get chatbot_question_error_code => tr('chatbot.question_error_code');
   String get chatbot_question_maintenance => tr('chatbot.question_maintenance');
   String get chatbot_question_noise => tr('chatbot.question_noise');
+  String get chatbot_no_credits_title => tr('chatbot.no_credits_title');
+  String get chatbot_no_credits_message => tr('chatbot.no_credits_message');
+  String get chatbot_go_to_paywall => tr('chatbot.go_to_paywall');
+  String get chatbot_simulated_response => tr('chatbot.simulated_response');
+
+  // Credits i18n getters
+  String get credits_title => tr('credits.title');
+  String get credits_pro_member => tr('credits.pro_member');
+  String get credits_my_credits => tr('credits.my_credits');
+  String get credits_buy => tr('credits.buy');
+  String get credits_quota_renews_weekly => tr('credits.quota_renews_weekly');
+  String get credits_unlimited_ai => tr('credits.unlimited_ai');
+  String creditsRemaining(int count) => tr('credits.free_quota_remaining').replaceAll('{count}', count.toString());
+
+  // Common i18n getters
+  String get common_save => tr('common.save');
+  String get common_cancel => tr('common.cancel');
+  String get common_ok => tr('common.ok');
+  String get common_delete => tr('common.delete');
+  String get common_edit => tr('common.edit');
+  String get common_back => tr('common.back');
+  String get common_minutes_short => tr('common.minutes_short');
+  String get common_upload_error => tr('common.upload_error');
 
   // Home i18n getters
   String get home_vehicle_overview => tr('home.vehicle_overview');
@@ -172,7 +195,6 @@ class AppLocalizations {
   String get settings_save => tr('settings.save');
   String get settings_notifications => tr('settings.notifications');
   String get settings_notifications_global_toggle => tr('settings.notifications_global_toggle');
-  String get common_minutes_short => tr('common.minutes_short');
 
   // Maintenance Overview additional getters
   String get maintenance_upcoming => tr('maintenance.upcoming');
@@ -215,6 +237,7 @@ class AppLocalizations {
   String get maintenance_photos_title => tr('maintenance.photos_title');
   String get maintenance_photos_add => tr('maintenance.photos_add');
   String get maintenance_documents_title => tr('maintenance.documents_title');
+  String get maintenance_documents_add => tr('maintenance.documents_add');
   String get maintenance_documents_upload_pdf => tr('maintenance.documents_upload_pdf');
   
   String get maintenance_notes_title => tr('maintenance.notes_title');
@@ -229,6 +252,8 @@ class AppLocalizations {
   String get maintenance_cost_title => tr('maintenance.cost_title');
   String get maintenance_cost_hint => tr('maintenance.cost_hint');
   String get maintenance_cost_currency => tr('maintenance.cost_currency');
+  String get maintenance_add_to_vehicle_costs => tr('maintenance.add_to_vehicle_costs');
+  String get maintenance_add_to_vehicle_costs_desc => tr('maintenance.add_to_vehicle_costs_desc');
 
   String get maintenance_mileage_at_maintenance => tr('maintenance.mileage_at_maintenance');
 

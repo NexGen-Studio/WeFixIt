@@ -13,6 +13,10 @@ import '../../i18n/app_localizations.dart';
 import '../../models/maintenance_reminder.dart';
 import '../../services/maintenance_service.dart';
 import '../../services/maintenance_notification_service.dart';
+import '../../services/costs_service.dart';
+import '../../services/category_service.dart';
+import '../../models/vehicle_cost.dart';
+import '../../models/cost_category.dart';
 
 /// Erweiterter Create/Edit Screen für Wartungen mit allen Features
 class ExtendedCreateReminderScreen extends StatefulWidget {
@@ -50,6 +54,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
   int? _repeatEveryDays; // Wiederholen-Intervall in Tagen (null = nicht wiederholen)
   Map<String, dynamic>? _repeatRule;
   bool _loading = false;
+  bool _addToCosts = false;
   
   // Laufzeit-Optionen
   String _recurrenceDuration = 'forever'; // 'forever', 'count', 'until'
@@ -278,7 +283,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             value: 1,
                             groupValue: factor == 1 && tempDays != null ? factor : null,
                             onChanged: (_) => setSt(() { factor = 1; tempDays = dayInterval * 1; }),
-                            activeColor: const Color(0xFF1976D2),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -295,9 +299,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               decoration: const InputDecoration(
                                 enabledBorder: UnderlineInputBorder(
                                   borderSide: BorderSide(color: Colors.white54),
-                                ),
-                                focusedBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
                                 ),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -330,7 +331,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             value: 7,
                             groupValue: factor == 7 && tempDays != null ? factor : null,
                             onChanged: (_) => setSt(() { factor = 7; tempDays = weekInterval * 7; }),
-                            activeColor: const Color(0xFF1976D2),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -347,9 +347,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               decoration: const InputDecoration(
                                 enabledBorder: UnderlineInputBorder(
                                   borderSide: BorderSide(color: Colors.white54),
-                                ),
-                                focusedBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
                                 ),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -393,7 +390,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                                 label: Text(labels[i]),
                                 selected: selected,
                                 backgroundColor: const Color(0xFF1F2933),
-                                selectedColor: const Color(0xFF1976D2),
                                 checkmarkColor: Colors.white,
                                 labelStyle: TextStyle(
                                   color: selected ? Colors.white : Colors.white70,
@@ -416,7 +412,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             value: 30,
                             groupValue: factor == 30 && tempDays != null ? factor : null,
                             onChanged: (_) => setSt(() { factor = 30; tempDays = monthInterval * 30; }),
-                            activeColor: const Color(0xFF1976D2),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -433,9 +428,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               decoration: const InputDecoration(
                                 enabledBorder: UnderlineInputBorder(
                                   borderSide: BorderSide(color: Colors.white54),
-                                ),
-                                focusedBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
                                 ),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -505,9 +497,9 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                                         height: 40,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: isSelected ? const Color(0xFF1976D2) : Colors.transparent,
+                                          color: isSelected ? Colors.blue : Colors.transparent,
                                           border: Border.all(
-                                            color: isSelected ? const Color(0xFF1976D2) : Colors.white30,
+                                            color: isSelected ? Colors.blue : Colors.white30,
                                           ),
                                         ),
                                         alignment: Alignment.center,
@@ -536,7 +528,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             value: 365,
                             groupValue: factor == 365 && tempDays != null ? factor : null,
                             onChanged: (_) => setSt(() { factor = 365; tempDays = yearInterval * 365; }),
-                            activeColor: const Color(0xFF1976D2),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -553,9 +544,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               decoration: const InputDecoration(
                                 enabledBorder: UnderlineInputBorder(
                                   borderSide: BorderSide(color: Colors.white54),
-                                ),
-                                focusedBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFF1976D2)),
                                 ),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -1140,6 +1128,8 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
         effectiveNotes = effectiveNotes.isEmpty ? tag : '$effectiveNotes\n$tag';
       }
 
+      String? savedReminderId;
+
       if (widget.existing == null) {
         _notifyOffsetMinutes.sort();
 
@@ -1168,6 +1158,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
           notificationEnabled: _notificationEnabled,
           notifyOffsetMinutes: _notifyOffsetMinutes.isEmpty ? 10 : _notifyOffsetMinutes.first,
         );
+        savedReminderId = created.id;
         
         // Notification wurde bereits von createReminder für den ersten Offset geplant
         // Plane zusätzliche Benachrichtigungen für weitere Offsets (falls mehrere gewählt)
@@ -1186,6 +1177,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
       } else {
         // Aktualisieren (updateReminder plant bereits die Notification intern)
         _notifyOffsetMinutes.sort();
+        savedReminderId = widget.existing!.id;
 
         await svc.updateReminder(
           id: widget.existing!.id,
@@ -1233,6 +1225,99 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
 
       // Werkstatt merken
       await _rememberWorkshop(_workshopNameCtrl.text.trim(), _workshopAddressCtrl.text.trim());
+
+      // ----------------------------------------------------------
+      // NEU: Kosten in Fahrzeugkosten übernehmen
+      // ----------------------------------------------------------
+      if (_addToCosts && _costCtrl.text.isNotEmpty) {
+        final amount = double.tryParse(_costCtrl.text);
+        if (amount != null && amount > 0 && savedReminderId != null) {
+          final costsService = CostsService();
+          final catService = CategoryService();
+          final t = AppLocalizations.of(context);
+          
+          // 1. Kategorie finden oder erstellen
+          String categoryId = '';
+          
+          // Fall A: Custom Maintenance Category (Sonstiges + Label)
+          if (_category == MaintenanceCategory.other && _customSelectedLabel != null) {
+             final label = _customSelectedLabel!;
+             // Prüfe ob Custom Category existiert
+             final allCats = await catService.fetchCustomCategories();
+             final existing = allCats.firstWhere(
+               (c) => c.name.toLowerCase() == label.toLowerCase(),
+               orElse: () => const CostCategory(id: '', name: '', iconName: '', colorHex: ''),
+             );
+             
+             if (existing.id.isNotEmpty) {
+               categoryId = existing.id;
+             } else {
+               // Erstellen
+               // Icon bestimmen basierend auf dem zugewiesenen Icon
+               String iconName = 'more_horiz';
+               if (_customCategoryIcons.containsKey(label)) {
+                 final iconData = _customCategoryIcons[label]!;
+                 // Reverse map try (limited) or default
+                 if (iconData == Icons.star) iconName = 'star';
+                 else if (iconData == Icons.build) iconName = 'build';
+                 else if (iconData == Icons.settings) iconName = 'settings';
+               }
+               
+               final newCat = await catService.createCustomCategory(
+                 name: label,
+                 iconName: iconName,
+                 colorHex: '#90A4AE',
+               );
+               categoryId = newCat?.id ?? '';
+             }
+          } else {
+             // Fall B: Standard Maintenance Category
+             // Label z.B. "Bremsen" (lokalisiert)
+             final label = _getCategoryLabel(t, _category ?? MaintenanceCategory.other);
+             
+             // Suche nach Kategorie mit diesem Namen (System oder Custom)
+             // ACHTUNG: System-Kategorien haben oft englische Namen in DB, aber wir suchen hier nach lokalisiertem Namen?
+             // Besser: Wir suchen zuerst nach System-Kategorien die passen KÖNNTEN, aber wenn User "Bremsen" will, 
+             // und System nur "Maintenance" hat, müssen wir Custom "Bremsen" erstellen.
+             
+             final allCats = await catService.fetchAllCategories();
+             final existing = allCats.firstWhere(
+               (c) => c.name.toLowerCase() == label.toLowerCase(),
+               orElse: () => const CostCategory(id: '', name: '', iconName: '', colorHex: ''),
+             );
+             
+             if (existing.id.isNotEmpty) {
+               categoryId = existing.id;
+             } else {
+               // Erstellen als Custom Category damit Name & Icon passen
+               final iconName = _getCategoryIconName(_category ?? MaintenanceCategory.other);
+               final color = _getCategoryColor(_category ?? MaintenanceCategory.other);
+               final colorHex = '#${color.value.toRadixString(16).substring(2)}';
+               
+               final newCat = await catService.createCustomCategory(
+                 name: label,
+                 iconName: iconName,
+                 colorHex: colorHex,
+               );
+               categoryId = newCat?.id ?? '';
+             }
+          }
+          
+          if (categoryId.isNotEmpty) {
+            await costsService.createCost(VehicleCost(
+              id: '', // DB gen
+              userId: '', // Service sets it
+              categoryId: categoryId,
+              title: _titleCtrl.text.isEmpty ? _getCategoryLabel(t, _category ?? MaintenanceCategory.other) : _titleCtrl.text,
+              amount: amount,
+              date: _dueDate ?? DateTime.now(),
+              mileage: _mileageAtMaintenanceCtrl.text.isNotEmpty ? int.tryParse(_mileageAtMaintenanceCtrl.text) : null,
+              notes: effectiveNotes.isEmpty ? null : effectiveNotes,
+              maintenanceReminderId: savedReminderId,
+            ));
+          }
+        }
+      }
 
       if (!mounted) return;
       context.pop(true);
@@ -1360,8 +1445,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             Switch(
                               value: tempEnabled,
                               onChanged: (v) => setSt(() => tempEnabled = v),
-                              activeColor: const Color(0xFF1976D2),
-                            ),
+                              ),
                           ],
                         ),
                       ),
@@ -1382,7 +1466,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             });
                           },
                           title: Text(t.maintenance_reminder_at_event, style: const TextStyle(color: Colors.white)),
-                          activeColor: const Color(0xFF1976D2),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
@@ -1398,7 +1481,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             });
                           },
                           title: Text(t.maintenance_reminder_10m, style: const TextStyle(color: Colors.white)),
-                          activeColor: const Color(0xFF1976D2),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
@@ -1414,7 +1496,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             });
                           },
                           title: Text(t.maintenance_reminder_1h, style: const TextStyle(color: Colors.white)),
-                          activeColor: const Color(0xFF1976D2),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
@@ -1430,7 +1511,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             });
                           },
                           title: Text(t.maintenance_reminder_1d, style: const TextStyle(color: Colors.white)),
-                          activeColor: const Color(0xFF1976D2),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
@@ -1449,7 +1529,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               });
                             },
                             title: Text(_offsetLabel(t, minutes), style: const TextStyle(color: Colors.white)),
-                            activeColor: const Color(0xFF1976D2),
                             contentPadding: EdgeInsets.zero,
                             controlAffinity: ListTileControlAffinity.leading,
                           );
@@ -1466,7 +1545,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             children: [
                               Icon(
                                 showCustomPicker ? Icons.remove : Icons.add,
-                                color: const Color(0xFF4CAF50),
+                                color: Colors.blue,
                                 size: 24,
                               ),
                               const SizedBox(width: 12),
@@ -1504,8 +1583,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                                   });
                                 },
                                 title: Text(label, style: const TextStyle(color: Colors.white)),
-                                activeColor: const Color(0xFF1976D2),
-                                contentPadding: EdgeInsets.zero,
+                                    contentPadding: EdgeInsets.zero,
                                 controlAffinity: ListTileControlAffinity.leading,
                               );
                             },
@@ -1638,8 +1716,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               Checkbox(
                                 value: _tireSummer,
                                 onChanged: (v) => setState(() => _tireSummer = v ?? false),
-                                activeColor: const Color(0xFF1976D2),
-                              ),
+                                  ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -1662,8 +1739,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               Checkbox(
                                 value: _tireWinter,
                                 onChanged: (v) => setState(() => _tireWinter = v ?? false),
-                                activeColor: const Color(0xFF1976D2),
-                              ),
+                                  ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -1705,9 +1781,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1976D2),
-                          ),
                           onPressed: () async {
                             final label = _customCategoryCtrl.text.trim();
                             if (label.isEmpty) return;
@@ -1996,6 +2069,15 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                       style: const TextStyle(color: Colors.white),
                       keyboardType: TextInputType.number,
                     ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      title: Text(t.maintenance_add_to_vehicle_costs, style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(t.maintenance_add_to_vehicle_costs_desc, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      value: _addToCosts,
+                      onChanged: (val) => setState(() => _addToCosts = val),
+                      activeColor: const Color(0xFFFFB129),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ],
                 ),
               ],
@@ -2277,7 +2359,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                   : ElevatedButton(
                       onPressed: _save,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: Text(t.maintenance_save, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -2422,6 +2503,21 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     }
   }
 
+  String _getCategoryIconName(MaintenanceCategory cat) {
+    switch (cat) {
+      case MaintenanceCategory.oilChange: return 'oil_barrel_outlined';
+      case MaintenanceCategory.tireChange: return 'tire_repair';
+      case MaintenanceCategory.brakes: return 'handyman_outlined';
+      case MaintenanceCategory.tuv: return 'verified_outlined';
+      case MaintenanceCategory.inspection: return 'build_circle_outlined';
+      case MaintenanceCategory.battery: return 'battery_charging_full';
+      case MaintenanceCategory.filter: return 'filter_alt_outlined';
+      case MaintenanceCategory.insurance: return 'shield_outlined';
+      case MaintenanceCategory.tax: return 'receipt_long_outlined';
+      case MaintenanceCategory.other: return 'more_horiz';
+    }
+  }
+
   void _checkLogin() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -2497,7 +2593,7 @@ Widget _buildRepeatOption<T>({
         children: [
           Icon(
             isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            color: isSelected ? const Color(0xFF1976D2) : Colors.white54,
+            color: isSelected ? Colors.blue : Colors.white54,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -2522,10 +2618,10 @@ Widget _buildSecondaryButton(String label, {required bool isSelected, required V
     onPressed: onTap,
     style: OutlinedButton.styleFrom(
       side: BorderSide(
-        color: isSelected ? const Color(0xFF1976D2) : Colors.white30,
+        color: isSelected ? Colors.blue : Colors.white30,
         width: isSelected ? 2 : 1,
       ),
-      backgroundColor: isSelected ? const Color(0xFF1976D2).withOpacity(0.1) : const Color(0xFF1F2933),
+      backgroundColor: isSelected ? Colors.blue.withOpacity(0.1) : const Color(0xFF1F2933),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),

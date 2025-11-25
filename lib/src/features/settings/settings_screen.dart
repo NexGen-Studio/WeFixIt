@@ -16,7 +16,7 @@ class SettingsScreen extends ConsumerWidget {
     final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
     
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0B1117),
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -29,12 +29,12 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFF151C23),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                        border: Border.all(color: Colors.white12, width: 1),
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Color(0xFF0A0A0A)),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () {
                           if (Navigator.of(context).canPop()) {
                             Navigator.of(context).pop();
@@ -51,10 +51,10 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Text(
                             t.settings_title,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0A0A0A),
+                              color: Colors.white,
                               letterSpacing: -0.5,
                             ),
                           ),
@@ -75,10 +75,10 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Text(
                       t.settings_general,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0A0A0A),
+                        color: Colors.white,
                         letterSpacing: -0.3,
                       ),
                     ),
@@ -92,10 +92,10 @@ class SettingsScreen extends ConsumerWidget {
                       const SizedBox(height: 28),
                       Text(
                         t.settings_account,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0A0A0A),
+                          color: Colors.white,
                           letterSpacing: -0.3,
                         ),
                       ),
@@ -151,16 +151,16 @@ class _NotificationsTileState extends State<_NotificationsTile> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF151C23),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
+        border: Border.all(color: Colors.white12, width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF3E0),
+              color: const Color(0xFFFF9800).withOpacity(0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.notifications_active_outlined, color: Color(0xFFFF9800), size: 20),
@@ -173,7 +173,7 @@ class _NotificationsTileState extends State<_NotificationsTile> {
                 Text(
                   t.settings_notifications,
                   style: const TextStyle(
-                    color: Color(0xFF0A0A0A),
+                    color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -181,7 +181,7 @@ class _NotificationsTileState extends State<_NotificationsTile> {
                 const SizedBox(height: 4),
                 Text(
                   t.settings_notifications_global_toggle,
-                  style: const TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.w500),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -203,33 +203,33 @@ class _LanguageTile extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF151C23),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
+        border: Border.all(color: Colors.white12, width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFE3F2FD),
+              color: const Color(0xFF2196F3).withOpacity(0.2),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.language, color: Color(0xFF1976D2), size: 20),
+            child: const Icon(Icons.language, color: Color(0xFF2196F3), size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<Locale>(
                 value: ref.watch(appLocaleProvider),
-                hint: const Text('Sprache', style: TextStyle(color: Colors.black54)),
+                hint: const Text('Sprache', style: TextStyle(color: Colors.white54)),
                 style: const TextStyle(
-                  color: Color(0xFF0A0A0A),
+                  color: Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
                 ),
-                dropdownColor: Colors.white,
-                iconEnabledColor: Colors.grey[400],
+                dropdownColor: const Color(0xFF151C23),
+                iconEnabledColor: Colors.white54,
                 items: const [
                   DropdownMenuItem(value: Locale('de'), child: Text('Deutsch')),
                   DropdownMenuItem(value: Locale('en'), child: Text('English')),
@@ -270,8 +270,9 @@ class _AccountPlaceholders extends StatelessWidget {
       context: context,
       builder: (ctx) {
         return AlertDialog(
+          backgroundColor: const Color(0xFF151C23),
           insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-          title: Text(t.settings_change_email_title),
+          title: Text(t.settings_change_email_title, style: const TextStyle(color: Colors.white)),
           content: SizedBox(
             width: 600,
             child: Column(
@@ -280,7 +281,12 @@ class _AccountPlaceholders extends StatelessWidget {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Neue E-Mail'),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Neue E-Mail',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                ),
               ),
               if (error != null) ...[
                 const SizedBox(height: 8),
@@ -290,8 +296,14 @@ class _AccountPlaceholders extends StatelessWidget {
           ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
-            ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Speichern')),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Speichern'),
+            ),
           ],
         );
       },
@@ -327,8 +339,9 @@ class _AccountPlaceholders extends StatelessWidget {
       builder: (ctx) {
         return StatefulBuilder(builder: (ctx, setState) {
           return AlertDialog(
+            backgroundColor: const Color(0xFF151C23),
             insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-            title: Text(t.settings_change_password_title),
+            title: Text(t.settings_change_password_title, style: const TextStyle(color: Colors.white)),
             content: SizedBox(
               width: 600,
               child: Column(
@@ -337,10 +350,13 @@ class _AccountPlaceholders extends StatelessWidget {
                 TextField(
                   controller: pass1,
                   obscureText: !show1,
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Neues Passwort',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
                     suffixIcon: IconButton(
-                      icon: Icon(show1 ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(show1 ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
                       onPressed: () => setState(() => show1 = !show1),
                     ),
                   ),
@@ -349,10 +365,13 @@ class _AccountPlaceholders extends StatelessWidget {
                 TextField(
                   controller: pass2,
                   obscureText: !show2,
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Passwort bestätigen',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
                     suffixIcon: IconButton(
-                      icon: Icon(show2 ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(show2 ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
                       onPressed: () => setState(() => show2 = !show2),
                     ),
                   ),
@@ -365,8 +384,14 @@ class _AccountPlaceholders extends StatelessWidget {
             ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
-              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Speichern')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Speichern'),
+              ),
             ],
           );
         });
@@ -420,17 +445,17 @@ class _SettingsTile extends StatelessWidget {
     Color iconBg;
     if (icon == Icons.logout) {
       iconColor = const Color(0xFFE53935);
-      iconBg = const Color(0xFFFFEBEE);
+      iconBg = const Color(0xFFE53935).withOpacity(0.2);
     } else if (icon == Icons.email_outlined) {
-      iconColor = const Color(0xFF1976D2);
-      iconBg = const Color(0xFFE3F2FD);
+      iconColor = const Color(0xFF2196F3);
+      iconBg = const Color(0xFF2196F3).withOpacity(0.2);
     } else {
       iconColor = const Color(0xFF388E3C);
-      iconBg = const Color(0xFFE8F5E9);
+      iconBg = const Color(0xFF388E3C).withOpacity(0.2);
     }
 
     return Material(
-      color: Colors.white,
+      color: const Color(0xFF151C23),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -438,7 +463,7 @@ class _SettingsTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[200]!, width: 1),
+            border: Border.all(color: Colors.white12, width: 1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
@@ -456,13 +481,13 @@ class _SettingsTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: const TextStyle(
-                    color: Color(0xFF0A0A0A),
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
                   ),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
             ],
           ),
         ),

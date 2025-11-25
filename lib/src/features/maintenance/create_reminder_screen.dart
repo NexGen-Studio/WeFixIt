@@ -154,7 +154,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                     onSelected: (sel) {
                       if (sel) setState(() => _type = ReminderType.date);
                     },
-                    selectedColor: const Color(0xFF1976D2).withOpacity(0.2),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -172,7 +171,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                     onSelected: (sel) {
                       if (sel) setState(() => _type = ReminderType.mileage);
                     },
-                    selectedColor: const Color(0xFF1976D2).withOpacity(0.2),
                   ),
                 ),
               ],
@@ -188,7 +186,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                   border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: ListTile(
-                  leading: const Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
+                  leading: const Icon(Icons.calendar_today, color: Colors.blue),
                   title: Text(t.maintenance_due_date_label),
                   subtitle: Text(
                     '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
@@ -238,7 +236,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                   subtitle: Text(t.maintenance_recurring_subtitle),
                   value: _isRecurring,
                   onChanged: (val) => setState(() => _isRecurring = val),
-                  activeColor: const Color(0xFF1976D2),
                 ),
               ),
               if (_isRecurring) ...[
@@ -260,24 +257,21 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                       onSelected: (sel) {
                         if (sel) setState(() => _recurringMonths = 3);
                       },
-                      selectedColor: const Color(0xFF1976D2).withOpacity(0.2),
-                    ),
+                      ),
                     ChoiceChip(
                       label: Text(t.maintenance_interval_6_months),
                       selected: _recurringMonths == 6,
                       onSelected: (sel) {
                         if (sel) setState(() => _recurringMonths = 6);
                       },
-                      selectedColor: const Color(0xFF1976D2).withOpacity(0.2),
-                    ),
+                      ),
                     ChoiceChip(
                       label: Text(t.maintenance_interval_12_months),
                       selected: _recurringMonths == 12,
                       onSelected: (sel) {
                         if (sel) setState(() => _recurringMonths = 12);
                       },
-                      selectedColor: const Color(0xFF1976D2).withOpacity(0.2),
-                    ),
+                      ),
                   ],
                 ),
               ],
@@ -328,7 +322,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1976D2),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

@@ -32,6 +32,19 @@ class UserProfile {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'first_name': firstName,
+      'last_name': lastName,
+      'display_name': displayName,
+      'nickname': nickname,
+      'avatar_url': avatarUrl,
+      'email_obfuscated': emailObfuscated,
+      'vehicle_photo_url': vehiclePhotoUrl,
+    };
+  }
+
   Map<String, dynamic> toUpdateMap() {
     return {
       if (firstName != null) 'first_name': firstName,
@@ -41,5 +54,27 @@ class UserProfile {
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (vehiclePhotoUrl != null) 'vehicle_photo_url': vehiclePhotoUrl,
     };
+  }
+
+  UserProfile copyWith({
+    String? id,
+    String? firstName,
+    String? lastName,
+    String? displayName,
+    String? nickname,
+    String? avatarUrl,
+    String? emailObfuscated,
+    String? vehiclePhotoUrl,
+  }) {
+    return UserProfile(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      displayName: displayName ?? this.displayName,
+      nickname: nickname ?? this.nickname,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      emailObfuscated: emailObfuscated ?? this.emailObfuscated,
+      vehiclePhotoUrl: vehiclePhotoUrl ?? this.vehiclePhotoUrl,
+    );
   }
 }

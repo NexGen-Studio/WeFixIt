@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../i18n/app_localizations.dart';
@@ -9,28 +10,25 @@ import '../../services/supabase_service.dart';
 import '../../services/maintenance_service.dart';
 import '../../models/profile.dart';
 import '../../models/maintenance_reminder.dart';
+import '../../state/profile_controller.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  UserProfile? _profile;
-  bool _loading = true;
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _tips = [];
   int _tipIndex = 0;
   Timer? _tipTimer;
   double _tipOpacity = 1.0;
-  String? _avatarUrlUi;
   MaintenanceReminder? _nextReminder;
   List<MaintenanceReminder> _upcomingReminders = [];
   int _currentReminderIndex = 0;
   Timer? _reminderRotationTimer;
   PageController? _reminderPageController;
-  Map<String, dynamic>? _vehicle;
   double? _monthlyCosts;
   int _healthScore = 100;
   int _activeDtcsCount = 0;
@@ -39,10 +37,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadProfile();
+    ref.read(profileControllerProvider.notifier).ensureLoaded();
     _loadTips();
     _loadNextReminder();
-    _loadVehicle();
     _loadMonthlyCosts();
     _loadHealthScore();
   }
@@ -125,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case MaintenanceCategory.other:
         return const Color(0xFF90A4AE);
       default:
-        return const Color(0xFF1976D2);
+        return const Color(0xFFF8AD20);
     }
   }
 
@@ -135,9 +132,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final d = r.dueDate!.difference(DateTime.now()).inDays;
       if (d < 0) return const Color(0xFFE53935);
       if (d <= 7) return const Color(0xFFF57C00);
-      return const Color(0xFF4CAF50);
+      return const Color(0xFFF8AD20);
     }
-    return const Color(0xFF1976D2);
+    return const Color(0xFFF8AD20);
+  }
+  
+  bool _isOverdue(MaintenanceReminder r) {
+    if (r.isCompleted) return false;
+    if (r.reminderType == ReminderType.date && r.dueDate != null) {
+      final now = DateTime.now();
+      final due = r.dueDate!.toLocal();
+      return due.isBefore(now);
+    }
+    return false;
   }
 
   @override
@@ -180,30 +187,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.didChangeDependencies();
     // Reload Profil wenn zum Screen zurückgekehrt wird
     if (ModalRoute.of(context)?.isCurrent == true) {
-      _loadProfile();
+      ref.read(profileControllerProvider.notifier).refreshFromRemote(force: true);
     }
-  }
-
-  Future<void> _loadProfile() async {
-    // Nur laden wenn eingeloggt
-    if (Supabase.instance.client.auth.currentSession == null) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      return;
-    }
-    
-    final svc = SupabaseService(Supabase.instance.client);
-    final p = await svc.fetchUserProfile();
-    String? avatarUi;
-    if ((p?.avatarUrl ?? '').isNotEmpty) {
-      avatarUi = await svc.getSignedAvatarUrl(p!.avatarUrl!);
-    }
-    if (!mounted) return;
-    setState(() {
-      _profile = p;
-      _loading = false;
-      _avatarUrlUi = avatarUi;
-    });
   }
 
   Future<void> _loadTips() async {
@@ -267,15 +252,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       });
     }
-  }
-
-  Future<void> _loadVehicle() async {
-    final svc = SupabaseService(Supabase.instance.client);
-    final v = await svc.fetchPrimaryVehicle();
-    if (!mounted) return;
-    setState(() {
-      _vehicle = v;
-    });
   }
 
   Future<void> _loadMonthlyCosts() async {
@@ -362,6 +338,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+    final profileState = ref.watch(profileControllerProvider);
+    final profile = profileState.profile;
+    final avatarUrlUi = profileState.avatarUrlUi;
+    final vehicle = profileState.vehicle;
+    final isProfileLoading = profileState.isLoading;
     return Scaffold(
       backgroundColor: const Color(0xFF0F141A),
       body: SafeArea(
@@ -371,27 +352,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             // Dark Top Bar with centered title
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.menu, color: Colors.white70),
-                    const Spacer(),
-                    Text(
-                      t.tr('tabs.home').toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
-                        fontSize: 14,
-                      ),
+                    Image.asset(
+                      'assets/images/home-image.png',
+                      height: 40,
                     ),
                     const Spacer(),
-                    if ((_avatarUrlUi ?? '').isNotEmpty)
+                    if ((avatarUrlUi ?? '').isNotEmpty)
                       GestureDetector(
-                        onTap: () => _showImagePreview(_avatarUrlUi!),
+                        onTap: () => _showImagePreview(avatarUrlUi!),
                         child: CircleAvatar(
                           radius: 18,
-                          foregroundImage: CachedNetworkImageProvider(_avatarUrlUi!),
+                          foregroundImage: CachedNetworkImageProvider(avatarUrlUi!),
                           backgroundColor: Colors.transparent,
                         ),
                       )
@@ -410,13 +384,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildVehicleSection(context),
+                child: _buildVehicleSection(context, profileState, profile, vehicle, isProfileLoading),
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
             // Kurztipps Section
             SliverToBoxAdapter(
@@ -464,18 +436,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   // Vehicle section implementing the mockup layout (no card container)
-  Widget _buildVehicleSection(BuildContext context) {
+  Widget _buildVehicleSection(
+    BuildContext context,
+    ProfileState profileState,
+    UserProfile? profile,
+    Map<String, dynamic>? vehicle,
+    bool isProfileLoading,
+  ) {
     final t = AppLocalizations.of(context);
-    final make = (_vehicle?['make'] ?? '') as String;
-    final model = (_vehicle?['model'] ?? '') as String;
-    final mileage = (_vehicle?['mileage_km'] ?? 0) as int;
-    final powerKw = (_vehicle?['power_kw'] as num?)?.toInt();
+    final make = (vehicle?['make'] ?? '') as String;
+    final model = (vehicle?['model'] ?? '') as String;
+    final mileage = (vehicle?['mileage_km'] ?? 0) as int;
+    final powerKw = (vehicle?['power_kw'] as num?)?.toInt();
     final powerPs = powerKw != null ? (powerKw * 1.36).round() : null;
-    final title = [make, model].where((e) => e.toString().trim().isNotEmpty).join(' ').trim();
-    final vehicleName = title; // Kein Fallback-Heading mehr anzeigen
+    // Bestimme Grußnamen: Anzeigename > sonst "Hallo!"
+    final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+    String greetingName = 'Hallo!';
+    
+    if (isLoggedIn && profile != null) {
+      if (profile.displayName?.isNotEmpty == true) {
+        greetingName = 'Hallo, ${profile.displayName}!';
+      }
+    }
+    
+    final vehicleName = greetingName;
+    
     final accent = const Color(0xFFFFB129);
-
-    final vehiclePhoto = _profile?.vehiclePhotoUrl;
+    final vehiclePhoto = profile?.vehiclePhotoUrl;
 
     String statusLabel;
     if (_healthScore >= 85) statusLabel = t.tr('home.status_good');
@@ -485,250 +472,252 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Make/Model (no photo here)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                vehicleName.isNotEmpty ? vehicleName : 'Hallo',
-                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
-              ),
+            const SizedBox(height: 12),
+            Text(
+              vehicleName.isNotEmpty ? vehicleName : 'Hallo',
+              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+            ),
+            if (!isLoggedIn) ...[
               const SizedBox(height: 4),
-              Text(
-                mileage > 0 ? '${NumberFormat('#,###').format(mileage)} km' : 'Bitte melde dich an!',
-                style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 12),
-              // Vehicle photo below km, 2cm height, 90% width
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  height: 100,
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  color: const Color(0xFF1A2028),
-                  child: (vehiclePhoto ?? '').isNotEmpty
-                      ? Image.network(vehiclePhoto!, fit: BoxFit.cover)
-                      : Image.asset(
-                          'assets/images/Placeholder.png',
-                          fit: BoxFit.cover,
-                        ),
-                ),
+              const Text(
+                'Bitte melde dich an!',
+                style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          // Row 2: Align numbers (left red count, right % in ring) on same vertical center
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 160,
-                  child: Center(
-                    child: Text(
-                      '$_activeDtcsCount',
-                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 56),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 160,
-                width: 160,
-                child: Transform.scale(
-                  scale: 3.5,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: _healthScore / 100,
-                        strokeWidth: 3,
-                        backgroundColor: const Color(0xFF1F2A36),
-                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+            const SizedBox(height: 12),
+            // Vehicle photo below km, 2cm height, 90% width
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 100,
+                width: MediaQuery.of(context).size.width * 0.9,
+                color: const Color(0xFF1A2028),
+                child: (vehiclePhoto ?? '').isNotEmpty
+                    ? Image.network(vehiclePhoto!, fit: BoxFit.cover)
+                    : Image.asset(
+                        'assets/images/Placeholder.png',
+                        fit: BoxFit.cover,
                       ),
-                      Transform.scale(
-                        scale: 0.29,
-                        child: Text(
-                          '$_healthScore%',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 32),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Labels row: left text aligned horizontally with STATUS GUT on the right
-          Row(
-            children: [
-              Expanded(
-                child: Center(
-                  child: Text(
-                    t.tr('home.active_error_codes_label'),
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 160,
-                child: Center(
-                  child: Text(
-                    statusLabel.toUpperCase(),
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.0),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Monthly costs
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                t.tr('home.monthly_costs'),
-                style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              Text(
-                _monthlyCosts == null ? '0 €' : '${_monthlyCosts!.toStringAsFixed(0)} €',
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Four feature tiles styled like the old cards but dark
-          Column(
-            children: [
-              _buildFeatureTile(
-                icon: Icons.search,
-                iconColor: const Color(0xFFE53935),
-                title: t.home_read_dtcs,
-                subtitle: t.home_read_dtcs_subtitle,
-                onTap: () => context.go('/diagnose'),
-              ),
-              const SizedBox(height: 10),
-              _buildFeatureTile(
-                icon: Icons.build_outlined,
-                iconColor: const Color(0xFF1976D2),
-                title: t.home_maintenance,
-                subtitle: t.home_maintenance_subtitle,
-                onTap: () => context.go('/maintenance'),
-              ),
-              const SizedBox(height: 10),
-              _buildFeatureTile(
-                icon: Icons.payments_outlined,
-                iconColor: const Color(0xFF388E3C),
-                title: t.home_costs,
-                subtitle: t.home_costs_subtitle,
-                onTap: () {},
-              ),
-              const SizedBox(height: 10),
-              _buildFeatureTile(
-                icon: Icons.chat_bubble_outline,
-                iconColor: const Color(0xFFF57C00),
-                title: t.home_ask_toni,
-                subtitle: t.tr('home.ask_toni_subtitle'),
-                onTap: () {
-                  final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
-                  if (!isLoggedIn) {
-                    _showLoginRequired(context);
-                  } else {
-                    context.go('/asktoni');
-                  }
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Maintenance notice placed BELOW the tiles
-          if (_upcomingReminders.isEmpty)
-            GestureDetector(
-              onTap: () => context.go('/maintenance'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t.home_no_maintenance_title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(t.home_no_maintenance_subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ),
-            )
-          else
-            SizedBox(
-              height: 80,
-              child: PageView.builder(
-                controller: _reminderPageController,
-                itemCount: _upcomingReminders.length,
-                onPageChanged: (index) {
-                  setState(() => _currentReminderIndex = index);
-                },
-                itemBuilder: (context, index) {
-                  final reminder = _upcomingReminders[index];
-                  return GestureDetector(
-                    onTap: () => context.go('/maintenance'),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF151C23),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _categoryColor(reminder.category).withOpacity(0.6), width: 1.5),
-                      ),
-                      child: Row(
-                        children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: _categoryColor(reminder.category).withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  _categoryIcon(reminder.category),
-                                  color: _categoryColor(reminder.category),
-                                  size: 20,
-                                ),
-                              ),
-                              if (reminder.category != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  _categoryLabel(t, reminder.category),
-                                  style: const TextStyle(fontSize: 11, color: Colors.white70),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(reminder.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 4),
-                                Text(
-                                  reminder.dueDate != null
-                                      ? DateFormat('dd.MM.yyyy').format(reminder.dueDate!)
-                                      : t.home_due_at_km.replaceAll('{km}', (reminder.dueMileage ?? 0).toString()),
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
-                        ],
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
-        ],
-      );
+            const SizedBox(height: 16),
+            // Row 2: Align numbers (left red count, right % in ring) on same vertical center
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 160,
+                    child: Center(
+                      child: Text(
+                        '$_activeDtcsCount',
+                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 56),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 160,
+                  width: 160,
+                  child: Transform.scale(
+                    scale: 3.5,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          value: _healthScore / 100,
+                          strokeWidth: 3,
+                          backgroundColor: const Color(0xFF1F2A36),
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        ),
+                        Transform.scale(
+                          scale: 0.29,
+                          child: Text(
+                            '$_healthScore%',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 32),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Labels row: left text aligned horizontally with STATUS GUT on the right
+            Row(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      t.tr('home.active_error_codes_label'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: Center(
+                    child: Text(
+                      statusLabel.toUpperCase(),
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Monthly costs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  t.tr('home.monthly_costs'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  _monthlyCosts == null ? '0 €' : '${_monthlyCosts!.toStringAsFixed(0)} €',
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Four feature tiles styled like the old cards but dark
+            Column(
+              children: [
+                _buildFeatureTile(
+                  icon: Icons.search,
+                  iconColor: const Color(0xFFE53935),
+                  title: t.home_read_dtcs,
+                  subtitle: t.home_read_dtcs_subtitle,
+                  onTap: () => context.go('/diagnose'),
+                ),
+                const SizedBox(height: 10),
+                _buildFeatureTile(
+                  icon: Icons.build_outlined,
+                  iconColor: const Color(0xFFF8AD20),
+                  title: t.home_maintenance,
+                  subtitle: t.home_maintenance_subtitle,
+                  onTap: () => context.go('/maintenance'),
+                ),
+                const SizedBox(height: 10),
+                _buildFeatureTile(
+                  icon: Icons.payments_outlined,
+                  iconColor: const Color(0xFF388E3C),
+                  title: t.tr('home.vehicle_costs'),
+                  subtitle: t.tr('home.vehicle_costs_desc'),
+                  onTap: () => context.go('/costs'),
+                ),
+                const SizedBox(height: 10),
+                _buildFeatureTile(
+                  icon: Icons.chat_bubble_outline,
+                  iconColor: const Color(0xFFF57C00),
+                  title: t.home_ask_toni,
+                  subtitle: t.tr('home.ask_toni_subtitle'),
+                  onTap: () {
+                    final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+                    if (!isLoggedIn) {
+                      _showLoginRequired(context);
+                    } else {
+                      context.go('/asktoni');
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Maintenance notice placed BELOW the tiles
+            if (_upcomingReminders.isEmpty)
+              GestureDetector(
+                onTap: () => context.go('/maintenance'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.home_no_maintenance_title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(t.home_no_maintenance_subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                height: 80,
+                child: PageView.builder(
+                  controller: _reminderPageController,
+                  itemCount: _upcomingReminders.length,
+                  onPageChanged: (index) {
+                    setState(() => _currentReminderIndex = index);
+                  },
+                  itemBuilder: (context, index) {
+                    final reminder = _upcomingReminders[index];
+                    return GestureDetector(
+                      onTap: () => context.go('/maintenance'),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF151C23),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _isOverdue(reminder) 
+                              ? const Color(0xFFE53935) 
+                              : _categoryColor(reminder.category).withOpacity(0.6), 
+                            width: _isOverdue(reminder) ? 2.0 : 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: _categoryColor(reminder.category).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    _categoryIcon(reminder.category),
+                                    color: _categoryColor(reminder.category),
+                                    size: 20,
+                                  ),
+                                ),
+                                if (reminder.category != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _categoryLabel(t, reminder.category),
+                                    style: const TextStyle(fontSize: 11, color: Colors.white70),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(reminder.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    reminder.dueDate != null
+                                        ? DateFormat('dd.MM.yyyy').format(reminder.dueDate!)
+                                        : t.home_due_at_km.replaceAll('{km}', (reminder.dueMileage ?? 0).toString()),
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
   }
 
   Widget _buildFeatureTile({

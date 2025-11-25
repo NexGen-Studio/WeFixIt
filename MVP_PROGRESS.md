@@ -62,19 +62,31 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - `compileSdk/targetSdk = 35` für Android-12-Splash-Attribute.
 
 - **[Monetarisierung (Credits + Abo)]**
-  - Status: AUSSTEHEND (Gerüst vorhanden)
-  - RevenueCat-Paket integriert, Flows/Paywall folgen (inkl. Credit-Logik, Pro-Bypass).
+  - Status: TEILWEISE ERLEDIGT ✅
+  - RevenueCat-Paket integriert, PurchaseService implementiert
+  - Paywall-Screen mit Offering-Display und Kauf-/Restore-Funktion
+  - Initialisierung im SplashScreen nach Supabase-Init
   - **Produkte definiert:**
     - Credits: 5 (1,29€), 10 (2,49€), 25 (5,49€)
     - KFZ-Kosten Lifetime: 1,99€ (wefixit_costs_lifetime)
     - Pro Basic: 4,99€/Monat oder 39,99€/Jahr
     - Pro Familie: 7,99€/Monat oder 59,99€/Jahr (Phase 3)
+  - **TODO:** RevenueCat API Keys in Environment-Config hinterlegen
 
 - **[Credits & Free-Quota Logic]**
-  - Status: AUSSTEHEND
+  - Status: ERLEDIGT ✅
+  - CreditService implementiert mit Supabase-Anbindung
+  - Wöchentliches Gratis-Kontingent (3 KI-Anfragen/Woche) mit weekly_free_quota Tabelle
+  - Credit-Events Tracking (Käufe, Verbrauch, Balance)
+  - Intelligente Priorisierung: 1. Gratis-Quota, 2. Credits
+  - consumeQuotaOrCredits() Methode für KI-Features
 
 - **[Paywall (Multi-Page)]**
-  - Status: AUSSTEHEND
+  - Status: ERLEDIGT ✅
+  - PaywallScreen mit Offerings-Display
+  - Kauf- und Restore-Funktionalität über PurchaseService
+  - Route `/paywall` im Router registriert
+  - Dialog-Integration für "Keine Credits" mit Link zur Paywall
 
 - **[Profile & Privacy]**
   - Status: ERLEDIGT
@@ -83,7 +95,13 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Fahrzeuge: Felder für Hubraum (cc/l) und Kilometerstand ergänzt (Schema vorhanden), UI und Save-Funktionalität implementiert.
 
 - **[AI Backend Edge Functions / Systemprompt]**
-  - Status: AUSSTEHEND (Stub-UI Ask Toni!)
+  - Status: TEILWEISE ERLEDIGT ✅
+  - Chatbot-UI (Ask Toni!) vollständig implementiert
+  - Credit-Gating: Pro-User Bypass + Gratis-Quota/Credits-Check vor jeder Nachricht
+  - Chat-Verlauf mit Nachrichten-Bubbles (User/Bot)
+  - Suggestion-Cards für schnelle Fragen
+  - Stub-Antworten (2s Delay simuliert AI-Verarbeitung)
+  - **TODO:** Echte AI Edge Function mit OpenAI/Anthropic Integration
 
 - **[OBD & Media Stubs]**
   - Status: AUSSTEHEND (UI-Hooks vorhanden; echte OBD-Funktionen folgen als Stubs mit klaren Schnittstellen)
@@ -101,21 +119,55 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
     - i18n: Alle neuen Texte in `assets/i18n/de.json` und `assets/i18n/en.json`
 
 - **[KFZ-Kosten Tracker]**
-  - Status: AUSSTEHEND (Schema wird ergänzt)
+  - Status: IN UMSETZUNG ✅
   - **Monetarisierungsstrategie:**
     - **Free User**: Nur Treibstoff/Kraftstoff-Kosten kostenlos erfassen
-    - **Pro Basic/Familie Abo**: ALLE Kategorien (Wartung, Reparaturen, Versicherung, Steuer, Parken, Maut, Reinigung, etc.) + 12-Monate Historie + Charts + Budget-Alerts + CSV-Export
-    - **Lifetime Unlock (1,99€)**: Einmalkauf schaltet ALLE KFZ-Kosten Kategorien für immer frei (Produkt-ID: wefixit_costs_lifetime)
-  - Kategorien-Liste:
-    - ✅ Treibstoff/Kraftstoff (immer kostenlos)
-    - 🔒 Wartung (Ölwechsel, Inspektion, etc.)
-    - 🔒 Reparaturen
-    - 🔒 Versicherung
-    - 🔒 KFZ-Steuer
-    - 🔒 Parken/Maut
-    - 🔒 Autowäsche/Reinigung
-    - 🔒 TÜV/AU
-    - 🔒 Sonstiges
+    - **Pro Basic Abo (4,99€/Monat)**: ALLE Kategorien + 1 Fahrzeug + CSV-Export
+    - **Lifetime Unlock (1,99€)**: Einmalkauf schaltet ALLE KFZ-Kosten Kategorien für 1 Fahrzeug für immer frei (Produkt-ID: wefixit_costs_lifetime)
+  
+  - **Phase 1 (MVP) Features - JETZT umgesetzt:**
+    - ✅ Standard-Kategorien mit Icons: Treibstoff, Wartung, Versicherung, Steuer, Leasing, Parken/Maut, Reinigung, Zubehör, Vignetten, Einnahmen, Sonstiges
+    - ✅ Benutzerdefinierte Kategorien erstellen/bearbeiten/löschen (mit Icon- & Farbauswahl)
+    - ✅ 3-Tab Layout: Verlauf / Statistik / Diagramm
+    - ✅ Kosten-Verlauf mit chronologischer Liste (Filter nach Zeitraum, Kategorie)
+    - ✅ Statistik-Tab: Kostenübersicht-Tabelle (€/km, €/Monat, Gesamt pro Kategorie)
+    - ✅ Verbrauchsberechnung für Treibstoff (l/100km, Tendenz mit Trend-Erkennung ↑↓=)
+    - ✅ Diagramm-Tab: Liniendiagramm für Kosten-Verlauf über Zeit
+    - ✅ Kosten-Formular mit bedingten Feldern (Treibstoff-Spezialfelder: Tankstelle, Liter, €/l, Vollbetankung, Strecke)
+    - ✅ Auto-Sync mit Wartungen (Kosten aus Wartungen werden automatisch übernommen)
+    - ✅ Foto-Upload für Belege/Rechnungen (Tankbelege, Quittungen)
+    - ✅ **1 Fahrzeug Support** (aus Profil: Marke/Modell automatisch übernehmen)
+    - ✅ CSV Export mit Zeitraum-Selektion
+    - ✅ Navigation von Home ("Fahrzeugkosten") und Wartungs-Dashboard ("Kosten")
+    - ✅ **Gamification & Achievements**: Erster Eintrag, Tankprofi (10x), Sparfuchs, Ordnungsfan (10 Belege), Jahresabschluss
+    - ✅ **Insights & Tipps**: Durchschnittsverbrauch, günstigste Tankstelle, Verbrauchstrend
+    - ✅ **Home-Dashboard Kacheln**: Kosten diesen Monat, Durchschnittsverbrauch, nächste Ausgabe
+    - ✅ **Auto-Vervollständigung**: Tankstellen-Namen merken, häufige Beträge vorschlagen
+    - ✅ i18n (de/en) für alle Texte
+  
+  - **Phase 2 (Community) Features - geplant:**
+    - 🔲 **Pro Familie Abo (7,99€/Monat)**: MEHRERE Fahrzeuge + Community-Features
+    - 🔲 Multi-Fahrzeug Verwaltung (Fahrzeug-Switcher, Vergleich zwischen Fahrzeugen)
+    - 🔲 Fahrzeug-spezifische Statistiken & Diagramme
+    - 🔲 Budget-Funktion (monatliches Budget pro Kategorie, Warnungen, Fortschrittsbalken)
+    - 🔲 Vergleichsansicht (Monat-zu-Monat, Jahr-zu-Jahr, beste/schlechteste Monate)
+    - 🔲 PDF Report mit Diagrammen
+    - 🔲 Vorlagen für wiederkehrende Kosten
+    - 🔲 Sync mit Partner/Familie (gemeinsame Fahrzeug-Kosten)
+  
+  - **Phase 3 (Marktplatz) Features - geplant:**
+    - 🔲 Kosten-Heatmap (Kalender-Ansicht)
+    - 🔲 Schnelleingabe-Modi & Quick-Actions
+    - 🔲 OCR-Texterkennung für Belege (Betrag automatisch auslesen)
+    - 🔲 Favoriten/Tags für bessere Organisation
+    - 🔲 Import von CSV (Migrationshelfer)
+    - 🔲 Intelligente Erinnerungen (Tank-Reminder bei niedriger Reichweite)
+    - 🔲 Auto-Vervollständigung (Tankstellen-Namen, häufige Beträge)
+    - 🔲 Dashboard-Kacheln auf Home (Kosten diesen Monat, Durchschnittsverbrauch)
+    - 🔲 Achievements & Gamification ("Sparfuchs", "Vollgetankt")
+    - 🔲 Insights & Tipps ("Du tankst am günstigsten bei X")
+    - 🔲 Fahrzeug-Historie (Kaufpreis, Verkaufspreis, ROI-Berechnung)
+    - 🔲 Kuchendiagramm für Kategorienverteilung
 
 - **[Testing & QA Flows]**
   - Status: AUSSTEHEND
@@ -230,6 +282,45 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Für die neuen Freezed-/JSON-Felder lokal Code generieren:
     - `flutter pub run build_runner build --delete-conflicting-outputs`
 
+## Heute erledigte Arbeiten (25. November 2025)
+
+- **[Monetarisierung & Credits System]** ✅
+  - **PurchaseService (RevenueCat)** implementiert mit Entitlement-Checks (Pro, Costs Lifetime)
+  - **CreditService** für Credit-Balance und wöchentliches Gratis-Kontingent
+  - Intelligente consumeQuotaOrCredits() Methode (Prio: Quota → Credits)
+  - Initialisierung im SplashScreen nach Supabase
+  
+- **[Paywall Screen]** ✅
+  - PaywallScreen mit Offerings-Display (Packages von RevenueCat)
+  - Kauf- und Restore-Funktionalität
+  - Route `/paywall` registriert
+  - Gradient-Background und moderne UI
+
+- **[Chatbot Credit-Integration]** ✅
+  - ChatbotScreen von StatelessWidget zu StatefulWidget refactored
+  - Credit/Quota-Check vor jeder Nachricht (Pro-User Bypass)
+  - Chat-Verlauf mit Message-History (ChatMessage Model)
+  - Stub AI-Antworten (2s Delay)
+  - "Keine Credits"-Dialog mit Link zur Paywall
+  - Suggestion-Cards funktional (senden Nachricht)
+
+- **[Wartungskosten → Fahrzeugkosten Integration]** ✅
+  - Toggle "In Fahrzeugkosten übernehmen" im Wartungsformular
+  - Automatische Kategorie-Erstellung mit Icons & Farben
+  - Icons für Wartungskategorien in CostCategory.iconMap hinzugefügt
+  - Verknüpfung via maintenanceReminderId in VehicleCost
+  
+- **[UI-Verbesserungen]** ✅
+  - Custom Date Picker Dialoge breiter (90%) mit besserem Padding
+  - Cancel-Button weiß statt grau
+  - Icon-Änderung: Wartungs-Kosten-Button jetzt `Icons.payments`
+
+- **[Localization]** ✅
+  - Neue Keys für "add_to_vehicle_costs" (de/en)
+  - Getters in AppLocalizations ergänzt
+
+---
+
 ## Heute erledigte Arbeiten (24. Oktober 2025)
 
 - **[Erweiterte Wartungserinnerungen – UI-Verbesserungen]** ✅
@@ -275,3 +366,49 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - **_RepeatAmount Widget entfernt**: Das alte Widget für "- Zahl +" Buttons wurde aus dem Code gelöscht.
   - **Helper-Methoden hinzugefügt**: `_buildRepeatOption` und `_buildSecondaryButton` für konsistentes UI-Design.
   - **State-Variablen ergänzt**: `_recurrenceDuration`, `_recurrenceCount`, `_recurrenceUntil` für Laufzeit-Logik.
+
+---
+
+## 📊 Supabase Datenbank-Schema Übersicht
+
+Diese Tabelle dokumentiert alle Supabase-Tabellen und Views mit ihrer genauen Funktion. **WICHTIG: Bei jeder neuen Tabelle/View diese Liste aktualisieren!**
+
+| Tabelle/View | Typ | Funktion | Wichtige Felder |
+|--------------|-----|----------|-----------------|
+| **brands** | Tabelle | Automarken-Katalog für Fahrzeug-Auswahl | `id`, `name`, `logo_url` |
+| **cost_categories** | Tabelle | Kategorien für Fahrzeugkosten (System + Benutzer) | `id`, `user_id`, `name`, `icon_name`, `color_hex`, `is_system` |
+| **cost_stats_by_category** | View | Materialisierte View für Kostenstatistiken gruppiert nach Kategorie | `category_id`, `total_amount`, `avg_amount`, `count` |
+| **credit_events** | Tabelle | Credit-System: Tracks Käufe, Verbrauch und Guthaben der Nutzer | `user_id`, `event_type` (purchase/usage), `credits`, `balance`, `created_at` |
+| **fuel_stats** | View | Materialisierte View für Kraftstoff-Statistiken (Verbrauch, Trends) | `user_id`, `avg_consumption`, `total_liters`, `trend` |
+| **maintenance_reminders** | Tabelle | Wartungserinnerungen mit Kategorien, Datum, Kosten, Fotos, Benachrichtigungen | `id`, `user_id`, `vehicle_id`, `category`, `due_date`, `status`, `cost`, `workshop_name`, `photos`, `documents`, `notify_offset_minutes`, `remind_again_at`, `repeat_until` |
+| **maintenance_stats** | View | Statistiken für Wartungen (Anzahl, Kosten pro Kategorie) | `user_id`, `category`, `total_cost`, `count` |
+| **models** | Tabelle | Automodelle-Katalog (verknüpft mit brands) | `id`, `brand_id`, `name`, `year_from`, `year_to` |
+| **notifications** | Tabelle | Push-Benachrichtigungen an Nutzer (System, Wartungen) | `id`, `user_id`, `type`, `title`, `body`, `read`, `created_at` |
+| **obd_clear_audit** | Tabelle | Audit-Log: Wann welcher Nutzer Fehlercodes gelöscht hat (Sicherheit) | `id`, `user_id`, `error_codes`, `vehicle_info`, `cleared_at` |
+| **profiles** | Tabelle | Erweiterte Nutzerprofile (verknüpft mit auth.users) | `id`, `display_name`, `nickname`, `avatar_url`, `vehicle_photo_url`, `language` |
+| **reports** | Tabelle | Fehlerberichte und Bug-Reports von Nutzern | `id`, `user_id`, `type`, `description`, `status`, `created_at` |
+| **revenuacat_webhooks** | Tabelle | Webhooks von RevenueCat für In-App-Käufe (Abo-Events, Käufe) | `id`, `event_type`, `payload` (jsonb), `received_at` |
+| **tips** | Tabelle | Kurz-Tipps für die App (zweisprachig de/en, z.B. "Sanft beschleunigen") | `id`, `title_de`, `title_en`, `body_de`, `body_en`, `created_at` |
+| **vehicle_costs** | Tabelle | Fahrzeugkosten-Tracker: Alle Ausgaben/Einnahmen mit Kategorien, Belegen | `id`, `user_id`, `vehicle_id`, `category_id`, `title`, `amount`, `date`, `mileage`, `is_income`, `is_refueling`, `fuel_type`, `fuel_amount_liters`, `price_per_liter`, `gas_station`, `trip_distance`, `is_full_tank`, `period_start_date`, `period_end_date`, `is_monthly_amount`, `photos`, `notes` |
+| **vehicles** | Tabelle | Nutzer-Fahrzeuge mit Details (Marke, Modell, Baujahr, Kilometerstand) | `id`, `user_id`, `brand_id`, `model_id`, `year`, `license_plate`, `vin`, `mileage`, `engine_cc`, `photo_url` |
+| **weekly_free_quota** | Tabelle | Wöchentliches Gratis-Kontingent für Free User (z.B. 3 KI-Anfragen/Woche) | `user_id`, `week_start_date`, `consumed` (Integer) |
+
+### 🔄 Letzte Änderungen:
+- **25.11.2025**: 
+  - `credit_events` und `weekly_free_quota` Tabellen vollständig implementiert und in `CreditService` integriert
+  - Monetarisierungs-System aktiviert: RevenueCat + Purchase Service + Paywall
+  - `vehicle_costs` erweitert um `maintenance_reminder_id` für Verknüpfung mit Wartungen (automatischer Transfer)
+- **18.11.2024**: 
+  - `vehicle_costs` erweitert um `is_income`, `period_start_date`, `period_end_date`, `is_monthly_amount` für Einnahmen/Ausgaben-System und Zeitraum-Feature (Versicherung/Steuer/Kredit)
+  - **Social Media/Community-Tabellen entfernt**: `posts`, `post_likes`, `threads`, `private_messages`, `blocks`, `listings` (nicht benötigt für MVP)
+  - `reports` umfunktioniert: Nur noch für Fehlerberichte/Bug-Reports (nicht mehr für Content-Moderation)
+  - `notifications` vereinfacht: Nur noch System- und Wartungs-Benachrichtigungen
+- **17.11.2024**: Migration `20241117_add_period_fields.sql` mit Check-Constraint für Zeitraum-Validierung
+- **24.10.2024**: `maintenance_reminders` erweitert um `notify_offset_minutes`, `remind_again_at`, `repeat_until` für erweiterte Benachrichtigungen
+
+### 📝 Naming Conventions:
+- **Tabellen**: Plural, snake_case (z.B. `vehicle_costs`, `maintenance_reminders`)
+- **Views**: Suffix `_stats` oder `_by_*` (z.B. `cost_stats_by_category`, `fuel_stats`)
+- **Timestamps**: `created_at`, `updated_at`, `deleted_at` (Soft Delete)
+- **Foreign Keys**: `*_id` (z.B. `user_id`, `vehicle_id`, `category_id`)
+- **Booleans**: `is_*` (z.B. `is_system`, `is_income`, `is_monthly_amount`)

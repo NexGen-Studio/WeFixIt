@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile.dart';
+import 'profile_cache_service.dart';
 
 class SupabaseService {
   final SupabaseClient client;
@@ -16,7 +17,11 @@ class SupabaseService {
   }
 
   Future<void> signOut() async {
+    final userId = client.auth.currentUser?.id;
     await client.auth.signOut();
+    if (userId != null) {
+      await ProfileCacheService.clear(userId);
+    }
   }
 
   Future<Map<String, dynamic>?> getProfile() async {
@@ -146,6 +151,26 @@ class SupabaseService {
     }
   }
 
+  Future<void> deleteAvatarPhoto() async {
+    final user = client.auth.currentUser;
+    if (user == null) return;
+    final key = 'avatar_${user.id}.jpg';
+    try {
+      await client.storage.from('avatars').remove([key]);
+    } catch (_) {}
+    await client.from('profiles').update({'avatar_url': null}).eq('id', user.id);
+  }
+
+  Future<void> deleteVehiclePhoto() async {
+    final user = client.auth.currentUser;
+    if (user == null) return;
+    final key = 'vehicle_${user.id}.jpg';
+    try {
+      await client.storage.from('vehicle_photos').remove([key]);
+    } catch (_) {}
+    await client.from('profiles').update({'vehicle_photo_url': null}).eq('id', user.id);
+  }
+
   // Vehicles (MVP: ein Hauptfahrzeug)
   Future<Map<String, dynamic>?> fetchPrimaryVehicle() async {
     final user = client.auth.currentUser;
@@ -160,15 +185,16 @@ class SupabaseService {
     return res;
   }
 
-  Future<void> savePrimaryVehicle(Map<String, dynamic> vehicle) async {
+  Future<Map<String, dynamic>?> savePrimaryVehicle(Map<String, dynamic> vehicle) async {
     final user = client.auth.currentUser;
-    if (user == null) return;
+    if (user == null) return null;
     // upsert by id if present, otherwise insert with user_id
     final data = {
       'user_id': user.id,
       ...vehicle,
     };
-    await client.from('vehicles').upsert(data);
+    final res = await client.from('vehicles').upsert(data).select().maybeSingle();
+    return res;
   }
 
   // Quick tips

@@ -167,7 +167,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                             title: t.maintenance_upcoming,
                             value: '${_upcomingReminders.length}',
                             icon: Icons.event_note,
-                            color: const Color(0xFF1976D2),
+                            color: const Color(0xFF2196F3),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -213,7 +213,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                           child: _QuickActionCard(
                             icon: Icons.add_circle,
                             title: t.maintenance_new_reminder,
-                            color: const Color(0xFF1976D2),
+                            color: const Color(0xFF4CAF50),
                             onTap: () async {
                               await context.push('/maintenance/create');
                               _loadReminders(); // Refresh nach Rückkehr
@@ -223,11 +223,11 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                         const SizedBox(width: 12),
                         Expanded(
                           child: _QuickActionCard(
-                            icon: Icons.euro,
+                            icon: Icons.payments,
                             title: t.maintenance_costs,
                             color: const Color(0xFF388E3C),
                             onTap: () {
-                              // TODO: Navigate to /costs when implemented
+                              context.push('/costs');
                             },
                           ),
                         ),
@@ -517,7 +517,7 @@ class _ReminderCard extends StatelessWidget {
       case MaintenanceCategory.other:
         return const Color(0xFF90A4AE);
       default:
-        return const Color(0xFF1976D2);
+        return const Color(0xFF90A4AE);
     }
   }
 
@@ -560,7 +560,7 @@ class _ReminderCard extends StatelessWidget {
       if (hoursUntil <= 168) return const Color(0xFFF57C00); // < 7 Tage (168h)
       return const Color(0xFF4CAF50); // > 7 Tage
     }
-    return const Color(0xFF1976D2);
+    return const Color(0xFF90A4AE);
   }
 
   bool _isOverdue() {
@@ -620,24 +620,37 @@ class _ReminderCard extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F26),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-        title: Text(t.maintenance_delete_title),
+        title: Text(
+          t.maintenance_delete_title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: SizedBox(
           width: 600,
-          child: Text(t.maintenance_delete_message.replaceAll('{title}', reminder.title)),
+          child: Text(
+            t.maintenance_delete_message.replaceAll('{title}', reminder.title),
+            style: const TextStyle(color: Colors.white70),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t.maintenance_cancel),
+            child: Text(
+              t.maintenance_cancel,
+              style: const TextStyle(color: Colors.blue),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
             ),
-            child: Text(t.maintenance_delete_confirm),
+            child: Text(
+              t.maintenance_delete_confirm,
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -664,6 +677,7 @@ class _ReminderCard extends StatelessWidget {
     final t = AppLocalizations.of(context);
     final service = MaintenanceService(Supabase.instance.client);
     final detailPhotos = List<String>.from(reminder.photos);
+    final detailDocuments = List<String>.from(reminder.documents);
     
     showModalBottomSheet(
       context: context,
@@ -719,6 +733,22 @@ class _ReminderCard extends StatelessWidget {
                   iconColor: _categoryColor(reminder.category),
                   ),
                   
+                  // Reifenart (nur bei Reifenwechsel)
+                  if (reminder.category == MaintenanceCategory.tireChange && reminder.notes != null) ...
+                    () {
+                      final tireTypes = <String>[];
+                      if (reminder.notes!.contains('summer')) tireTypes.add('Sommerreifen');
+                      if (reminder.notes!.contains('winter')) tireTypes.add('Winterreifen');
+                      if (tireTypes.isNotEmpty) {
+                        return [_buildDetailRow(
+                          icon: Icons.tire_repair,
+                          label: 'Reifenart',
+                          value: tireTypes.join(', '),
+                        )];
+                      }
+                      return <Widget>[];
+                    }(),
+                  
                   // Titel
                   _buildDetailRow(
                     icon: Icons.title,
@@ -739,7 +769,7 @@ class _ReminderCard extends StatelessWidget {
                     _buildDetailRow(
                       icon: Icons.calendar_today,
                       label: t.maintenance_due_date_label,
-                      value: DateFormat('dd.MM.yyyy').format(reminder.dueDate!),
+                      value: DateFormat('dd.MM.yyyy HH:mm').format(reminder.dueDate!.toLocal()),
                     ),
                   
                   // Fälligkeits-Kilometer
@@ -790,37 +820,44 @@ class _ReminderCard extends StatelessWidget {
                       value: '${reminder.cost!.toStringAsFixed(2)} €',
                     ),
                   
-                  // Notizen
-                  if (reminder.notes != null && reminder.notes!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Icon(Icons.notes, color: Colors.white70, size: 20),
-                        const SizedBox(width: 12),
-                        Text(
-                          t.maintenance_notes_title,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                  // Notizen (ohne Meta-Tags)
+                  if (reminder.notes != null && reminder.notes!.isNotEmpty) ...
+                    () {
+                      // Entferne [meta:...] aus den Notizen
+                      final cleanNotes = reminder.notes!.replaceAll(RegExp(r'\[meta:[^\]]+\]'), '').trim();
+                      if (cleanNotes.isEmpty) return <Widget>[];
+                      
+                      return [
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Icon(Icons.notes, color: Colors.white70, size: 20),
+                            const SizedBox(width: 12),
+                            Text(
+                              t.maintenance_notes_title,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F141A),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            cleanNotes,
+                            style: const TextStyle(color: Colors.white),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F141A),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        reminder.notes!,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
+                      ];
+                    }(),
                   
                   // Fotos
                   if (detailPhotos.isNotEmpty) ...[
@@ -906,7 +943,18 @@ class _ReminderCard extends StatelessWidget {
                                   right: 2,
                                   child: GestureDetector(
                                     onTap: () async {
+                                      final photoToDelete = detailPhotos[i];
                                       detailPhotos.removeAt(i);
+                                      
+                                      // Lösche Datei aus Supabase Storage
+                                      try {
+                                        await Supabase.instance.client.storage
+                                          .from('maintenance-files')
+                                          .remove([photoToDelete]);
+                                      } catch (e) {
+                                        print('⚠️ Fehler beim Löschen des Fotos: $e');
+                                      }
+                                      
                                       await service.updateReminder(id: reminder.id, photos: detailPhotos);
                                       setDetailState(() {});
                                       onRefresh();
@@ -930,7 +978,7 @@ class _ReminderCard extends StatelessWidget {
                   ],
                   
                   // Dokumente
-                  if (reminder.documents.isNotEmpty) ...[
+                  if (detailDocuments.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     Row(
                       children: [
@@ -950,25 +998,63 @@ class _ReminderCard extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: reminder.documents
-                          .map((key) => FutureBuilder<String?>(
-                                future: service.getSignedUrl(key),
-                                builder: (c, snap) {
-                                  final url = snap.data;
-                                  return ActionChip(
-                                    backgroundColor: const Color(0xFF0F141A),
-                                    avatar: const Icon(Icons.picture_as_pdf, color: Colors.white70, size: 18),
-                                    label: const Text('PDF', style: TextStyle(color: Colors.white)),
-                                    onPressed: url == null
-                                        ? null
-                                        : () async {
-                                            final uri = Uri.parse(url);
-                                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                          },
-                                  );
-                                },
-                              ))
-                          .toList(),
+                      children: detailDocuments.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final key = entry.value;
+                        return FutureBuilder<String?>(
+                          future: service.getSignedUrl(key),
+                          builder: (c, snap) {
+                            final url = snap.data;
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF0F141A),
+                                  avatar: const Icon(Icons.picture_as_pdf, color: Colors.white70, size: 18),
+                                  label: const Text('PDF', style: TextStyle(color: Colors.white)),
+                                  onPressed: url == null
+                                      ? null
+                                      : () async {
+                                          final uri = Uri.parse(url);
+                                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                        },
+                                ),
+                                Positioned(
+                                  top: -8,
+                                  right: -8,
+                                  child: GestureDetector(
+                                    onTap: () async {
+                                      final docToDelete = detailDocuments[i];
+                                      detailDocuments.removeAt(i);
+                                      
+                                      // Lösche Datei aus Supabase Storage
+                                      try {
+                                        await Supabase.instance.client.storage
+                                          .from('maintenance-files')
+                                          .remove([docToDelete]);
+                                      } catch (e) {
+                                        print('⚠️ Fehler beim Löschen des Dokuments: $e');
+                                      }
+                                      
+                                      await service.updateReminder(id: reminder.id, documents: detailDocuments);
+                                      setDetailState(() {});
+                                      onRefresh();
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }).toList(),
                     ),
                   ],
                   
@@ -1142,7 +1228,7 @@ class _ReminderCard extends StatelessWidget {
 
                     // Details-Button (für alle Wartungen)
                     ListTile(
-                      leading: const Icon(Icons.info_outline, color: Color(0xFF1976D2)),
+                      leading: const Icon(Icons.info_outline, color: Color(0xFF2196F3)),
                       title: const Text(
                         'Details',
                         style: TextStyle(color: Colors.white),
@@ -1166,7 +1252,7 @@ class _ReminderCard extends StatelessWidget {
                         },
                       ),
                       ListTile(
-                        leading: const Icon(Icons.edit, color: Color(0xFF1976D2)),
+                        leading: const Icon(Icons.edit, color: Color(0xFFFF9800)),
                         title: Text(
                           t.maintenance_edit,
                           style: const TextStyle(color: Colors.white),
@@ -1186,7 +1272,7 @@ class _ReminderCard extends StatelessWidget {
 
                     if (reminder.isCompleted) ...[
                       ListTile(
-                        leading: const Icon(Icons.refresh, color: Color(0xFF1976D2)),
+                        leading: const Icon(Icons.refresh, color: Color(0xFFFF9800)),
                         title: Text(
                           t.maintenance_mark_incomplete,
                           style: const TextStyle(color: Colors.white),
@@ -1197,7 +1283,7 @@ class _ReminderCard extends StatelessWidget {
                         },
                       ),
                       ListTile(
-                        leading: const Icon(Icons.upload_file, color: Color(0xFF1976D2)),
+                        leading: const Icon(Icons.upload_file, color: Color(0xFF4CAF50)),
                         title: Text(
                           '${t.maintenance_photos_title} / ${t.maintenance_documents_title}',
                           style: const TextStyle(color: Colors.white),
@@ -1246,9 +1332,9 @@ class _ReminderCard extends StatelessWidget {
                                               }
                                             }
                                           },
-                                          icon: const Icon(Icons.photo_camera, color: Color(0xFF1976D2)),
-                                          label: Text(t.maintenance_photos_add, style: const TextStyle(color: Color(0xFF1976D2))),
-                                          style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF1976D2))),
+                                          icon: const Icon(Icons.photo_camera, color: Colors.blue),
+                                          label: Text(t.maintenance_photos_add, style: const TextStyle(color: Colors.blue)),
+                                          style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blue)),
                                         ),
                                         OutlinedButton.icon(
                                           onPressed: () async {
@@ -1265,9 +1351,9 @@ class _ReminderCard extends StatelessWidget {
                                               }
                                             }
                                           },
-                                          icon: const Icon(Icons.picture_as_pdf, color: Color(0xFF1976D2)),
-                                          label: Text(t.maintenance_documents_upload_pdf, style: const TextStyle(color: Color(0xFF1976D2))),
-                                          style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF1976D2))),
+                                          icon: const Icon(Icons.picture_as_pdf, color: Colors.blue),
+                                          label: Text(t.maintenance_documents_add, style: const TextStyle(color: Colors.blue)),
+                                          style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blue)),
                                         ),
                                       ],
                                     ),
@@ -1348,7 +1434,18 @@ class _ReminderCard extends StatelessWidget {
                                         right: 2,
                                         child: GestureDetector(
                                           onTap: () async {
+                                            final photoToDelete = photos[i];
                                             photos.removeAt(i);
+                                            
+                                            // Lösche Datei aus Supabase Storage
+                                            try {
+                                              await Supabase.instance.client.storage
+                                                .from('maintenance-files')
+                                                .remove([photoToDelete]);
+                                            } catch (e) {
+                                              print('⚠️ Fehler beim Löschen des Fotos: $e');
+                                            }
+                                            
                                             await service.updateReminder(id: reminder.id, photos: photos);
                                             setSt(() {});
                                             onRefresh();
@@ -1379,25 +1476,62 @@ class _ReminderCard extends StatelessWidget {
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: documents
-                                .map((key) => FutureBuilder<String?>(
-                                      future: service.getSignedUrl(key),
-                                      builder: (c, snap) {
-                                        final url = snap.data;
-                                        return ActionChip(
-                                          backgroundColor: const Color(0xFF0F141A),
-                                          avatar: const Icon(Icons.picture_as_pdf, color: Colors.white70, size: 18),
-                                          label: const Text('PDF', style: TextStyle(color: Colors.white)),
-                                          onPressed: url == null
-                                              ? null
-                                              : () async {
-                                                  final uri = Uri.parse(url);
-                                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                                },
-                                        );
-                                      },
-                                    ))
-                                .toList(),
+                            children: documents.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final key = entry.value;
+                              return FutureBuilder<String?>(
+                                future: service.getSignedUrl(key),
+                                builder: (c, snap) {
+                                  final url = snap.data;
+                                  return Stack(
+                                    children: [
+                                      ActionChip(
+                                        backgroundColor: const Color(0xFF0F141A),
+                                        avatar: const Icon(Icons.picture_as_pdf, color: Colors.white70, size: 18),
+                                        label: const Text('PDF', style: TextStyle(color: Colors.white)),
+                                        onPressed: url == null
+                                            ? null
+                                            : () async {
+                                                final uri = Uri.parse(url);
+                                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                              },
+                                      ),
+                                      Positioned(
+                                        top: -8,
+                                        right: -8,
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            final docToDelete = documents[i];
+                                            documents.removeAt(i);
+                                            
+                                            // Lösche Datei aus Supabase Storage
+                                            try {
+                                              await Supabase.instance.client.storage
+                                                .from('maintenance-files')
+                                                .remove([docToDelete]);
+                                            } catch (e) {
+                                              print('⚠️ Fehler beim Löschen des Dokuments: $e');
+                                            }
+                                            
+                                            await service.updateReminder(id: reminder.id, documents: documents);
+                                            setSt(() {});
+                                            onRefresh();
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            }).toList(),
                           ),
                         ],
                       ],

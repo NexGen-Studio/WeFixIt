@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.graphics.BitmapFactory
+import com.example.wefixit.R
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -129,11 +131,28 @@ class RobustNotificationScheduler {
             createNotificationChannel(context)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Intent zum Öffnen der App (MainActivity mit Navigation zur Wartungsübersicht)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("open_route", "/maintenance") // Route zur Wartungsübersicht
+                }
+                
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    id,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                val largeIcon = BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
+
                 val notification = android.app.Notification.Builder(context, CHANNEL_ID)
                     .setContentTitle(title)
                     .setContentText(body)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setLargeIcon(largeIcon)
                     .setAutoCancel(true)
+                    .setContentIntent(pendingIntent) // Click-Aktion
                     .setPriority(android.app.Notification.PRIORITY_HIGH)
                     .setDefaults(android.app.Notification.DEFAULT_ALL)
                     .build()
@@ -141,7 +160,7 @@ class RobustNotificationScheduler {
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(id, notification)
                 
-                Log.d(TAG, "✅ Notification angezeigt: ID=$id")
+                Log.d(TAG, "✅ Notification angezeigt: ID=$id mit Click-Aktion")
             }
         }
     }

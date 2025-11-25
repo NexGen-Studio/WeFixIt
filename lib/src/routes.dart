@@ -9,10 +9,15 @@ import 'features/maintenance/create_reminder_screen.dart';
 import 'features/maintenance/maintenance_dashboard_screen.dart';
 import 'features/maintenance/maintenance_home_screen.dart';
 import 'features/maintenance/extended_create_reminder_screen.dart';
+import 'features/costs/costs_main_screen.dart';
+import 'features/costs/cost_form_screen.dart';
+import 'features/costs/category_manager_screen.dart';
+import 'features/costs/achievements_screen.dart';
 import 'widgets/ad_banner.dart';
 import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/reset_password_screen.dart';
+import 'features/paywall/paywall_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'i18n/app_localizations.dart';
 import '../splash_screen.dart';
@@ -91,6 +96,10 @@ GoRouter createRouter() {
         path: '/reset-password',
         pageBuilder: (context, state) => const NoTransitionPage(child: ResetPasswordScreen()),
       ),
+      GoRoute(
+        path: '/paywall',
+        pageBuilder: (context, state) => const NoTransitionPage(child: PaywallScreen()),
+      ),
       ShellRoute(
         builder: (context, state, child) => _RootScaffold(child: child),
         routes: [
@@ -137,6 +146,30 @@ GoRouter createRouter() {
           GoRoute(
             path: '/maintenance-home',
             builder: (context, state) => const MaintenanceHomeScreen(),
+          ),
+          GoRoute(
+            path: '/costs',
+            builder: (context, state) => const CostsMainScreen(),
+            routes: [
+              GoRoute(
+                path: 'add',
+                builder: (context, state) => const CostFormScreen(),
+              ),
+              GoRoute(
+                path: 'edit/:id',
+                builder: (context, state) => CostFormScreen(
+                  costId: state.pathParameters['id'],
+                ),
+              ),
+              GoRoute(
+                path: 'categories',
+                builder: (context, state) => const CategoryManagerScreen(),
+              ),
+              GoRoute(
+                path: 'achievements',
+                builder: (context, state) => const AchievementsScreen(),
+              ),
+            ],
           ),
         ],
       ),

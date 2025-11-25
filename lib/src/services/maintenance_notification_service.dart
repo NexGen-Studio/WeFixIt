@@ -5,13 +5,58 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/maintenance_reminder.dart';
+import 'dart:convert';
 
 /// Service für Push-Benachrichtigungen bei Wartungen
 class MaintenanceNotificationService {
   static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   static const _nativeChannel = MethodChannel('com.example.wefixit/notifications');
   static bool _initialized = false;
+
+  /// Extrahiert Kategorielabel aus Reminder (inkl. Custom)
+  static Future<String> _getCategoryLabel(MaintenanceReminder reminder) async {
+    // Standard-Kategorien
+    switch (reminder.category) {
+      case MaintenanceCategory.oilChange:
+        return 'Ölwechsel';
+      case MaintenanceCategory.tireChange:
+        return 'Reifen';
+      case MaintenanceCategory.brakes:
+        return 'Bremsen';
+      case MaintenanceCategory.tuv:
+        return 'TÜV/AU';
+      case MaintenanceCategory.inspection:
+        return 'Inspektion';
+      case MaintenanceCategory.battery:
+        return 'Batterie';
+      case MaintenanceCategory.filter:
+        return 'Filter';
+      case MaintenanceCategory.insurance:
+        return 'Versicherung';
+      case MaintenanceCategory.tax:
+        return 'KFZ-Steuer';
+      case MaintenanceCategory.other:
+        // Versuche Custom-Label aus Notes zu extrahieren
+        if (reminder.notes != null) {
+          final metaRegex = RegExp(r'\[meta:(.*?)\]');
+          final match = metaRegex.firstMatch(reminder.notes!);
+          if (match != null) {
+            final metaContent = match.group(1) ?? '';
+            final parts = metaContent.split(',');
+            for (final part in parts) {
+              if (part.startsWith('custom:')) {
+                return part.substring(7); // Extrahiere Custom-Label
+              }
+            }
+          }
+        }
+        return 'Sonstiges';
+      default:
+        return 'Wartung';
+    }
+  }
 
   /// Initialisiert den Notification Service
   static Future<void> initialize() async {
@@ -240,11 +285,14 @@ class MaintenanceNotificationService {
 
     try {
       // Verwende NATIVE AlarmManager für GARANTIERTE Zustellung
+      final categoryLabel = await _getCategoryLabel(reminder);
+      final notificationBody = '$categoryLabel: ${reminder.title}';
+      
       if (Platform.isAndroid) {
         await _nativeChannel.invokeMethod('scheduleNotification', {
           'id': id,
-          'title': '🔧 Wartung fällig',
-          'body': reminder.title,
+          'title': '🔧 Deine Wartung ist fällig',
+          'body': '      $notificationBody',
           'scheduledTime': scheduledTime.millisecondsSinceEpoch,
         });
         print('✅ [Notification] Native Notification geplant für ${reminder.title}');
@@ -258,8 +306,8 @@ class MaintenanceNotificationService {
         
         await _notifications.zonedSchedule(
           id,
-          '🔧 Wartung fällig',
-          reminder.title,
+          '🔧 Deine Wartung ist fällig',
+          '      $notificationBody',
           scheduledTime,
           const NotificationDetails(iOS: iosDetails),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -270,6 +318,71 @@ class MaintenanceNotificationService {
     } catch (e) {
       print('❌ [Notification] FEHLER beim Planen: $e');
     }
+    
+    // Plane ZUSÄTZLICH eine Überf��llige-Benachrichtigung zum DueDate
+    if (reminder.dueDate != null && reminder.reminderType == ReminderType.date) {
+      await _scheduleOverdueFallbackNotification(reminder);
+    }
+  }
+  
+  /// Plant eine Fallback-Benachrichtigung zum DueDate für überfällige Wartungen
+  static Future<void> _scheduleOverdueFallbackNotification(MaintenanceReminder reminder) async {
+    if (reminder.dueDate == null) return;
+    
+    final dueDateTime = reminder.dueDate!.toLocal();
+    final now = DateTime.now();
+    
+    // Wenn DueDate in der Vergangenheit liegt, sofort benachrichtigen
+    if (dueDateTime.isBefore(now)) {
+      print('⚠️ [Overdue Fallback] Due Date ist in der Vergangenheit - keine Fallback-Notification nötig');
+      return;
+    }
+    
+    // Plane Benachrichtigung zum DueDate + 1 Minute (um sicherzustellen, dass es nach DueDate ist)
+    final overdueTime = dueDateTime.add(const Duration(minutes: 1));
+    final scheduledTime = tz.TZDateTime.from(overdueTime, tz.local);
+    
+    // Generiere eindeutige ID für Overdue-Fallback
+    final id = 'overdue_fallback_${reminder.id}'.hashCode;
+    
+    // Channel erstellen
+    await _createNotificationChannel();
+    
+    final categoryLabel = await _getCategoryLabel(reminder);
+    final notificationBody = '$categoryLabel: ${reminder.title}';
+    
+    print('🕒 [Overdue Fallback] Plane Überf��llige-Benachrichtigung für: $scheduledTime');
+    
+    try {
+      if (Platform.isAndroid) {
+        await _nativeChannel.invokeMethod('scheduleNotification', {
+          'id': id,
+          'title': '⚠️ Wartung überfällig!',
+          'body': '      $notificationBody',
+          'scheduledTime': scheduledTime.millisecondsSinceEpoch,
+        });
+        print('✅ [Overdue Fallback] Native Überf��llige-Notification geplant');
+      } else {
+        const iosDetails = DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
+        
+        await _notifications.zonedSchedule(
+          id,
+          '⚠️ Wartung überfällig!',
+          '      $notificationBody',
+          scheduledTime,
+          const NotificationDetails(iOS: iosDetails),
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        );
+        print('✅ [Overdue Fallback] iOS Überfällige-Notification geplant');
+      }
+    } catch (e) {
+      print('❌ [Overdue Fallback] FEHLER beim Planen: $e');
+    }
   }
 
   /// Plant Benachrichtigungen für überfällige Wartungen
@@ -279,11 +392,13 @@ class MaintenanceNotificationService {
     if (reminder.status != MaintenanceStatus.overdue) return;
 
     final id = 'overdue_${reminder.id}'.hashCode;
+    final categoryLabel = await _getCategoryLabel(reminder);
+    final notificationBody = '$categoryLabel: ${reminder.title}';
 
     await _notifications.show(
       id,
       '⚠️ Wartung überfällig!',
-      '${reminder.title} ist überfällig!',
+      '      $notificationBody',
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'maintenance_overdue',
@@ -300,6 +415,16 @@ class MaintenanceNotificationService {
         ),
       ),
     );
+    
+    // Aktualisiere lastNotificationSent in der Datenbank
+    try {
+      await Supabase.instance.client
+          .from('maintenance_reminders')
+          .update({'last_notification_sent': DateTime.now().toIso8601String()})
+          .eq('id', reminder.id);
+    } catch (e) {
+      print('⚠️ [Notification] Fehler beim Aktualisieren von lastNotificationSent: $e');
+    }
   }
 
   /// Storniert alle geplanten Benachrichtigungen für eine Wartung

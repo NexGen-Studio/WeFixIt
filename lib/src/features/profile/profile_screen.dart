@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,7 +9,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../models/profile.dart';
 import '../../state/locale_provider.dart';
+import '../../state/profile_controller.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/credit_service.dart';
+import '../../services/purchase_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -18,18 +23,33 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _vehicleFormKey = GlobalKey<_VehicleFormState>();
   final _displayCtrl = TextEditingController();
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
   String? _avatarKey;  // Storage key (wird in DB gespeichert)
   String? _avatarUrlUi;  // Signierte URL (nur für UI)
-  String? _vehiclePhotoUrl;  // Vehicle photo URL (public URL)
+  String? _vehiclePhotoUrl;  // Vehicle photo URL (persisted)
+  String? _vehiclePhotoUrlUi;  // Vehicle photo URL für UI (mit Cache-Busting)
   bool _saving = false;
+  bool _avatarDeleting = false;
+  bool _vehicleDeleting = false;
+  void Function()? _profileListenerDispose;
+  bool _profileHydrated = false;
+  String? _lastProfileSignature;
+  
+  // Credits & Free Quota
+  int _creditBalance = 0;
+  int _freeQuotaConsumed = 0;
+  DateTime? _weekStartDate;
+  bool _loadingCredits = true;
+  bool _isPro = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadCreditsInfo();
   }
 
   void _showImagePreview(String url) {
@@ -68,6 +88,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  String _cacheBustUrl(String url) {
+    final separator = url.contains('?') ? '&' : '?';
+    return '$url${separator}cb=${DateTime.now().millisecondsSinceEpoch}';
+  }
+
   Future<void> _load() async {
     final svc = SupabaseService(Supabase.instance.client);
     final p = await svc.fetchUserProfile();
@@ -77,14 +102,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // p.avatarUrl enthält den Storage-Key
       avatarUrlUi = await svc.getSignedAvatarUrl(p!.avatarUrl!);
     }
+    final vehiclePhoto = p?.vehiclePhotoUrl;
     setState(() {
       _displayCtrl.text = p?.displayName ?? '';
       _firstCtrl.text = p?.firstName ?? '';
       _lastCtrl.text = p?.lastName ?? '';
       _avatarKey = p?.avatarUrl;  // Speichere Key
       _avatarUrlUi = avatarUrlUi;  // Speichere signierte URL für UI
-      _vehiclePhotoUrl = p?.vehiclePhotoUrl;  // Vehicle photo URL
+      _vehiclePhotoUrl = vehiclePhoto;  // Vehicle photo URL
+      _vehiclePhotoUrlUi = (vehiclePhoto != null && vehiclePhoto.isNotEmpty) ? _cacheBustUrl(vehiclePhoto) : null;
     });
+  }
+
+  Future<void> _loadCreditsInfo() async {
+    setState(() => _loadingCredits = true);
+    try {
+      final creditService = CreditService();
+      final purchaseService = PurchaseService();
+      
+      // Load credit balance
+      final balance = await creditService.getCreditBalance();
+      
+      // Load free quota info
+      final quotaInfo = await creditService.getFreeQuotaInfo();
+      
+      // Check Pro status
+      final isPro = await purchaseService.isPro();
+      
+      if (!mounted) return;
+      setState(() {
+        _creditBalance = balance;
+        _freeQuotaConsumed = quotaInfo['consumed'] ?? 0;
+        _weekStartDate = quotaInfo['weekStartDate'];
+        _isPro = isPro;
+        _loadingCredits = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingCredits = false);
+    }
   }
 
   Future<void> _pickAvatar() async {
@@ -103,6 +159,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _deleteAvatar() async {
+    if ((_avatarKey ?? '').isEmpty && (_avatarUrlUi ?? '').isEmpty) return;
+    setState(() => _avatarDeleting = true);
+    final svc = SupabaseService(Supabase.instance.client);
+    await svc.deleteAvatarPhoto();
+    if (!mounted) return;
+    setState(() {
+      _avatarDeleting = false;
+      _avatarKey = null;
+      _avatarUrlUi = null;
+    });
+    await _load();
+    if (!mounted) return;
+    final t = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.avatar_deleted'))));
+  }
+
   Future<void> _pickVehiclePhoto() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (picked == null || !mounted) return;
@@ -112,7 +185,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     // Calculate aspect ratio to match Home display: width = 90% of screen, height = 100 px
     final screenWidth = MediaQuery.of(context).size.width;
     final displayWidth = screenWidth * 0.9;
-    final displayHeight = 100.0; // pixels as used on Home
+    final displayHeight = 140.0; // etwas höherer Ausschnitt
 
     // Use ImageCropper to let user pan/zoom within a fixed aspect ratio frame
     final cropped = await ImageCropper().cropImage(
@@ -123,7 +196,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           toolbarTitle: t.tr('profile.crop_title'),
           toolbarColor: const Color(0xFF0F141A),
           toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor: const Color(0xFF2563EB),
+          activeControlsWidgetColor: const Color(0xFFF8AD20),
           hideBottomControls: false,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: true,
@@ -146,12 +219,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final svc = SupabaseService(Supabase.instance.client);
     final result = await svc.uploadVehiclePhoto(pathToUpload);
     if (result != null) {
+      if (mounted) {
+        setState(() {
+          _vehiclePhotoUrl = result;
+          _vehiclePhotoUrlUi = _cacheBustUrl(result);
+        });
+      }
       await _load(); // Reload to ensure UI reflects DB
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.vehicle_photo_uploaded'))));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('common.upload_error'))));
     }
+  }
+
+  Future<void> _deleteVehiclePhoto() async {
+    if ((_vehiclePhotoUrl ?? '').isEmpty && (_vehiclePhotoUrlUi ?? '').isEmpty) return;
+    setState(() => _vehicleDeleting = true);
+    final svc = SupabaseService(Supabase.instance.client);
+    await svc.deleteVehiclePhoto();
+    if (!mounted) return;
+    setState(() {
+      _vehicleDeleting = false;
+      _vehiclePhotoUrl = null;
+      _vehiclePhotoUrlUi = null;
+    });
+    await _load();
+    if (!mounted) return;
+    final t = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.vehicle_photo_deleted'))));
   }
 
   Future<void> _useAvatarAsVehicle() async {
@@ -163,6 +259,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final svc = SupabaseService(Supabase.instance.client);
     final result = await svc.copyAvatarToVehiclePhoto();
     if (result != null) {
+      if (mounted) {
+        setState(() {
+          _vehiclePhotoUrl = result;
+          _vehiclePhotoUrlUi = _cacheBustUrl(result);
+        });
+      }
       await _load(); // Reload to ensure UI reflects DB
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.tr('profile.copied_as_vehicle'))));
@@ -172,24 +274,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
     final svc = SupabaseService(Supabase.instance.client);
     final user = Supabase.instance.client.auth.currentUser;
+    final firstNameValue = _firstCtrl.text.trim();
+    final lastNameValue = _lastCtrl.text.trim();
     final profile = UserProfile(
       id: user!.id,
-      displayName: _displayCtrl.text.trim().isEmpty ? null : _displayCtrl.text.trim(),
-      firstName: _firstCtrl.text.trim().isNotEmpty ? _firstCtrl.text.trim() : null,
-      lastName: _lastCtrl.text.trim().isNotEmpty ? _lastCtrl.text.trim() : null,
+      displayName: _displayCtrl.text.trim(),
+      firstName: firstNameValue.isNotEmpty ? firstNameValue : '',
+      lastName: lastNameValue.isNotEmpty ? lastNameValue : '',
       avatarUrl: _avatarKey,  // Speichere nur den Key in der DB!
       vehiclePhotoUrl: _vehiclePhotoUrl,  // Vehicle photo URL
     );
     await svc.saveUserProfile(profile);
     // Reload to ensure UI reflects DB
     await _load();
-    if (!mounted) return;
-    setState(() => _saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil gespeichert')));
+  }
+
+  Future<void> _saveAll() async {
+    // Validiere Vehicle Form nur wenn ExpansionTile geöffnet und Felder ausgefüllt
+    final vehicleValid = _vehicleFormKey.currentState?.validateForm() ?? true;
+    
+    if (!vehicleValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Marke und Modell ausfüllen')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    
+    try {
+      // Speichere Profil
+      await _save();
+      // Speichere Fahrzeugdaten
+      await _vehicleFormKey.currentState?.saveVehicle();
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil und Fahrzeugdaten gespeichert')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Speichern: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   @override
@@ -208,36 +342,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     // Wenn nicht eingeloggt, zeige Login-CTA
     if (!isLoggedIn) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
+        backgroundColor: const Color(0xFF0B1117),
         body: SafeArea(
           child: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // Header
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'Profil',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0A0A0A),
-                            letterSpacing: -0.5,
-                          ),
+                      const Text(
+                        'Profil',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: const Color(0xFF151C23),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!, width: 1),
+                          border: Border.all(color: Colors.white12, width: 1),
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.settings, color: Color(0xFF0A0A0A)),
+                          icon: const Icon(Icons.settings, color: Colors.white),
                           onPressed: () => context.go('/settings'),
                         ),
                       ),
@@ -253,40 +385,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: const Color(0xFF151C23),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey[200]!, width: 1),
+                      border: Border.all(color: Colors.white12, width: 1),
                     ),
                     child: Column(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE3F2FD),
+                            color: const Color(0xFF2196F3).withOpacity(0.2),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.person_outline,
                             size: 48,
-                            color: Color(0xFF1976D2),
+                            color: Color(0xFF2196F3),
                           ),
                         ),
                         const SizedBox(height: 24),
                         Text(
                           t.profile_please_login,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF0A0A0A),
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 12),
                         Text(
                           t.profile_login_message,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: Colors.white70,
                             height: 1.5,
                           ),
                         ),
@@ -296,7 +428,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: ElevatedButton(
                             onPressed: () => context.go('/auth'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1976D2),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -327,7 +458,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     // Normaler Profil-Screen für eingeloggte User
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0B1117),
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -347,16 +478,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             style: const TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0A0A0A),
+                              color: Colors.white,
                               letterSpacing: -0.5,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             Supabase.instance.client.auth.currentUser?.email ?? '',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: Colors.white70,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -365,17 +496,187 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFF151C23),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                        border: Border.all(color: Colors.white12, width: 1),
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.settings, color: Color(0xFF0A0A0A)),
+                        icon: const Icon(Icons.settings, color: Colors.white),
                         onPressed: () => context.go('/settings'),
                       ),
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            // Credits & Free Quota Card
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: _loadingCredits
+                    ? Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF151C23),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white12, width: 1),
+                        ),
+                        child: const Center(child: CircularProgressIndicator()),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF1976D2),
+                              const Color(0xFF1565C0),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white12, width: 1),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    _isPro ? Icons.workspace_premium : Icons.star_outline,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _isPro ? t.credits_pro_member : t.credits_title,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      if (!_isPro) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          t.creditsRemaining(3 - _freeQuotaConsumed),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.white.withOpacity(0.9),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (!_isPro) ...[
+                              const SizedBox(height: 16),
+                              const Divider(color: Colors.white24, height: 1),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.credits_my_credits,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.monetization_on, color: Colors.amber[300], size: 20),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '$_creditBalance',
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton.icon(
+                                    onPressed: () => context.push('/paywall'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: const Color(0xFF1976D2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: Text(
+                                      t.credits_buy,
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_weekStartDate != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  t.credits_quota_renews_weekly,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
+                            ],
+                            if (_isPro) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.check_circle, color: Colors.greenAccent[100], size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        t.credits_unlimited_ai,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
               ),
             ),
 
@@ -389,29 +690,63 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFF151C23),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey[200]!, width: 1),
+                        border: Border.all(color: Colors.white12, width: 1),
                       ),
                       child: Row(
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              final url = _avatarUrlUi;
-                              if (url != null && url.isNotEmpty) _showImagePreview(url);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.grey[300]!, width: 2),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  final url = _avatarUrlUi;
+                                  if (url != null && url.isNotEmpty) _showImagePreview(url);
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white24, width: 2),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 28,
+                                    backgroundColor: Colors.transparent,
+                                    foregroundImage: (_avatarUrlUi ?? '').isNotEmpty
+                                        ? NetworkImage(_avatarUrlUi!)
+                                        : null,
+                                    child: (_avatarUrlUi ?? '').isNotEmpty
+                                        ? null
+                                        : const Icon(Icons.person_outline, color: Colors.white54, size: 28),
+                                  ),
+                                ),
                               ),
-                              child: CircleAvatar(
-                                radius: 28,
-                                backgroundColor: Colors.grey[100],
-                                backgroundImage: (_avatarUrlUi ?? '').isNotEmpty ? NetworkImage(_avatarUrlUi!) : null,
-                                child: (_avatarUrlUi ?? '').isNotEmpty ? null : Icon(Icons.person_outline, color: Colors.grey[600], size: 28),
-                              ),
-                            ),
+                              if ((_avatarUrlUi ?? '').isNotEmpty)
+                                Positioned(
+                                  top: -14,
+                                  right: -14,
+                                  child: IconButton(
+                                    constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+                                    padding: EdgeInsets.zero,
+                                    onPressed: _avatarDeleting ? null : _deleteAvatar,
+                                    tooltip: AppLocalizations.of(context).tr('profile.remove_avatar'),
+                                    icon: Container(
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Color(0xFFE53935),
+                                      ),
+                                      padding: const EdgeInsets.all(4),
+                                      child: _avatarDeleting
+                                          ? const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(Icons.close, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -420,8 +755,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               children: [
                                 Text(
                                   t.profile_profile_picture,
-                                  style: TextStyle(
-                                    color: Color(0xFF0A0A0A),
+                                  style: const TextStyle(
+                                    color: Colors.white,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 15,
                                   ),
@@ -429,8 +764,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 const SizedBox(height: 2),
                                 Text(
                                   t.profile_click_to_change,
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
+                                  style: const TextStyle(
+                                    color: Colors.white70,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -439,7 +774,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           IconButton(
                             onPressed: _pickAvatar,
-                            icon: const Icon(Icons.edit, color: Color(0xFF2563EB)),
+                            icon: const Icon(Icons.edit, color: Color(0xFFF8AD20)),
                           ),
                         ],
                       ),
@@ -450,12 +785,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
                           tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-                          collapsedIconColor: const Color(0xFF0A0A0A),
-                          iconColor: const Color(0xFF0A0A0A),
+                          collapsedIconColor: Colors.white,
+                          iconColor: Colors.white,
                           title: Text(
                             t.profile_edit_profile,
-                            style: TextStyle(
-                              color: Color(0xFF0A0A0A),
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontWeight: FontWeight.w700,
                               fontSize: 16,
                             ),
@@ -477,17 +812,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           Expanded(child: _GlassField(controller: _lastCtrl, label: t.profile_last_name)),
                         ]),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _GlassButton(
-                                label: t.profile_choose_picture,
-                                onPressed: _pickAvatar,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
                         // Vehicle photo section
                         Row(
                           children: [
@@ -499,44 +823,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF2563EB),
-                                  side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                ),
-                                onPressed: _useAvatarAsVehicle,
-                                child: Text(t.tr('profile.use_avatar_as_vehicle'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if ((_vehiclePhotoUrl ?? '').isNotEmpty)
+                        if ((_vehiclePhotoUrlUi ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
-                            child: GestureDetector(
-                              onTap: () => _showImagePreview(_vehiclePhotoUrl!),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  height: 100,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.grey[300]!, width: 1),
-                                    borderRadius: BorderRadius.circular(12),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    final previewUrl = _vehiclePhotoUrlUi ?? _vehiclePhotoUrl;
+                                    if (previewUrl != null && previewUrl.isNotEmpty) {
+                                      _showImagePreview(previewUrl);
+                                    }
+                                  },
+                                  child: Container(
+                                    height: 100,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    clipBehavior: Clip.hardEdge,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(_vehiclePhotoUrlUi!, fit: BoxFit.cover),
+                                    ),
                                   ),
-                                  child: Image.network(_vehiclePhotoUrl!, fit: BoxFit.cover),
                                 ),
-                              ),
+                                Positioned(
+                                  top: -12,
+                                  right: -12,
+                                  child: IconButton(
+                                    constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+                                    padding: EdgeInsets.zero,
+                                    onPressed: _vehicleDeleting ? null : _deleteVehiclePhoto,
+                                    tooltip: t.tr('profile.remove_vehicle_photo'),
+                                    icon: Container(
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Color(0xFFE53935),
+                                      ),
+                                      padding: const EdgeInsets.all(4),
+                                      child: _vehicleDeleting
+                                          ? const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(Icons.close, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        const SizedBox(height: 12),
-                        _GlassButton(label: _saving ? t.profile_saving : t.profile_save, onPressed: _saving ? null : _save),
                       ],
                     ),
                   ),
@@ -546,7 +886,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 12),
                     // Fahrzeugdaten bearbeiten (einklappbar)
-                    _GlassCard(child: _VehicleForm()),
+                    _GlassCard(child: _VehicleForm(key: _vehicleFormKey)),
+                    const SizedBox(height: 12),
+                    // Gemeinsamer Speichern Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: _saving
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              onPressed: _saveAll,
+                              child: Text(
+                                t.profile_save,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                    ),
                     const SizedBox(height: 12),
                     // Tabs: Letzte Diagnosen / Letzte Chats (Platzhalter)
                     _GlassCard(
@@ -555,8 +913,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         child: Column(
                           children: [
                             TabBar(
-                              labelColor: Color(0xFF0A0A0A),
-                              unselectedLabelColor: Color(0xFF94A3B8),
+                              labelColor: Colors.white,
+                              unselectedLabelColor: Colors.white54,
                               tabs: [
                                 Tab(text: t.profile_diagnoses),
                                 Tab(text: 'Ask Toni!'),
@@ -594,9 +952,9 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF151C23),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
+        border: Border.all(color: Colors.white12, width: 1),
       ),
       padding: const EdgeInsets.all(12),
       child: child,
@@ -614,18 +972,18 @@ class _GlassField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1F26),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: Colors.white24),
       ),
       child: TextFormField(
         controller: controller,
         validator: validator,
         keyboardType: keyboardType,
-        style: const TextStyle(color: Color(0xFF636564)),
+        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: label,
-          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+          hintStyle: const TextStyle(color: Colors.white54),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
@@ -642,8 +1000,6 @@ class _GlassButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF2563EB),
-        foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 0,
       ),
@@ -654,6 +1010,8 @@ class _GlassButton extends StatelessWidget {
 }
 
 class _VehicleForm extends StatefulWidget {
+  const _VehicleForm({super.key});
+  
   @override
   State<_VehicleForm> createState() => _VehicleFormState();
 }
@@ -669,6 +1027,7 @@ class _VehicleFormState extends State<_VehicleForm> {
   final _power = TextEditingController();
   bool _powerIsKw = true; // toggle kW/PS, stored as kW
   bool _loading = true;
+  String? _vehicleId;
 
   @override
   void initState() {
@@ -681,6 +1040,7 @@ class _VehicleFormState extends State<_VehicleForm> {
     final v = await svc.fetchPrimaryVehicle();
     if (!mounted) return;
     setState(() {
+      _vehicleId = (v?['id'] ?? v?['vehicle_id'])?.toString();
       _make.text = (v?['make'] ?? '') as String;
       _model.text = (v?['model'] ?? '') as String;
       _year.text = (v?['year']?.toString() ?? '');
@@ -688,10 +1048,23 @@ class _VehicleFormState extends State<_VehicleForm> {
       _displCc.text = (v?['displacement_cc']?.toString() ?? '');
       _mileage.text = (v?['mileage_km']?.toString() ?? '');
       final kw = (v?['power_kw'] as int?) ?? 0;
-      _power.text = kw == 0 ? '' : kw.toString();
-      _powerIsKw = true;
+      // Konvertiere kW zu PS beim Laden (üblicher in Deutschland)
+      final ps = kw == 0 ? 0 : (kw * 1.36).round();
+      _power.text = ps == 0 ? '' : ps.toString();
+      _powerIsKw = false; // Zeige PS an
       _loading = false;
     });
+  }
+
+  // Public Methoden für externen Zugriff
+  bool validateForm() {
+    final formState = _formKey.currentState;
+    if (formState == null) return true;
+    return formState.validate();
+  }
+
+  Future<void> saveVehicle() async {
+    await _save();
   }
 
   Future<void> _save() async {
@@ -702,7 +1075,8 @@ class _VehicleFormState extends State<_VehicleForm> {
     if (p != null) {
       powerKw = _powerIsKw ? p : (p * 0.7355).round();
     }
-    await svc.savePrimaryVehicle({
+    final payload = <String, dynamic>{
+      if (_vehicleId != null && _vehicleId!.isNotEmpty) 'id': _vehicleId,
       'make': _make.text.trim(),
       'model': _model.text.trim(),
       'year': int.tryParse(_year.text.trim()),
@@ -710,9 +1084,14 @@ class _VehicleFormState extends State<_VehicleForm> {
       'displacement_cc': int.tryParse(_displCc.text.trim()),
       'power_kw': powerKw,
       'mileage_km': int.tryParse(_mileage.text.trim()),
-    });
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fahrzeug gespeichert')));
+    };
+
+    final saved = await svc.savePrimaryVehicle(payload);
+    if (saved != null && mounted) {
+      setState(() {
+        _vehicleId = (saved['id'] ?? saved['vehicle_id'])?.toString();
+      });
+    }
   }
 
   @override
@@ -722,9 +1101,9 @@ class _VehicleFormState extends State<_VehicleForm> {
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-        collapsedIconColor: const Color(0xFF636564),
-        iconColor: const Color(0xFF636564),
-        title: Text(t.profile_vehicle_data, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: const Color(0xFF636564))),
+        collapsedIconColor: Colors.white,
+        iconColor: Colors.white,
+        title: Text(t.profile_vehicle_data, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
         children: [
           Form(
             key: _formKey,
@@ -788,7 +1167,25 @@ class _VehicleFormState extends State<_VehicleForm> {
                   _UnitSwitch(
                     isKw: _powerIsKw,
                     onChanged: (val) {
-                      setState(() => _powerIsKw = val);
+                      setState(() {
+                        // Umrechnung nur wenn Wert vorhanden
+                        final currentText = _power.text.trim();
+                        if (currentText.isNotEmpty) {
+                          final currentValue = int.tryParse(currentText);
+                          if (currentValue != null && currentValue > 0) {
+                            if (val && !_powerIsKw) {
+                              // Wechsel von PS zu kW
+                              final kw = (currentValue / 1.36).round();
+                              _power.text = kw.toString();
+                            } else if (!val && _powerIsKw) {
+                              // Wechsel von kW zu PS
+                              final ps = (currentValue * 1.36).round();
+                              _power.text = ps.toString();
+                            }
+                          }
+                        }
+                        _powerIsKw = val;
+                      });
                     },
                   ),
                 ]),
@@ -803,17 +1200,6 @@ class _VehicleFormState extends State<_VehicleForm> {
                     if (km == null || km < 0) return 'km ≥ 0';
                     return null;
                   },
-                ),
-                const SizedBox(height: 12),
-                _GlassButton(
-                  label: _loading ? t.profile_loading : t.profile_save_vehicle,
-                  onPressed: _loading
-                      ? null
-                      : () {
-                          if (_formKey.currentState?.validate() ?? false) {
-                            _save();
-                          }
-                        },
                 ),
               ],
             ),
@@ -842,12 +1228,12 @@ class _UnitSwitch extends StatelessWidget {
         children: [
           TextButton(
             onPressed: () => onChanged(true),
-            child: Text('kW', style: TextStyle(color: isKw ? const Color(0xFF2563EB) : const Color(0xFF94A3B8))),
+            child: Text('kW', style: TextStyle(color: isKw ? Colors.blue : const Color(0xFF94A3B8))),
           ),
           const SizedBox(width: 4),
           TextButton(
             onPressed: () => onChanged(false),
-            child: Text('PS', style: TextStyle(color: !isKw ? const Color(0xFF2563EB) : const Color(0xFF94A3B8))),
+            child: Text('PS', style: TextStyle(color: !isKw ? Colors.blue : const Color(0xFF94A3B8))),
           ),
         ],
       ),
@@ -863,9 +1249,9 @@ class _LastListPlaceholder extends StatelessWidget {
     final t = AppLocalizations.of(context);
     return ListView(
       children: [
-        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '1'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
-        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '2'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
-        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '3'), style: const TextStyle(color: Color(0xFF0A0A0A), fontWeight: FontWeight.w600))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '1'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '2'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+        ListTile(title: Text(t.profile_last_item.replaceAll('{kind}', kind).replaceAll('{number}', '3'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
       ],
     );
   }

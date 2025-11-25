@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/routes.dart';
 import 'src/services/maintenance_notification_service.dart';
+import 'src/services/navigation_service.dart';
+import 'src/services/purchase_service.dart';
 
 // Umschaltbarer Modus für die Launch-Animation:
 // false (Standard): Kein Overlay-Icon – direkt nach der nativen Launch-Animation
@@ -116,6 +118,14 @@ class _SplashScreenState extends State<SplashScreen>
         anonKey: supabaseAnon,
       );
       
+      // Purchase Service initialisieren (RevenueCat)
+      try {
+        await PurchaseService().initialize();
+        print('✅ Purchase Service initialisiert');
+      } catch (e) {
+        print('⚠️ Fehler beim Initialisieren des Purchase Service: $e');
+      }
+      
       // Notification Service initialisieren & Setup-Notification senden
       await MaintenanceNotificationService.initialize();
       // Sofort eine Setup-Notification senden, damit App in Benachrichtigungsliste erscheint
@@ -129,14 +139,25 @@ class _SplashScreenState extends State<SplashScreen>
       
       if (!mounted) return;
 
-      // Nach erfolgreicher Init: Immer zur Home-Seite
+      final pendingRoute = NavigationService.consumePendingRoute();
+      if (pendingRoute != null) {
+        context.go(pendingRoute);
+        return;
+      }
+
+      // Nach erfolgreicher Init: Standardmäßig zur Home-Seite
       context.go('/home');
     } catch (e) {
       // Bei Fehler: warte auf Splash-Timer, dann trotzdem weiter
       await splashTimer;
       if (!mounted) return;
-      // Bei Fehler trotzdem zur Home-Seite
-      context.go('/home');
+      final pendingRoute = NavigationService.consumePendingRoute();
+      if (pendingRoute != null) {
+        context.go(pendingRoute);
+      } else {
+        // Bei Fehler trotzdem zur Home-Seite
+        context.go('/home');
+      }
     }
   }
 
