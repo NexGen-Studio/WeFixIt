@@ -13,9 +13,27 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - Intelligente Vorschläge: Ölwechsel/TÜV/Reifen/Inspektion/Batterie basierend auf Historie und Kilometerstand.
 - Benachrichtigungen: Lokale Push-Notifications (Reminder vor Fälligkeit, Overdue-Hinweis), Timezone-Support.
 - Export: CSV und detaillierter PDF/Report (Statistiken, Summen, Filter).
-- UI: Neues Grid-Dashboard mit Stats
-, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
+- UI: Neues Grid-Dashboard mit Stats, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
 - Routing & Integration: Home-Link, neue Routen, i18n (de/en) für alle Texte.
+
+## Fahrzeugkosten – Vollständiges System (FERTIG ✅)
+
+- **Kategorien**: Treibstoff, Wartung/Reparatur, Versicherung, Steuern/Gebühren, Kredit/Leasing, Parken/Maut, Reinigung/Pflege, Zubehör/Tuning, Vignetten, Einnahmen, Sonstiges.
+- **Standard + Custom Kategorien**: System-Kategorien + eigene Kategorien mit Icon/Farbe-Auswahl.
+- **Kosten-Erfassung**: Titel, Betrag, Datum (Vergangenheit + Zukunft), Kategorie, Kilometerstand, Notizen.
+- **Tankfunktion**: Spezielle Felder für Betankungen (Tankstelle, Liter, €/Liter, Volltank, Strecke seit letzter Betankung).
+- **Zeitraum-Kosten**: Versicherung/Steuer/Kredit als monatliche oder einmalige Beträge mit Start-/Enddatum.
+- **Einnahmen/Ausgaben**: Toggle für Einnahmen (z.B. Fahrzeugverkauf).
+- **Belege**: Foto-Upload für Quittungen/Rechnungen.
+- **3 Tabs**: 
+  - **Verlauf**: Chronologische Liste mit Filter (Kategorie, Zeitraum) und CSV-Export
+  - **Statistik**: Gesamtkosten, ⌀ Monatlich, Dieser Monat, Anzahl Einträge, Kosten nach Kategorie, Fuel-Insights (Durchschnittsverbrauch, Trend, günstigste Tankstelle)
+  - **Diagramme**: Monatlicher Kosten-Verlauf mit Höchster/Niedrigster Monat, ⌀ Jahresdurchschnitt (unabhängig vom Zeitraum)
+- **CSV-Export**: Alle Kosten mit Details (Datum, Titel, Kategorie, Betrag, etc.) via Share-Funktion.
+- **Home-Integration**: Kachel "⌀ Monatliche Kosten" zeigt Jahresdurchschnitt (Gesamtkosten / 12).
+- **Wartungs-Integration**: Toggle "In Fahrzeugkosten übernehmen" erstellt automatisch Kosteneintrag bei Wartung.
+- **Lokalisierung**: Vollständige i18n (de/en) für alle Texte und Labels.
+- **Future Dates**: Kosten mit zukünftigen Daten können erfasst und in Statistik/Diagramm angezeigt werden.
 
 ## Phase 1 – MVP
 
@@ -309,6 +327,90 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Automatische Kategorie-Erstellung mit Icons & Farben
   - Icons für Wartungskategorien in CostCategory.iconMap hinzugefügt
   - Verknüpfung via maintenanceReminderId in VehicleCost
+  
+- **[Fahrzeugkosten - Vollständige Implementierung]** ✅
+  - CSV-Export-Funktion mit CostsExportService (wie MaintenanceExportService)
+  - Exportiert alle Kostendetails inkl. Tankdaten, Belege, Zeiträume
+  - Share-Funktion über share_plus Package
+  - Zukunftsdaten: Date Picker erlaubt Auswahl zukünftiger Daten
+  - Jahresdurchschnitt im Homescreen & Diagramm (unabhängig vom Zeitraum)
+  - Einnahmen korrekt gefiltert (isIncome Flag)
+  - Monatsformatierung als Abkürzung (z.B. "Okt 464.43 €")
+  
+- **[Monetarisierung - Feature Gates & Paywall]** ✅
+  - **Lifetime-Unlock Feature Gate**: Free User nur Treibstoff-Kategorie, Lifetime/Pro alle Kategorien
+  - **Category Lock UI**: Gesperrte Kategorien grau mit 🔒 Schloss-Icon im Dropdown
+  - **Paywall-Dialog**: Wird bei Auswahl gesperrter Kategorie angezeigt
+  - **Modernisierter Paywall-Screen**:
+    - Helles Design (#FAFAFA) passend zur App
+    - 3 Tabs: Credits, Lifetime, Pro Abo
+    - Benefits-Sektion mit Icons (Alle Kategorien, Unbegrenzte KI, Notifications, Export, No Ads)
+    - Pricing-Cards mit "EMPFOHLEN" Badge für Lifetime
+    - Gradient-Header mit Premium-Icon
+  - PurchaseService Integration: hasCostsUnlock() & isPro() Checks
+  - Lokalisierung (de/en) für alle Paywall-Texte
+  
+- **[Environment Configuration]** ✅
+  - env.example erweitert mit AdMob App-IDs & Banner Unit IDs
+  - Google Test IDs als Kommentare für Entwicklung
+  - RevenueCat SDK Keys Platzhalter mit Anleitung
+  - Strukturierte Dokumentation aller API Keys
+  - Rewarded Video Ad Unit IDs hinzugefügt
+
+- **[AdMob Rewarded Video Gate - Wartungen]** ✅
+  - **AdMobService**: Rewarded Video Integration mit google_mobile_ads
+  - **MaintenanceCounterService**: Zähler für kostenlose Wartungen (SharedPreferences)
+  - **System**: Nach 3 Wartungen → Rewarded Video → Counter Reset → 3 weitere gratis
+  - **Pro Bypass**: Pro-User überspringen Ad Gate komplett
+  - **Ad Gate Dialog**: User kann Video ansehen, Pro werden, oder abbrechen
+  - **Loading State**: Ladeanimation während Ad-Preload
+  - **Error Handling**: Fallback wenn Ad nicht geladen werden kann
+  - **Preloading**: Ads werden beim App-Start vorgeladen
+  - Lokalisierung (de/en) für alle Dialog-Texte
+
+- **[AdMob Banner Ads - Persistent]** ⏸️ TEMPORÄR DEAKTIVIERT
+  - **AdBannerWidget**: Zeigt 320x50 Banner für Free-User, nichts für Pro-User
+  - **Platzierung**: Persistent am unteren Rand über Bottom Navigation
+  - **Pro-Check**: Automatischer Check ob User Pro ist
+  - **Lazy Loading**: Banner lädt nur für Free-User
+  - **App-Shell Integration**: Banner im _RootScaffold eingebaut
+  - **Design**: Hintergrundfarbe matched App-Theme (#0D1218)
+  - **Lifecycle**: Korrekte Dispose-Logik für BannerAd
+  - **STATUS**: Aktuell mit _enableBanner = false deaktiviert (AdWidget Layout-Probleme)
+
+- **[Bugfixes - Fahrzeugkosten]** ✅
+  - **Layout-Crash behoben**: Autocomplete-Widget entfernt und durch einfaches TextFormField ersetzt
+  - **Grund**: Flutter's Autocomplete hat fundamentale Layout-Probleme mit unbounded constraints
+  - **Fehler**: "RenderFlex children have non-zero flex but incoming width constraints are unbounded"
+  - **Lösung**: Tankstellen-Feld jetzt manuell eingeben (Autocomplete-Funktion geopfert für Stabilität)
+  
+- **[Bugfixes - Kategorien Duplikate]** ✅
+  - **Duplicate Category Crash behoben**: Race Condition beim Erstellen von Kategorien aus Wartungen
+  - **Problem**: Zweite Wartung mit gleicher Kategorie führte zu UNIQUE Constraint Fehler
+  - **Fix 1**: Retry-Logik wenn Category-Erstellung fehlschlägt (sucht nochmals)
+  - **Fix 2**: UNIQUE Constraint in DB (user_id, name) verhindert echte Duplikate
+  - **Resultat**: Kategorien werden wiederverwendet statt doppelt angelegt
+  
+- **[Bugfixes - Kategorie-Namen & Icons]** ✅
+  - **Namen falsch angezeigt**: `costs.category_Treibstoff` statt `Treibstoff`
+    - **Ursache**: Code versuchte Translation-Keys zu verwenden die nicht existieren
+    - **Fix**: Direkte Anzeige des Namens aus DB (Namen sind bereits lokalisiert)
+    - **Betroffene Dateien**: cost_form_screen, category_manager_screen, costs_statistics_tab, costs_history_tab, costs_charts_tab
+  - **Icons fehlten**: `security` und `toll` Icons nicht gemappt
+    - **Fix**: Icons zur Icon-Map hinzugefügt + Fallback zu `Icons.category`
+    - **Datei**: `cost_category.dart`
+  - **is_locked Feld fehlte**: Model hatte kein `isLocked` Feld
+    - **Fix**: Feld zum Freezed-Model hinzugefügt
+    - **Benötigt**: `flutter pub run build_runner build --delete-conflicting-outputs`
+  - **Lock-Check falsch**: Prüfte `name == 'fuel'` statt `!isLocked`
+    - **Problem**: DB hat `'Treibstoff'` statt `'fuel'` → Alles gesperrt!
+    - **Fix**: Verwendet jetzt `category.isLocked` aus DB
+
+- **[Bugfixes - Riverpod State Management]** ✅
+  - **Provider-Modifikation während Build behoben**: HomeScreen didChangeDependencies
+  - **Fix**: refreshFromRemote() wrapped in Future.microtask()
+  - **Fehler**: "Tried to modify a provider while the widget tree was building"
+  - **Resultat**: Profil-Refresh passiert nach Build-Phase
   
 - **[UI-Verbesserungen]** ✅
   - Custom Date Picker Dialoge breiter (90%) mit besserem Padding

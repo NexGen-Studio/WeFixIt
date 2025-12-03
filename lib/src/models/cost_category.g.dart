@@ -14,6 +14,7 @@ _$CostCategoryImpl _$$CostCategoryImplFromJson(Map<String, dynamic> json) =>
       iconName: json['icon_name'] as String,
       colorHex: json['color_hex'] as String,
       isSystem: json['is_system'] as bool? ?? false,
+      isLocked: json['is_locked'] as bool? ?? false,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       createdAt:
           json['created_at'] == null
@@ -33,6 +34,7 @@ Map<String, dynamic> _$$CostCategoryImplToJson(_$CostCategoryImpl instance) =>
       'icon_name': instance.iconName,
       'color_hex': instance.colorHex,
       'is_system': instance.isSystem,
+      'is_locked': instance.isLocked,
       'sort_order': instance.sortOrder,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),

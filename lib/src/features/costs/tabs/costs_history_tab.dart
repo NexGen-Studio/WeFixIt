@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../i18n/app_localizations.dart';
 import '../../../services/costs_service.dart';
 import '../../../services/category_service.dart';
+import '../../../services/costs_export_service.dart';
 import '../../../models/vehicle_cost.dart';
 import '../../../models/cost_category.dart';
 
@@ -56,6 +57,36 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
     } catch (e) {
       print('Error loading costs: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _exportCsv() async {
+    final t = AppLocalizations.of(context);
+    try {
+      // Erstelle Map für schnellere Kategorie-Lookups
+      final categoriesMap = <String, CostCategory>{};
+      for (var cat in _categories) {
+        categoriesMap[cat.id] = cat;
+      }
+      
+      final exportService = CostsExportService();
+      await exportService.exportToCsv(_costs, categoriesMap);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.tr('costs.export_success')),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.tr('costs.export_error')),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -122,13 +153,15 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                           color: CostCategory.hexToColor(cat.colorHex),
                         ),
                         const SizedBox(width: 8),
-                        Text(t.tr('costs.category_${cat.name}')),
+                        Text(cat.name),
                       ],
                     ),
                   )),
             ],
             onChanged: (value) {
               setState(() => _selectedCategoryId = value);
+              // Daten sofort neu laden
+              loadData();
             },
           ),
           const SizedBox(height: 24),
@@ -143,7 +176,7 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                       context: context,
                       initialDate: _filterStartDate ?? DateTime.now(),
                       firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
+                      lastDate: DateTime(2100),
                       builder: (context, child) => Theme(
                         data: ThemeData.dark().copyWith(
                           colorScheme: const ColorScheme.dark(
@@ -155,6 +188,8 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                     );
                     if (date != null) {
                       setState(() => _filterStartDate = date);
+                      // Daten sofort neu laden
+                      loadData();
                     }
                   },
                   icon: const Icon(Icons.calendar_today, size: 18),
@@ -177,7 +212,7 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                       context: context,
                       initialDate: _filterEndDate ?? DateTime.now(),
                       firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
+                      lastDate: DateTime(2100),
                       builder: (context, child) => Theme(
                         data: ThemeData.dark().copyWith(
                           colorScheme: const ColorScheme.dark(
@@ -188,7 +223,10 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                       ),
                     );
                     if (date != null) {
-                      setState(() => _filterEndDate = date);
+                      // Setze End-Datum auf 23:59:59 um den ganzen Tag einzuschließen
+                      setState(() => _filterEndDate = DateTime(date.year, date.month, date.day, 23, 59, 59));
+                      // Daten sofort neu laden
+                      loadData();
                     }
                   },
                   icon: const Icon(Icons.calendar_today, size: 18),
@@ -290,12 +328,8 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
               const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.file_download, color: Colors.white70),
-                onPressed: () {
-                  // TODO: CSV Export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(t.tr('costs.export_coming_soon'))),
-                  );
-                },
+                onPressed: _costs.isEmpty ? null : _exportCsv,
+                tooltip: t.tr('costs.export_csv'),
               ),
             ],
           ),

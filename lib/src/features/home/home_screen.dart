@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../services/maintenance_service.dart';
+import '../../services/costs_service.dart';
 import '../../models/profile.dart';
 import '../../models/maintenance_reminder.dart';
 import '../../state/profile_controller.dart';
@@ -187,7 +188,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     super.didChangeDependencies();
     // Reload Profil wenn zum Screen zurückgekehrt wird
     if (ModalRoute.of(context)?.isCurrent == true) {
-      ref.read(profileControllerProvider.notifier).refreshFromRemote(force: true);
+      Future.microtask(() {
+        ref.read(profileControllerProvider.notifier).refreshFromRemote(force: true);
+      });
     }
   }
 
@@ -255,27 +258,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   }
 
   Future<void> _loadMonthlyCosts() async {
-    // Sum of completed maintenance costs in current month
-    final client = Supabase.instance.client;
-    final user = client.auth.currentUser;
-    if (user == null) return;
-    final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
-    final res = await client
-        .from('maintenance_reminders')
-        .select('cost, completed_at, status')
-        .eq('user_id', user.id);
-    double sum = 0;
-    for (final item in res) {
-      final status = item['status'] as String?;
-      final cost = (item['cost'] as num?)?.toDouble() ?? 0.0;
-      final completedAtStr = item['completed_at'] as String?;
-      final completedAt = completedAtStr != null ? DateTime.tryParse(completedAtStr) : null;
-      if (status == 'completed' && completedAt != null && !completedAt.isBefore(startOfMonth)) {
-        sum += cost;
-      }
+    try {
+      final costsService = CostsService();
+      
+      // Homescreen: Rollierender 12-Monats-Durchschnitt
+      // - Zeitraum: Heute - 12 Monate bis heute (z.B. 25.06.2025 - 25.06.2026)
+      // - Summiere ALLE expandierten Kosten in diesem Zeitraum
+      // - IMMER durch 12 teilen
+      
+      final now = DateTime.now();
+      final twelveMonthsAgo = DateTime(now.year - 1, now.month, now.day);
+      
+      // getTotalCosts expandiert automatisch periodische Kosten!
+      // z.B. 300€ Steuer (Okt-Dez) wird zu 3x25€ = 75€
+      final totalCosts = await costsService.getTotalCosts(
+        startDate: twelveMonthsAgo,
+        endDate: now,
+      );
+      
+      // IMMER durch 12 teilen (User-Anforderung)
+      final avgMonthly = totalCosts / 12;
+      
+      if (mounted) setState(() => _monthlyCosts = avgMonthly);
+    } catch (e) {
+      print('Error loading monthly costs: $e');
+      if (mounted) setState(() => _monthlyCosts = 0.0);
     }
-    if (!mounted) return;
-    setState(() => _monthlyCosts = sum);
   }
 
   Future<void> _loadHealthScore() async {
@@ -698,13 +706,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(reminder.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    reminder.dueDate != null
-                                        ? DateFormat('dd.MM.yyyy').format(reminder.dueDate!)
-                                        : t.home_due_at_km.replaceAll('{km}', (reminder.dueMileage ?? 0).toString()),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                  ),
+                                  // Nur anzeigen wenn Datum ODER KM gesetzt ist
+                                  if (reminder.dueDate != null || reminder.dueMileage != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      reminder.dueDate != null
+                                          ? DateFormat('dd.MM.yyyy').format(reminder.dueDate!)
+                                          : t.home_due_at_km.replaceAll('{km}', reminder.dueMileage.toString()),
+                                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

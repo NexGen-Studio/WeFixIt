@@ -135,7 +135,7 @@
   "home.in_days": "in {days} days",
   "home.maintenance": "Maintenance",
   "home.maintenance_subtitle": "Manage maintenance history",
-  "home.monthly_costs": "Monthly costs",
+  "home.monthly_costs": "⌀ Monthly costs",
   "home.my_vehicle": "My Vehicle",
   "home.next_maintenance_placeholder": "Next maintenance – add data in Profile/Vehicles",
   "home.no_maintenance_subtitle": "Tap here to create your first maintenance reminder",
@@ -211,6 +211,7 @@
   "maintenance.delete_title": "Delete maintenance?",
   "maintenance.delete_message": "Do you really want to delete \"{title}\"?",
   "maintenance.delete_confirm": "Delete",
+  "maintenance.delete_cost_option": "Delete amount from vehicle costs",
   "maintenance.deleted_success": "🗑️ Maintenance deleted!",
   
   "maintenance.mark_complete": "Mark as completed",
@@ -378,7 +379,9 @@
   "costs.filter_end_date": "To",
   "costs.filter_reset": "Reset",
   "costs.filter_apply": "Apply",
-  "costs.export_coming_soon": "Export coming soon",
+  "costs.export_csv": "Export as CSV",
+  "costs.export_success": "✅ Export successful!",
+  "costs.export_error": "❌ Error exporting",
   "costs.delete_confirm_title": "Delete entry?",
   "costs.delete_confirm_message": "This entry will be permanently deleted.",
   
@@ -465,7 +468,7 @@
   "costs.costs_trend": "Cost Trend",
   "costs.highest_month": "Highest Month",
   "costs.lowest_month": "Lowest Month",
-  "costs.average_month": "Average",
+  "costs.average_month": "⌀ Yearly average",
   
   "costs.achievements": "Achievements",
   "costs.achievements_unlocked": "Unlocked",
@@ -498,5 +501,31 @@
   "costs.total_amount": "Total Amount",
   "costs.monthly_amount_hint": "Amount is calculated per month",
   "costs.monthly_amount_hint_dynamic": "{amount} calculated monthly",
-  "costs.total_amount_hint": "One-time amount for entire period"
+  "costs.total_amount_hint": "One-time amount for entire period",
+  
+  "costs.category_locked_title": "Category locked 🔒",
+  "costs.category_locked_message": "This category is only available for Lifetime or Pro users. As a free user, you can only track fuel costs.",
+  "costs.unlock_options": "Unlock with:",
+  "costs.lifetime_unlock": "Lifetime Unlock",
+  "costs.pro_unlock": "Pro Subscription",
+  "costs.go_to_paywall": "Go to Paywall",
+  
+  "paywall.title": "Premium",
+  "paywall.headline": "Unlock Full Potential!",
+  "paywall.subheadline": "Unlimited features for your car",
+  "paywall.benefits_title": "What you get:",
+  "paywall.benefit_costs": "Unlock all vehicle cost categories",
+  "paywall.benefit_ai": "Unlimited AI diagnostics & chatbot queries",
+  "paywall.benefit_notifications": "Smart maintenance reminders",
+  "paywall.benefit_export": "CSV & PDF export for all data",
+  "paywall.benefit_no_ads": "Ad-free experience",
+  "paywall.restore_purchases": "Restore Purchases",
+  
+  "maintenance.ad_gate_title": "Free Limit Reached 🎬",
+  "maintenance.ad_gate_message": "You've created 3 free maintenances. Watch a short video to unlock 3 more, or become a Pro member for unlimited maintenances.",
+  "maintenance.watch_video": "Watch Video",
+  "maintenance.become_pro": "Become Pro",
+  "maintenance.ad_loading": "Loading ad...",
+  "maintenance.ad_failed": "Failed to load ad. Please try again later.",
+  "maintenance.remaining_free": "{count} free maintenances remaining"
 }

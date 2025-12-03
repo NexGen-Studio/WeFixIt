@@ -114,8 +114,17 @@ class _CostsStatisticsTabState extends State<CostsStatisticsTab> {
           .fold<double>(0.0, (sum, c) => sum + c.amount);
       
       // Durchschnitt Einnahmen berechnen
-      final monthsDiff = ((widget.endDate.difference(widget.startDate).inDays / 30).ceil());
-      final avgMonthlyIncome = monthsDiff > 0 ? totalIncome / monthsDiff : 0.0;
+      // Korrekte Monatsberechnung: Zähle volle Monate zwischen Start und End
+      int monthsDiff = (widget.endDate.year - widget.startDate.year) * 12 + 
+                       (widget.endDate.month - widget.startDate.month) + 1;
+      // Korrektur: Wenn exakt gleicher Tag (z.B. 02.12.2024-02.12.2025), dann -1
+      if (widget.endDate.day == widget.startDate.day && monthsDiff > 1) {
+        monthsDiff -= 1;
+      }
+      // Mindestens 1 Monat
+      if (monthsDiff <= 0) monthsDiff = 1;
+      
+      final avgMonthlyIncome = totalIncome / monthsDiff;
 
       if (mounted) {
         setState(() {
@@ -291,7 +300,7 @@ class _CostsStatisticsTabState extends State<CostsStatisticsTab> {
                     context: context,
                     initialDate: start ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime.now(),
+                    lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: ThemeData.dark().copyWith(
                         colorScheme: const ColorScheme.dark(
@@ -331,7 +340,7 @@ class _CostsStatisticsTabState extends State<CostsStatisticsTab> {
                     context: context,
                     initialDate: end ?? DateTime.now(),
                     firstDate: start ?? DateTime(2000),
-                    lastDate: DateTime.now(),
+                    lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: ThemeData.dark().copyWith(
                         colorScheme: const ColorScheme.dark(
@@ -777,9 +786,7 @@ class _CostsStatisticsTabState extends State<CostsStatisticsTab> {
                       Expanded(
                         flex: 3,
                         child: Text(
-                          category.isSystem 
-                              ? t.tr('costs.category_${category.name}')
-                              : category.name,
+                          category.name,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,

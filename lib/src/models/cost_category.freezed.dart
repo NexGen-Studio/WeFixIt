@@ -31,6 +31,8 @@ mixin _$CostCategory {
   String get colorHex => throw _privateConstructorUsedError; // z.B. '#FF5722'
   @JsonKey(name: 'is_system')
   bool get isSystem => throw _privateConstructorUsedError;
+  @JsonKey(name: 'is_locked')
+  bool get isLocked => throw _privateConstructorUsedError; // Für Premium-Gate
   @JsonKey(name: 'sort_order')
   int get sortOrder => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
@@ -62,6 +64,7 @@ abstract class $CostCategoryCopyWith<$Res> {
     @JsonKey(name: 'icon_name') String iconName,
     @JsonKey(name: 'color_hex') String colorHex,
     @JsonKey(name: 'is_system') bool isSystem,
+    @JsonKey(name: 'is_locked') bool isLocked,
     @JsonKey(name: 'sort_order') int sortOrder,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
@@ -89,6 +92,7 @@ class _$CostCategoryCopyWithImpl<$Res, $Val extends CostCategory>
     Object? iconName = null,
     Object? colorHex = null,
     Object? isSystem = null,
+    Object? isLocked = null,
     Object? sortOrder = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
@@ -124,6 +128,11 @@ class _$CostCategoryCopyWithImpl<$Res, $Val extends CostCategory>
                 null == isSystem
                     ? _value.isSystem
                     : isSystem // ignore: cast_nullable_to_non_nullable
+                        as bool,
+            isLocked:
+                null == isLocked
+                    ? _value.isLocked
+                    : isLocked // ignore: cast_nullable_to_non_nullable
                         as bool,
             sortOrder:
                 null == sortOrder
@@ -162,6 +171,7 @@ abstract class _$$CostCategoryImplCopyWith<$Res>
     @JsonKey(name: 'icon_name') String iconName,
     @JsonKey(name: 'color_hex') String colorHex,
     @JsonKey(name: 'is_system') bool isSystem,
+    @JsonKey(name: 'is_locked') bool isLocked,
     @JsonKey(name: 'sort_order') int sortOrder,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
@@ -188,6 +198,7 @@ class __$$CostCategoryImplCopyWithImpl<$Res>
     Object? iconName = null,
     Object? colorHex = null,
     Object? isSystem = null,
+    Object? isLocked = null,
     Object? sortOrder = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
@@ -224,6 +235,11 @@ class __$$CostCategoryImplCopyWithImpl<$Res>
                 ? _value.isSystem
                 : isSystem // ignore: cast_nullable_to_non_nullable
                     as bool,
+        isLocked:
+            null == isLocked
+                ? _value.isLocked
+                : isLocked // ignore: cast_nullable_to_non_nullable
+                    as bool,
         sortOrder:
             null == sortOrder
                 ? _value.sortOrder
@@ -254,6 +270,7 @@ class _$CostCategoryImpl implements _CostCategory {
     @JsonKey(name: 'icon_name') required this.iconName,
     @JsonKey(name: 'color_hex') required this.colorHex,
     @JsonKey(name: 'is_system') this.isSystem = false,
+    @JsonKey(name: 'is_locked') this.isLocked = false,
     @JsonKey(name: 'sort_order') this.sortOrder = 0,
     @JsonKey(name: 'created_at') this.createdAt,
     @JsonKey(name: 'updated_at') this.updatedAt,
@@ -282,6 +299,10 @@ class _$CostCategoryImpl implements _CostCategory {
   @JsonKey(name: 'is_system')
   final bool isSystem;
   @override
+  @JsonKey(name: 'is_locked')
+  final bool isLocked;
+  // Für Premium-Gate
+  @override
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @override
@@ -293,7 +314,7 @@ class _$CostCategoryImpl implements _CostCategory {
 
   @override
   String toString() {
-    return 'CostCategory(id: $id, userId: $userId, name: $name, iconName: $iconName, colorHex: $colorHex, isSystem: $isSystem, sortOrder: $sortOrder, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'CostCategory(id: $id, userId: $userId, name: $name, iconName: $iconName, colorHex: $colorHex, isSystem: $isSystem, isLocked: $isLocked, sortOrder: $sortOrder, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -310,6 +331,8 @@ class _$CostCategoryImpl implements _CostCategory {
                 other.colorHex == colorHex) &&
             (identical(other.isSystem, isSystem) ||
                 other.isSystem == isSystem) &&
+            (identical(other.isLocked, isLocked) ||
+                other.isLocked == isLocked) &&
             (identical(other.sortOrder, sortOrder) ||
                 other.sortOrder == sortOrder) &&
             (identical(other.createdAt, createdAt) ||
@@ -328,6 +351,7 @@ class _$CostCategoryImpl implements _CostCategory {
     iconName,
     colorHex,
     isSystem,
+    isLocked,
     sortOrder,
     createdAt,
     updatedAt,
@@ -355,6 +379,7 @@ abstract class _CostCategory implements CostCategory {
     @JsonKey(name: 'icon_name') required final String iconName,
     @JsonKey(name: 'color_hex') required final String colorHex,
     @JsonKey(name: 'is_system') final bool isSystem,
+    @JsonKey(name: 'is_locked') final bool isLocked,
     @JsonKey(name: 'sort_order') final int sortOrder,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
     @JsonKey(name: 'updated_at') final DateTime? updatedAt,
@@ -379,6 +404,9 @@ abstract class _CostCategory implements CostCategory {
   @override
   @JsonKey(name: 'is_system')
   bool get isSystem;
+  @override
+  @JsonKey(name: 'is_locked')
+  bool get isLocked; // Für Premium-Gate
   @override
   @JsonKey(name: 'sort_order')
   int get sortOrder;

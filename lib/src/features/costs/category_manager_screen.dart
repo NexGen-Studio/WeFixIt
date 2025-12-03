@@ -29,17 +29,32 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     setState(() => _isLoading = true);
 
     try {
+      print('🔄 Loading categories...');
       final system = await _categoryService.fetchSystemCategories();
       final custom = await _categoryService.fetchCustomCategories();
+      
+      print('✅ Loaded ${system.length} system categories');
+      print('✅ Loaded ${custom.length} custom categories');
 
-      setState(() {
-        _systemCategories = system;
-        _customCategories = custom;
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Error loading categories: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _systemCategories = system;
+          _customCategories = custom;
+          _isLoading = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error loading categories: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler beim Laden der Kategorien: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -255,9 +270,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              category.isSystem 
-                  ? t.tr('costs.category_${category.name}')
-                  : category.name,
+              category.name,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,

@@ -7,6 +7,7 @@ import '../../i18n/app_localizations.dart';
 import '../../services/costs_service.dart';
 import '../../services/category_service.dart';
 import '../../services/achievements_service.dart';
+import '../../services/purchase_service.dart';
 import '../../models/vehicle_cost.dart';
 import '../../models/cost_category.dart';
 import 'dart:io';
@@ -48,6 +49,10 @@ class _CostFormScreenState extends State<CostFormScreen> {
   FuelType? _selectedFuelType;
   List<File> _selectedPhotos = [];
   bool _isLoading = false;
+  
+  // Monetarisierung
+  bool _hasLifetimeUnlock = false;
+  bool _isPro = false;
   bool _isSaving = false;
   
   // Zeitraum-Feature für Versicherung/Steuer/Kredit
@@ -59,6 +64,23 @@ class _CostFormScreenState extends State<CostFormScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _loadPurchaseStatus();
+  }
+
+  Future<void> _loadPurchaseStatus() async {
+    try {
+      final purchaseService = PurchaseService();
+      final hasUnlock = await purchaseService.hasCostsUnlock();
+      final isPro = await purchaseService.isPro();
+      if (mounted) {
+        setState(() {
+          _hasLifetimeUnlock = hasUnlock;
+          _isPro = isPro;
+        });
+      }
+    } catch (e) {
+      print('Error loading purchase status: $e');
+    }
   }
 
   @override
@@ -98,7 +120,9 @@ class _CostFormScreenState extends State<CostFormScreen> {
       setState(() => _isLoading = false);
     } catch (e) {
       print('Error loading data: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -152,6 +176,18 @@ class _CostFormScreenState extends State<CostFormScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Auto-Zeitraum für Versicherung/Steuer/Maut wenn nicht gesetzt
+      DateTime? finalPeriodStart = _periodStartDate;
+      DateTime? finalPeriodEnd = _periodEndDate;
+      bool finalIsMonthlyAmount = _isMonthlyAmount;
+      
+      if (_isPeriodCategory() && _periodStartDate == null && _periodEndDate == null) {
+        // Kein Zeitraum eingegeben → Automatisch 12 Monate
+        finalPeriodStart = _selectedDate;
+        finalPeriodEnd = DateTime(_selectedDate.year + 1, _selectedDate.month, _selectedDate.day);
+        finalIsMonthlyAmount = false; // Gesamtbetrag für 12 Monate
+      }
+      
       final cost = VehicleCost(
         id: widget.costId ?? '',
         userId: '',
@@ -167,10 +203,10 @@ class _CostFormScreenState extends State<CostFormScreen> {
         // Einnahme oder Ausgabe
         isIncome: _isIncome,
         
-        // Zeitraum-Felder
-        periodStartDate: _periodStartDate,
-        periodEndDate: _periodEndDate,
-        isMonthlyAmount: _isMonthlyAmount,
+        // Zeitraum-Felder (mit Auto-Zeitraum)
+        periodStartDate: finalPeriodStart,
+        periodEndDate: finalPeriodEnd,
+        isMonthlyAmount: finalIsMonthlyAmount,
         
         // Treibstoff-Felder
         isRefueling: _isFuelCategory(),
@@ -266,14 +302,86 @@ class _CostFormScreenState extends State<CostFormScreen> {
   }
 
   bool _isFuelCategory() {
-    return _selectedCategory?.name == 'fuel';
+    return _selectedCategory?.name == 'Treibstoff';
   }
   
   bool _isPeriodCategory() {
     final categoryName = _selectedCategory?.name;
-    return categoryName == 'insurance' || 
-           categoryName == 'tax' || 
-           categoryName == 'credit';
+    return categoryName == 'Versicherung' || 
+           categoryName == 'Steuer' || 
+           categoryName == 'Maut & Vignette';
+  }
+  
+  bool _isCategoryUnlocked(CostCategory category) {
+    // Pro/Lifetime User: Alle Kategorien freigeschaltet
+    if (_hasLifetimeUnlock || _isPro) return true;
+    
+    // Free User: Nur nicht-gesperrte Kategorien (is_locked = false)
+    return !category.isLocked;
+  }
+  
+  void _showPaywallDialog() {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F26),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: Color(0xFFFFB129)),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                t.tr('costs.category_locked_title'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.tr('costs.category_locked_message'),
+              style: const TextStyle(color: Colors.white70),
+            ),
+            SizedBox(height: 16),
+            Text(
+              t.tr('costs.unlock_options'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '• ' + t.tr('costs.lifetime_unlock') + ': 1,99€',
+              style: const TextStyle(color: Color(0xFFFFB129)),
+            ),
+            Text(
+              '• ' + t.tr('costs.pro_unlock') + ': 4,99€/Monat',
+              style: const TextStyle(color: Color(0xFFFFB129)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/paywall');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFB129),
+              foregroundColor: Colors.black,
+            ),
+            child: Text(t.tr('costs.go_to_paywall')),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -320,7 +428,9 @@ class _CostFormScreenState extends State<CostFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+          physics: const ClampingScrollPhysics(),
+          cacheExtent: 1000,
           children: [
             // Kategorie
             Text(
@@ -337,27 +447,44 @@ class _CostFormScreenState extends State<CostFormScreen> {
               decoration: _inputDecoration(t.tr('costs.select_category')),
               dropdownColor: const Color(0xFF1A2028),
               style: const TextStyle(color: Colors.white),
-              items: _categories.map((cat) => DropdownMenuItem(
-                    value: cat,
-                    child: Row(
-                      children: [
-                        Icon(
-                          CostCategory.getIconData(cat.iconName),
-                          size: 20,
-                          color: CostCategory.hexToColor(cat.colorHex),
+              isExpanded: true,
+              items: _categories.map((cat) {
+                final isUnlocked = _isCategoryUnlocked(cat);
+                // Cache icon and color
+                final icon = CostCategory.getIconData(cat.iconName);
+                final color = CostCategory.hexToColor(cat.colorHex);
+                
+                return DropdownMenuItem(
+                  value: cat,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 20, color: isUnlocked ? color : Colors.grey),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          cat.name,
+                          style: TextStyle(color: isUnlocked ? Colors.white : Colors.grey),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 12),
-                        Text(cat.isSystem 
-                            ? t.tr('costs.category_${cat.name}')
-                            : cat.name),
-                      ],
-                    ),
-                  )).toList(),
+                      ),
+                      if (!isUnlocked) const SizedBox(width: 8),
+                      if (!isUnlocked) const Icon(Icons.lock, size: 16, color: Color(0xFFFFB129)),
+                    ],
+                  ),
+                );
+              }).toList(),
               onChanged: (value) {
+                // Prüfe ob Kategorie freigeschaltet ist
+                if (value != null && !_isCategoryUnlocked(value)) {
+                  _showPaywallDialog();
+                  return;
+                }
+                
                 setState(() {
                   _selectedCategory = value;
-                  // Automatisch isIncome setzen wenn Kategorie 'income'
-                  _isIncome = value?.name == 'income';
+                  // Automatisch isIncome setzen wenn Kategorie 'Einnahmen'
+                  _isIncome = value?.name == 'Einnahmen';
                   // Reset Treibstoff-Felder wenn Kategorie gewechselt
                   if (!_isFuelCategory()) {
                     _litersController.clear();
@@ -418,7 +545,7 @@ class _CostFormScreenState extends State<CostFormScreen> {
                             context: context,
                             initialDate: _selectedDate,
                             firstDate: DateTime(2000),
-                            lastDate: DateTime.now(),
+                            lastDate: DateTime(2100),
                             builder: (context, child) => Theme(
                               data: ThemeData.dark().copyWith(
                                 colorScheme: const ColorScheme.dark(
@@ -591,7 +718,7 @@ class _CostFormScreenState extends State<CostFormScreen> {
               style: const TextStyle(color: Colors.white),
               maxLines: 3,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
 
             // Speichern-Button
             ElevatedButton(
@@ -634,53 +761,10 @@ class _CostFormScreenState extends State<CostFormScreen> {
         ),
       ),
       const SizedBox(height: 8),
-      Autocomplete<String>(
-        optionsBuilder: (textEditingValue) {
-          if (textEditingValue.text.isEmpty) {
-            return const Iterable<String>.empty();
-          }
-          return _gasStationSuggestions.where((station) =>
-              station.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-        },
-        onSelected: (selection) {
-          _gasStationController.text = selection;
-        },
-        fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-          controller.text = _gasStationController.text;
-          controller.selection = TextSelection.fromPosition(
-            TextPosition(offset: controller.text.length),
-          );
-          
-          return TextFormField(
-            controller: controller,
-            focusNode: focusNode,
-            decoration: _inputDecoration(t.tr('costs.gas_station_hint')),
-            style: const TextStyle(color: Colors.white),
-            onChanged: (value) => _gasStationController.text = value,
-          );
-        },
-        optionsViewBuilder: (context, onSelected, options) {
-          return Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              color: const Color(0xFF1A2028),
-              elevation: 4,
-              borderRadius: BorderRadius.circular(12),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                itemCount: options.length,
-                itemBuilder: (context, index) {
-                  final option = options.elementAt(index);
-                  return ListTile(
-                    title: Text(option, style: const TextStyle(color: Colors.white)),
-                    onTap: () => onSelected(option),
-                  );
-                },
-              ),
-            ),
-          );
-        },
+      TextFormField(
+        controller: _gasStationController,
+        decoration: _inputDecoration(t.tr('costs.gas_station_hint')),
+        style: const TextStyle(color: Colors.white),
       ),
       const SizedBox(height: 20),
 

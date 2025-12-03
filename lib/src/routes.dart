@@ -100,6 +100,16 @@ GoRouter createRouter() {
         path: '/paywall',
         pageBuilder: (context, state) => const NoTransitionPage(child: PaywallScreen()),
       ),
+      GoRoute(
+        path: '/costs/add',
+        pageBuilder: (context, state) => const NoTransitionPage(child: CostFormScreen()),
+      ),
+      GoRoute(
+        path: '/costs/edit/:id',
+        pageBuilder: (context, state) => NoTransitionPage(
+          child: CostFormScreen(costId: state.pathParameters['id']),
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) => _RootScaffold(child: child),
         routes: [
@@ -151,16 +161,6 @@ GoRouter createRouter() {
             path: '/costs',
             builder: (context, state) => const CostsMainScreen(),
             routes: [
-              GoRoute(
-                path: 'add',
-                builder: (context, state) => const CostFormScreen(),
-              ),
-              GoRoute(
-                path: 'edit/:id',
-                builder: (context, state) => CostFormScreen(
-                  costId: state.pathParameters['id'],
-                ),
-              ),
               GoRoute(
                 path: 'categories',
                 builder: (context, state) => const CategoryManagerScreen(),
@@ -223,10 +223,7 @@ class _RootScaffoldState extends State<_RootScaffold> {
         child: Column(
           children: [
             Expanded(child: widget.child),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: AdBannerPlaceholder(),
-            ),
+            const AdBannerWidget(),
           ],
         ),
       ),

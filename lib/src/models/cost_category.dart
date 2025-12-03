@@ -14,6 +14,7 @@ class CostCategory with _$CostCategory {
     @JsonKey(name: 'icon_name') required String iconName, // Material Icon name
     @JsonKey(name: 'color_hex') required String colorHex, // z.B. '#FF5722'
     @JsonKey(name: 'is_system') @Default(false) bool isSystem,
+    @JsonKey(name: 'is_locked') @Default(false) bool isLocked, // Für Premium-Gate
     @JsonKey(name: 'sort_order') @Default(0) int sortOrder,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
@@ -24,23 +25,34 @@ class CostCategory with _$CostCategory {
 
   /// Hilfsmethode: Farbe als Color-Objekt
   static Color hexToColor(String hexString) {
-    final buffer = StringBuffer();
-    if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-    buffer.write(hexString.replaceFirst('#', ''));
-    return Color(int.parse(buffer.toString(), radix: 16));
+    // Handle both formats: 0xFFFFB129 and #FFFB129
+    String cleanHex = hexString
+        .replaceFirst('0x', '')
+        .replaceFirst('#', '')
+        .toUpperCase();
+    
+    // Add alpha channel if missing
+    if (cleanHex.length == 6) {
+      cleanHex = 'FF$cleanHex';
+    }
+    
+    return Color(int.parse(cleanHex, radix: 16));
   }
 
   /// Hilfsmethode: Icon aus Name
-  static IconData? getIconData(String iconName) {
+  static IconData getIconData(String iconName) {
     final iconMap = <String, IconData>{
+      // Kostenkategorien Icons
       'local_gas_station': Icons.local_gas_station,
       'build': Icons.build,
+      'security': Icons.security, // FIX: Versicherung
       'shield': Icons.shield,
       'account_balance': Icons.account_balance,
       'credit_card': Icons.credit_card,
       'local_parking': Icons.local_parking,
       'local_car_wash': Icons.local_car_wash,
       'shopping_cart': Icons.shopping_cart,
+      'toll': Icons.toll, // FIX: Maut & Vignette
       'confirmation_number': Icons.confirmation_number,
       'attach_money': Icons.attach_money,
       'more_horiz': Icons.more_horiz,
@@ -54,7 +66,7 @@ class CostCategory with _$CostCategory {
       'battery_charging_full': Icons.battery_charging_full,
       'filter_alt_outlined': Icons.filter_alt_outlined,
       'receipt_long_outlined': Icons.receipt_long_outlined,
-      'shield_outlined': Icons.shield_outlined, // Add specific shield outlined
+      'shield_outlined': Icons.shield_outlined,
       
       // Zusätzliche Icons für Custom Categories
       'star': Icons.star,
@@ -71,7 +83,8 @@ class CostCategory with _$CostCategory {
       'electric_car': Icons.electric_car,
     };
     
-    return iconMap[iconName];
+    // Fallback wenn Icon nicht gefunden wird
+    return iconMap[iconName] ?? Icons.category;
   }
 }
 

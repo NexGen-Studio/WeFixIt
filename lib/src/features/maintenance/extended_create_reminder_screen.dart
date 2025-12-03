@@ -1264,11 +1264,22 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                }
                
                final newCat = await catService.createCustomCategory(
-                 name: label,
-                 iconName: iconName,
-                 colorHex: '#90A4AE',
-               );
-               categoryId = newCat?.id ?? '';
+                name: label,
+                iconName: iconName,
+                colorHex: '#90A4AE',
+              );
+              
+              // Falls Erstellung fehlschlägt (z.B. Duplikat), nochmals suchen
+              if (newCat == null || newCat.id.isEmpty) {
+                final retryList = await catService.fetchCustomCategories();
+                final retryMatch = retryList.firstWhere(
+                  (c) => c.name.toLowerCase() == label.toLowerCase(),
+                  orElse: () => const CostCategory(id: '', name: '', iconName: '', colorHex: ''),
+                );
+                categoryId = retryMatch.id;
+              } else {
+                categoryId = newCat.id;
+              }
              }
           } else {
              // Fall B: Standard Maintenance Category
@@ -1299,7 +1310,18 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                  iconName: iconName,
                  colorHex: colorHex,
                );
-               categoryId = newCat?.id ?? '';
+               
+               // Falls Erstellung fehlschlägt (z.B. Duplikat), nochmals suchen
+               if (newCat == null || newCat.id.isEmpty) {
+                 final retryList = await catService.fetchAllCategories();
+                 final retryMatch = retryList.firstWhere(
+                   (c) => c.name.toLowerCase() == label.toLowerCase(),
+                   orElse: () => const CostCategory(id: '', name: '', iconName: '', colorHex: ''),
+                 );
+                 categoryId = retryMatch.id;
+               } else {
+                 categoryId = newCat.id;
+               }
              }
           }
           
@@ -1672,7 +1694,24 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     final t = AppLocalizations.of(context);
     final isEdit = widget.existing != null;
 
-    return Scaffold(
+    return Theme(
+      data: Theme.of(context).copyWith(
+        inputDecorationTheme: InputDecorationTheme(
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white24, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white54, width: 1),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white24, width: 1),
+          ),
+        ),
+      ),
+      child: Scaffold(
       backgroundColor: const Color(0xFF0F141A),
       appBar: AppBar(
         title: Text(isEdit ? t.maintenance_edit_title : t.maintenance_create_title),
@@ -2275,6 +2314,10 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
                     onPressed: _pickPhoto,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFB129),
+                      side: const BorderSide(color: Color(0xFFFFB129), width: 1),
+                    ),
                     icon: const Icon(Icons.add_a_photo),
                     label: Text(t.maintenance_photos_add),
                   ),
@@ -2341,6 +2384,10 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _pickDocument,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFB129),
+                      side: const BorderSide(color: Color(0xFFFFB129), width: 1),
+                    ),
                     icon: const Icon(Icons.upload_file),
                     label: Text(t.maintenance_documents_upload_pdf),
                   ),
@@ -2359,9 +2406,11 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                   : ElevatedButton(
                       onPressed: _save,
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB129),
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: Text(t.maintenance_save, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      child: Text(t.maintenance_save, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black)),
                     ),
             ),
 
@@ -2369,6 +2418,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
             ],
           ),
         ),
+      ),
       ),
     );
   }

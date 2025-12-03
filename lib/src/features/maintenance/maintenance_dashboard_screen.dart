@@ -7,6 +7,10 @@ import '../../i18n/app_localizations.dart';
 import '../../models/maintenance_reminder.dart';
 import '../../services/maintenance_service.dart';
 import '../../services/maintenance_notification_service.dart';
+import '../../services/costs_service.dart';
+import '../../services/admob_service.dart';
+import '../../services/maintenance_counter_service.dart';
+import '../../services/purchase_service.dart';
 import 'extended_create_reminder_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -20,13 +24,25 @@ class MaintenanceDashboardScreen extends StatefulWidget {
 
 class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen> {
   final _service = MaintenanceService(Supabase.instance.client);
+  final _adMobService = AdMobService();
+  final _counterService = MaintenanceCounterService();
+  final _purchaseService = PurchaseService();
   List<MaintenanceReminder> _reminders = [];
   bool _loading = true;
+  bool _isPro = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeServices();
     _loadReminders();
+  }
+  
+  Future<void> _initializeServices() async {
+    await _adMobService.initialize();
+    await _adMobService.loadRewardedAd(); // Preload ad
+    _isPro = await _purchaseService.isPro();
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadReminders() async {
@@ -215,8 +231,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                             title: t.maintenance_new_reminder,
                             color: const Color(0xFF4CAF50),
                             onTap: () async {
-                              await context.push('/maintenance/create');
-                              _loadReminders(); // Refresh nach Rückkehr
+                              await _handleNewMaintenance();
                             },
                           ),
                         ),
@@ -350,6 +365,137 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
               ),
             ),
     );
+  }
+
+  /// Handle new maintenance creation with ad gate
+  Future<void> _handleNewMaintenance() async {
+    // Pro users bypass ad gate
+    if (_isPro) {
+      await context.push('/maintenance/create');
+      _loadReminders();
+      return;
+    }
+
+    // Check if user needs to watch ad
+    final needsAd = await _counterService.needsToWatchAd();
+    
+    if (needsAd) {
+      // Show ad gate dialog
+      _showAdGateDialog();
+    } else {
+      // User has free slots, proceed
+      await context.push('/maintenance/create');
+      await _counterService.incrementCount();
+      _loadReminders();
+    }
+  }
+
+  /// Show ad gate dialog
+  void _showAdGateDialog() {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F26),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          t.tr('maintenance.ad_gate_title'),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          t.tr('maintenance.ad_gate_message'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              t.common_cancel,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/paywall');
+            },
+            child: Text(
+              t.tr('maintenance.become_pro'),
+              style: const TextStyle(color: Color(0xFFFFB129)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _watchAdAndProceed();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFB129),
+              foregroundColor: Colors.black,
+            ),
+            child: Text(t.tr('maintenance.watch_video')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Watch ad and proceed to maintenance creation
+  Future<void> _watchAdAndProceed() async {
+    final t = AppLocalizations.of(context);
+    
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Card(
+          color: const Color(0xFF1A1F26),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Color(0xFFFFB129)),
+                const SizedBox(height: 16),
+                Text(
+                  t.tr('maintenance.ad_loading'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Show rewarded ad
+    final success = await _adMobService.showRewardedAd();
+    
+    // Close loading dialog
+    if (mounted) Navigator.pop(context);
+
+    if (success) {
+      // User watched ad, reset counter
+      await _counterService.resetCount();
+      // Proceed to maintenance creation
+      if (mounted) {
+        await context.push('/maintenance/create');
+        await _counterService.incrementCount();
+        _loadReminders();
+      }
+    } else {
+      // Ad failed to show
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t.tr('maintenance.ad_failed')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -617,48 +763,34 @@ class _ReminderCard extends StatelessWidget {
 
   Future<void> _deleteReminder(BuildContext context) async {
     final t = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<Map<String, bool>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F26),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-        title: Text(
-          t.maintenance_delete_title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: SizedBox(
-          width: 600,
-          child: Text(
-            t.maintenance_delete_message.replaceAll('{title}', reminder.title),
-            style: const TextStyle(color: Colors.white70),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              t.maintenance_cancel,
-              style: const TextStyle(color: Colors.blue),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
-            ),
-            child: Text(
-              t.maintenance_delete_confirm,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+      builder: (ctx) => _DeleteReminderDialog(
+        reminder: reminder,
+        t: t,
       ),
     );
 
-    if (confirmed == true) {
+    if (result?['confirmed'] == true) {
       try {
         final service = MaintenanceService(Supabase.instance.client);
+        
+        // Delete associated vehicle cost if requested and cost exists
+        if (result?['deleteCost'] == true && reminder.cost != null && reminder.cost! > 0) {
+          try {
+            // Find and delete vehicle cost linked to this reminder
+            final costsService = CostsService();
+            final costs = await costsService.fetchAllCosts();
+            final linkedCost = costs.where((c) => c.maintenanceReminderId == reminder.id).firstOrNull;
+            if (linkedCost != null) {
+              await costsService.deleteCost(linkedCost.id);
+            }
+          } catch (e) {
+            print('Error deleting linked vehicle cost: $e');
+            // Continue with reminder deletion even if cost deletion fails
+          }
+        }
+        
         await service.deleteReminder(reminder.id);
         if (context.mounted) {
           onRefresh();
@@ -1618,12 +1750,13 @@ class _ReminderCard extends StatelessWidget {
                     color: reminder.isCompleted ? Colors.white : Colors.white,
                   ),
                 ),
-                if (!compact) ...[
+                // Nur anzeigen wenn Datum ODER KM gesetzt ist
+                if (!compact && (reminder.dueDate != null || reminder.dueMileage != null)) ...[
                   const SizedBox(height: 4),
                   Text(
                     reminder.dueDate != null
                         ? _formatDate(reminder.dueDate!)
-                        : '${reminder.dueMileage ?? 0} km',
+                        : '${reminder.dueMileage} km',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Colors.white70,
@@ -1641,6 +1774,99 @@ class _ReminderCard extends StatelessWidget {
         ],
       ),
       ),
+    );
+  }
+}
+
+// Delete Reminder Dialog mit optionalem Switch für Fahrzeugkosten
+class _DeleteReminderDialog extends StatefulWidget {
+  final MaintenanceReminder reminder;
+  final AppLocalizations t;
+
+  const _DeleteReminderDialog({
+    required this.reminder,
+    required this.t,
+  });
+
+  @override
+  State<_DeleteReminderDialog> createState() => _DeleteReminderDialogState();
+}
+
+class _DeleteReminderDialogState extends State<_DeleteReminderDialog> {
+  bool _deleteCost = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCost = widget.reminder.cost != null && widget.reminder.cost! > 0;
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1F26),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(
+        widget.t.maintenance_delete_title,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+      content: SizedBox(
+        width: 600,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.t.maintenance_delete_message.replaceAll('{title}', widget.reminder.title),
+              style: const TextStyle(color: Colors.white70),
+            ),
+            if (hasCost) ...[
+              const SizedBox(height: 20),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A3139),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12, width: 1),
+                ),
+                child: SwitchListTile(
+                  value: _deleteCost,
+                  onChanged: (value) {
+                    setState(() {
+                      _deleteCost = value;
+                    });
+                  },
+                  title: Text(
+                    widget.t.maintenance_delete_cost_option,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    '${widget.reminder.cost!.toStringAsFixed(2)}€',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  activeColor: const Color(0xFFFFB129),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, {'confirmed': false, 'deleteCost': false}),
+          child: Text(
+            widget.t.maintenance_cancel,
+            style: const TextStyle(color: Colors.blue),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, {'confirmed': true, 'deleteCost': _deleteCost}),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFE53935),
+          ),
+          child: Text(
+            widget.t.maintenance_delete_confirm,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }

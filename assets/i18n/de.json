@@ -135,7 +135,7 @@
   "home.in_days": "in {days} Tagen",
   "home.maintenance": "Wartung",
   "home.maintenance_subtitle": "Wartungshistorie verwalten",
-  "home.monthly_costs": "Monatliche Kosten",
+  "home.monthly_costs": "⌀ Monatliche Kosten",
   "home.my_vehicle": "Mein Fahrzeug",
   "home.next_maintenance_placeholder": "Nächster Wartungstermin – füge Daten in Profil/Fahrzeuge hinzu",
   "home.no_maintenance_subtitle": "Tippe hier, um deine erste Wartung anzulegen",
@@ -221,6 +221,7 @@
   "maintenance.delete_title": "Wartung löschen?",
   "maintenance.delete_message": "Möchtest du \"{title}\" wirklich löschen?",
   "maintenance.delete_confirm": "Löschen",
+  "maintenance.delete_cost_option": "Betrag aus Fahrzeugkosten löschen",
   "maintenance.deleted_success": "🗑️ Wartung gelöscht!",
   
   "maintenance.mark_complete": "Als erledigt markieren",
@@ -387,7 +388,9 @@
   "costs.filter_end_date": "Bis",
   "costs.filter_reset": "Zurücksetzen",
   "costs.filter_apply": "Anwenden",
-  "costs.export_coming_soon": "Export kommt bald",
+  "costs.export_csv": "Als CSV exportieren",
+  "costs.export_success": "✅ Export erfolgreich!",
+  "costs.export_error": "❌ Fehler beim Exportieren",
   "costs.delete_confirm_title": "Eintrag löschen?",
   "costs.delete_confirm_message": "Dieser Eintrag wird unwiderruflich gelöscht.",
   
@@ -474,7 +477,7 @@
   "costs.costs_trend": "Kosten-Verlauf",
   "costs.highest_month": "Höchster Monat",
   "costs.lowest_month": "Niedrigster Monat",
-  "costs.average_month": "Durchschnitt",
+  "costs.average_month": "⌀ Jahresdurchschnitt",
   
   "costs.achievements": "Erfolge",
   "costs.achievements_unlocked": "Freigeschaltet",
@@ -507,5 +510,31 @@
   "costs.total_amount": "Gesamtbetrag",
   "costs.monthly_amount_hint": "Betrag wird pro Monat berechnet",
   "costs.monthly_amount_hint_dynamic": "{amount} werden monatlich berechnet",
-  "costs.total_amount_hint": "Einmaliger Betrag für gesamten Zeitraum"
+  "costs.total_amount_hint": "Einmaliger Betrag für gesamten Zeitraum",
+  
+  "costs.category_locked_title": "Kategorie gesperrt 🔒",
+  "costs.category_locked_message": "Diese Kategorie ist nur für Lifetime- oder Pro-Nutzer verfügbar. Als kostenloser Nutzer kannst du nur Treibstoff-Kosten erfassen.",
+  "costs.unlock_options": "Freischalten mit:",
+  "costs.lifetime_unlock": "Lifetime Unlock",
+  "costs.pro_unlock": "Pro Abo",
+  "costs.go_to_paywall": "Zur Paywall",
+  
+  "paywall.title": "Premium",
+  "paywall.headline": "Hol dir das volle Potenzial!",
+  "paywall.subheadline": "Unbegrenzte Features für dein Auto",
+  "paywall.benefits_title": "Was du bekommst:",
+  "paywall.benefit_costs": "Alle KFZ-Kosten Kategorien freischalten",
+  "paywall.benefit_ai": "Unbegrenzte KI-Diagnosen & Chatbot-Anfragen",
+  "paywall.benefit_notifications": "Intelligente Wartungserinnerungen",
+  "paywall.benefit_export": "CSV & PDF Export für alle Daten",
+  "paywall.benefit_no_ads": "Werbefreie Nutzung",
+  "paywall.restore_purchases": "Käufe wiederherstellen",
+  
+  "maintenance.ad_gate_title": "Gratis-Limit erreicht 🎬",
+  "maintenance.ad_gate_message": "Du hast 3 kostenlose Wartungen erstellt. Schau dir ein kurzes Video an, um 3 weitere zu erstellen, oder werde Pro-Mitglied für unbegrenzte Wartungen.",
+  "maintenance.watch_video": "Video ansehen",
+  "maintenance.become_pro": "Pro werden",
+  "maintenance.ad_loading": "Werbung wird geladen...",
+  "maintenance.ad_failed": "Werbung konnte nicht geladen werden. Bitte versuche es später erneut.",
+  "maintenance.remaining_free": "{count} kostenlose Wartungen übrig"
 }

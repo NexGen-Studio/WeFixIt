@@ -69,6 +69,7 @@ class AppLocalizations {
   String get maintenance_delete_title => tr('maintenance.delete_title');
   String get maintenance_delete_message => tr('maintenance.delete_message');
   String get maintenance_delete_confirm => tr('maintenance.delete_confirm');
+  String get maintenance_delete_cost_option => tr('maintenance.delete_cost_option');
   String get maintenance_deleted_success => tr('maintenance.deleted_success');
   
   String get maintenance_mark_complete => tr('maintenance.mark_complete');

@@ -162,6 +162,10 @@ class CostsService {
           // Anzahl Monate im Gesamtzeitraum
           int totalMonths = (periodEnd.year - cost.periodStartDate!.year) * 12 + 
                            periodEnd.month - cost.periodStartDate!.month + 1;
+          // Korrektur: Wenn exakt gleicher Tag (z.B. 01.12.2025-01.12.2026), dann -1
+          if (periodEnd.day == cost.periodStartDate!.day && totalMonths > 1) {
+            totalMonths -= 1;
+          }
           if (totalMonths < 1) totalMonths = 1;
           monthlyAmount = cost.amount / totalMonths;
         }
@@ -242,10 +246,15 @@ class CostsService {
       final end = endDate ?? DateTime(2100);
 
       final expanded = _expandCosts(costs, start, end);
-      final filtered = _filterIncomeExpense(expanded, null); // Nur Ausgaben in Kategorie-Übersicht
+      // CHANGED: Show ALL categories including income (no filtering)
+      final filtered = expanded.where((c) => 
+        c.date.isAfter(start.subtract(const Duration(days: 1))) && 
+        c.date.isBefore(end.add(const Duration(days: 1)))
+      ).toList();
 
       final Map<String, double> result = {};
       for (final cost in filtered) {
+        // Include ALL categories (both income and expenses)
         result[cost.categoryId] = (result[cost.categoryId] ?? 0) + cost.amount;
       }
 
@@ -273,9 +282,16 @@ class CostsService {
       if (filtered.isEmpty) return 0.0;
 
       final total = filtered.fold<double>(0.0, (sum, cost) => sum + cost.amount);
-      final months = (end.difference(start).inDays / 30).ceil();
+      // Korrekte Monatsberechnung: Zähle volle Monate zwischen Start und End
+      int months = (end.year - start.year) * 12 + (end.month - start.month) + 1;
+      // Korrektur: Wenn exakt gleicher Tag (z.B. 02.12.2024-02.12.2025), dann -1
+      if (end.day == start.day && months > 1) {
+        months -= 1;
+      }
+      // Mindestens 1 Monat
+      if (months <= 0) months = 1;
       
-      return months > 0 ? total / months : total;
+      return total / months;
     } catch (e) {
       print('Error calculating average monthly costs: $e');
       return 0.0;

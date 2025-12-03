@@ -33,11 +33,13 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
   List<ChartDataPoint> _chartData = [];
   List<CostCategory> _categories = [];
   String? _selectedCategoryId; // null = Gesamt
+  double? _yearlyAverage; // Jahresdurchschnitt (unabhängig vom Zeitraum)
 
   @override
   void initState() {
     super.initState();
     loadData();
+    _loadYearlyAverage(); // Lade Jahresdurchschnitt (unabhängig vom Zeitraum)
   }
   
   @override
@@ -222,7 +224,7 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
                     context: context,
                     initialDate: start ?? DateTime.now(),
                     firstDate: DateTime(2000),
-                    lastDate: DateTime.now(),
+                    lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: ThemeData.dark().copyWith(
                         colorScheme: const ColorScheme.dark(
@@ -262,7 +264,7 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
                     context: context,
                     initialDate: end ?? DateTime.now(),
                     firstDate: start ?? DateTime(2000),
-                    lastDate: DateTime.now(),
+                    lastDate: DateTime(2100),
                     builder: (context, child) => Theme(
                       data: ThemeData.dark().copyWith(
                         colorScheme: const ColorScheme.dark(
@@ -419,9 +421,7 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            cat.isSystem 
-                                ? t.tr('costs.category_${cat.name}')
-                                : cat.name,
+                            cat.name,
                             style: const TextStyle(color: Colors.white),
                           ),
                         ],
@@ -598,12 +598,8 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
                         final date = dataPoint.date;
                         final categories = dataPoint.categoryNames;
                         
-                        // Kategorien übersetzen (system-keys)
-                        final systemNames = ['fuel', 'maintenance', 'insurance', 'tax', 'leasing', 'parking', 'cleaning', 'accessories', 'vignette', 'income', 'other'];
-                        final translatedCats = categories.map((c) {
-                           if (systemNames.contains(c)) return t.tr('costs.category_$c');
-                           return c;
-                        }).join('\n');
+                        // Kategorienamen direkt verwenden (bereits in richtiger Sprache)
+                        final translatedCats = categories.join('\n');
 
                         return LineTooltipItem(
                           '${DateFormat('dd.MM.yyyy').format(date)}\n$translatedCats\n${spot.y.toStringAsFixed(2)} €',
@@ -634,21 +630,21 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
               children: [
                 _buildStatRow(
                   t.tr('costs.highest_month'),
-                  '${_chartData.reduce((a, b) => a.value > b.value ? a : b).value.toStringAsFixed(2)} €',
+                  _getHighestMonthText(),
                   Icons.arrow_upward,
                   Colors.red,
                 ),
                 const Divider(color: Color(0xFF1A2028), height: 24),
                 _buildStatRow(
                   t.tr('costs.lowest_month'),
-                  '${_chartData.reduce((a, b) => a.value < b.value ? a : b).value.toStringAsFixed(2)} €',
+                  _getLowestMonthText(),
                   Icons.arrow_downward,
                   Colors.green,
                 ),
                 const Divider(color: Color(0xFF1A2028), height: 24),
                 _buildStatRow(
                   t.tr('costs.average_month'),
-                  '${(_chartData.map((d) => d.value).reduce((a, b) => a + b) / _chartData.length).toStringAsFixed(2)} €',
+                  _getYearlyAverageText(),
                   Icons.show_chart,
                   const Color(0xFFFFB129),
                 ),
@@ -685,5 +681,90 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
         ),
       ],
     );
+  }
+
+  String _getHighestMonthText() {
+    if (_chartData.isEmpty) return '0 €';
+    
+    // Gruppiere nach Monat
+    final monthlyTotals = <String, double>{};
+    for (var point in _chartData) {
+      final monthKey = '${point.date.year}-${point.date.month.toString().padLeft(2, '0')}';
+      monthlyTotals[monthKey] = (monthlyTotals[monthKey] ?? 0) + point.value;
+    }
+    
+    if (monthlyTotals.isEmpty) return '0 €';
+    
+    // Finde höchsten Monat
+    var highestEntry = monthlyTotals.entries.first;
+    for (var entry in monthlyTotals.entries) {
+      if (entry.value > highestEntry.value) {
+        highestEntry = entry;
+      }
+    }
+    
+    // Formatiere Monatsnamen
+    final parts = highestEntry.key.split('-');
+    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+    final monthName = DateFormat.MMM('de').format(date);
+    
+    return '$monthName ${highestEntry.value.toStringAsFixed(2)} €';
+  }
+
+  String _getLowestMonthText() {
+    if (_chartData.isEmpty) return '0 €';
+    
+    // Gruppiere nach Monat
+    final monthlyTotals = <String, double>{};
+    for (var point in _chartData) {
+      final monthKey = '${point.date.year}-${point.date.month.toString().padLeft(2, '0')}';
+      monthlyTotals[monthKey] = (monthlyTotals[monthKey] ?? 0) + point.value;
+    }
+    
+    if (monthlyTotals.isEmpty) return '0 €';
+    
+    // Finde niedrigsten Monat
+    var lowestEntry = monthlyTotals.entries.first;
+    for (var entry in monthlyTotals.entries) {
+      if (entry.value < lowestEntry.value) {
+        lowestEntry = entry;
+      }
+    }
+    
+    // Formatiere Monatsnamen
+    final parts = lowestEntry.key.split('-');
+    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+    final monthName = DateFormat.MMM('de').format(date);
+    
+    return '$monthName ${lowestEntry.value.toStringAsFixed(2)} €';
+  }
+
+  String _getYearlyAverageText() {
+    // WICHTIG: Jahresdurchschnitt ist UNABHÄNGIG vom gewählten Zeitraum
+    // und verwendet ALLE Kosten (wie auf dem Homescreen)
+    if (_yearlyAverage == null) return '... €';
+    return '${_yearlyAverage!.toStringAsFixed(2)} €';
+  }
+  
+  Future<void> _loadYearlyAverage() async {
+    try {
+      // Lade ALLE Kosten (ohne Zeitraum-Filter)
+      final allCosts = await _costsService.fetchAllCosts();
+      
+      // Filtere nur Ausgaben (keine Einnahmen)
+      final expenses = allCosts.where((cost) => !cost.isIncome).toList();
+      
+      // Berechne Gesamtkosten
+      final totalCosts = expenses.fold<double>(0.0, (sum, cost) => sum + cost.amount);
+      
+      // Jahresdurchschnitt = Gesamtkosten / 12 Monate
+      final yearlyAverage = totalCosts / 12;
+      
+      if (mounted) {
+        setState(() => _yearlyAverage = yearlyAverage);
+      }
+    } catch (e) {
+      print('Error loading yearly average: $e');
+    }
   }
 }
