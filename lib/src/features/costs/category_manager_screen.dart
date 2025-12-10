@@ -270,7 +270,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              category.name,
+              category.getLocalizedName(t),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,

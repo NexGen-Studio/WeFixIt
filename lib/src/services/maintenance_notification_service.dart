@@ -15,28 +15,64 @@ class MaintenanceNotificationService {
   static const _nativeChannel = MethodChannel('com.example.wefixit/notifications');
   static bool _initialized = false;
 
+  /// Gibt lokalisierten Text zurück basierend auf gespeicherter Locale
+  static Future<String> _getLocalizedText(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final locale = prefs.getString('locale') ?? 'de';
+    
+    final texts = {
+      'notification_overdue_title': {
+        'de': '🔧 Wartung überfällig!',
+        'en': '🔧 Maintenance overdue!',
+      },
+      'notification_overdue_body': {
+        'de': 'war fällig!',
+        'en': 'was due!',
+      },
+    };
+    
+    return texts[key]?[locale] ?? texts[key]?['de'] ?? '';
+  }
+
   /// Extrahiert Kategorielabel aus Reminder (inkl. Custom)
   static Future<String> _getCategoryLabel(MaintenanceReminder reminder) async {
+    final prefs = await SharedPreferences.getInstance();
+    final locale = prefs.getString('locale') ?? 'de';
+    
+    final categoryTexts = {
+      'oil_change': {'de': 'Ölwechsel', 'en': 'Oil change'},
+      'tire_change': {'de': 'Reifen', 'en': 'Tires'},
+      'brakes': {'de': 'Bremsen', 'en': 'Brakes'},
+      'tuv': {'de': 'TÜV/AU', 'en': 'TÜV/AU'},
+      'inspection': {'de': 'Inspektion', 'en': 'Inspection'},
+      'battery': {'de': 'Batterie', 'en': 'Battery'},
+      'filter': {'de': 'Filter', 'en': 'Filter'},
+      'insurance': {'de': 'Versicherung', 'en': 'Insurance'},
+      'tax': {'de': 'KFZ-Steuer', 'en': 'Vehicle tax'},
+      'other': {'de': 'Sonstiges', 'en': 'Other'},
+      'default': {'de': 'Wartung', 'en': 'Maintenance'},
+    };
+    
     // Standard-Kategorien
     switch (reminder.category) {
       case MaintenanceCategory.oilChange:
-        return 'Ölwechsel';
+        return categoryTexts['oil_change']?[locale] ?? 'Ölwechsel';
       case MaintenanceCategory.tireChange:
-        return 'Reifen';
+        return categoryTexts['tire_change']?[locale] ?? 'Reifen';
       case MaintenanceCategory.brakes:
-        return 'Bremsen';
+        return categoryTexts['brakes']?[locale] ?? 'Bremsen';
       case MaintenanceCategory.tuv:
-        return 'TÜV/AU';
+        return categoryTexts['tuv']?[locale] ?? 'TÜV/AU';
       case MaintenanceCategory.inspection:
-        return 'Inspektion';
+        return categoryTexts['inspection']?[locale] ?? 'Inspektion';
       case MaintenanceCategory.battery:
-        return 'Batterie';
+        return categoryTexts['battery']?[locale] ?? 'Batterie';
       case MaintenanceCategory.filter:
-        return 'Filter';
+        return categoryTexts['filter']?[locale] ?? 'Filter';
       case MaintenanceCategory.insurance:
-        return 'Versicherung';
+        return categoryTexts['insurance']?[locale] ?? 'Versicherung';
       case MaintenanceCategory.tax:
-        return 'KFZ-Steuer';
+        return categoryTexts['tax']?[locale] ?? 'KFZ-Steuer';
       case MaintenanceCategory.other:
         // Versuche Custom-Label aus Notes zu extrahieren
         if (reminder.notes != null) {
@@ -52,9 +88,9 @@ class MaintenanceNotificationService {
             }
           }
         }
-        return 'Sonstiges';
+        return categoryTexts['other']?[locale] ?? 'Sonstiges';
       default:
-        return 'Wartung';
+        return categoryTexts['default']?[locale] ?? 'Wartung';
     }
   }
 
@@ -207,8 +243,8 @@ class MaintenanceNotificationService {
         print('⚡ [Notification] Due Date/Time ist vorbei - sende SOFORT!');
         await _notifications.show(
           reminder.id.hashCode,
-          '🔧 Wartung überfällig!',
-          '${reminder.title} war fällig!',
+          await _getLocalizedText('notification_overdue_title'),
+          '${reminder.title} ${await _getLocalizedText('notification_overdue_body')}',
           const NotificationDetails(
             android: AndroidNotificationDetails(
               'maintenance_reminders',
@@ -357,7 +393,7 @@ class MaintenanceNotificationService {
       if (Platform.isAndroid) {
         await _nativeChannel.invokeMethod('scheduleNotification', {
           'id': id,
-          'title': '⚠️ Wartung überfällig!',
+          'title': await _getLocalizedText('notification_overdue_title'),
           'body': '      $notificationBody',
           'scheduledTime': scheduledTime.millisecondsSinceEpoch,
         });
@@ -371,7 +407,7 @@ class MaintenanceNotificationService {
         
         await _notifications.zonedSchedule(
           id,
-          '⚠️ Wartung überfällig!',
+          await _getLocalizedText('notification_overdue_title'),
           '      $notificationBody',
           scheduledTime,
           const NotificationDetails(iOS: iosDetails),
@@ -397,7 +433,7 @@ class MaintenanceNotificationService {
 
     await _notifications.show(
       id,
-      '⚠️ Wartung überfällig!',
+      await _getLocalizedText('notification_overdue_title'),
       '      $notificationBody',
       const NotificationDetails(
         android: AndroidNotificationDetails(

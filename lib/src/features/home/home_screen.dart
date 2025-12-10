@@ -459,11 +459,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final powerPs = powerKw != null ? (powerKw * 1.36).round() : null;
     // Bestimme Grußnamen: Anzeigename > sonst "Hallo!"
     final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
-    String greetingName = 'Hallo!';
+    String greetingName = '${t.tr('home.hello')}!';
     
     if (isLoggedIn && profile != null) {
       if (profile.displayName?.isNotEmpty == true) {
-        greetingName = 'Hallo, ${profile.displayName}!';
+        greetingName = '${t.tr('home.hello')}, ${profile.displayName}!';
       }
     }
     
@@ -482,14 +482,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         children: [
             const SizedBox(height: 12),
             Text(
-              vehicleName.isNotEmpty ? vehicleName : 'Hallo',
+              vehicleName.isNotEmpty ? vehicleName : t.tr('home.hello'),
               style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
             ),
             if (!isLoggedIn) ...[
               const SizedBox(height: 4),
-              const Text(
-                'Bitte melde dich an!',
-                style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
+              Text(
+                t.tr('home.please_sign_in'),
+                style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
               ),
             ],
             const SizedBox(height: 12),
@@ -675,11 +675,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         ),
                         child: Row(
                           children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
+                            Flexible(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
                                 Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.all(6), // reduced from 8
                                   decoration: BoxDecoration(
                                     color: _categoryColor(reminder.category).withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(8),
@@ -687,17 +689,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                   child: Icon(
                                     _categoryIcon(reminder.category),
                                     color: _categoryColor(reminder.category),
-                                    size: 20,
+                                    size: 18, // reduced from 20
                                   ),
                                 ),
                                 if (reminder.category != null) ...[
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 2), // reduced from 4
                                   Text(
                                     _categoryLabel(t, reminder.category),
-                                    style: const TextStyle(fontSize: 11, color: Colors.white70),
+                                    style: const TextStyle(fontSize: 10, color: Colors.white70), // reduced from 11
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ],
+                            ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(

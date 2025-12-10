@@ -7,6 +7,7 @@ class DiagnoseScreen extends StatelessWidget {
   const DiagnoseScreen({super.key});
 
   static void _showLoginRequired(BuildContext context) {
+    final t = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -20,7 +21,7 @@ class DiagnoseScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Abbrechen', style: TextStyle(color: Color(0xFFF8AD20))),
+            child: Text(t.tr('common.cancel'), style: const TextStyle(color: Color(0xFFF8AD20))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -95,8 +96,8 @@ class DiagnoseScreen extends StatelessWidget {
                   _buildActionCard(
                     context: context,
                     icon: Icons.delete_sweep_outlined,
-                    iconColor: const Color(0xFF1976D2),
-                    iconBg: const Color(0xFFE3F2FD),
+                    iconColor: const Color(0xFFFFB129),
+                    iconBg: const Color(0xFFFFB129).withOpacity(0.15),
                     title: t.tr('diagnose.clear_dtc'),
                     badge: t.diagnose_always_free,
                     badgeColor: const Color(0xFF4CAF50),

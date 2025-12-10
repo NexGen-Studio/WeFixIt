@@ -19,7 +19,7 @@ class CustomScheduledNotificationReceiver : com.dexterous.flutterlocalnotificati
     companion object {
         private const val TAG = "CustomScheduledNotif"
         private const val CHANNEL_ID = "maintenance_reminders"
-        private const val CHANNEL_NAME = "Wartungserinnerungen"
+        private const val CHANNEL_NAME = "Maintenance Reminders"  // Flutter überschreibt dies mit Locale
     }
     
     override fun onReceive(context: Context, intent: Intent) {
@@ -41,7 +41,7 @@ class CustomScheduledNotificationReceiver : com.dexterous.flutterlocalnotificati
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-                description = "Benachrichtigungen für anstehende Wartungen"
+                description = "Notifications for upcoming maintenance"
                 enableVibration(true)
                 enableLights(true)
                 setShowBadge(true)

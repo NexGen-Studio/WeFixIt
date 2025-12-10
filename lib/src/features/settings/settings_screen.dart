@@ -180,7 +180,7 @@ class _NotificationsTileState extends State<_NotificationsTile> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  t.settings_notifications_global_toggle,
+                  _enabled ? t.tr('settings.notifications_disable') : t.tr('settings.notifications_enable'),
                   style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ],
@@ -298,11 +298,11 @@ class _AccountPlaceholders extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+              child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Speichern'),
+              child: Text(t.tr('common.save')),
             ),
           ],
         );
@@ -386,11 +386,11 @@ class _AccountPlaceholders extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+                child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white70)),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Speichern'),
+                child: Text(t.tr('common.save')),
               ),
             ],
           );
@@ -447,11 +447,15 @@ class _SettingsTile extends StatelessWidget {
       iconColor = const Color(0xFFE53935);
       iconBg = const Color(0xFFE53935).withOpacity(0.2);
     } else if (icon == Icons.email_outlined) {
-      iconColor = const Color(0xFF2196F3);
-      iconBg = const Color(0xFF2196F3).withOpacity(0.2);
+      iconColor = const Color(0xFF9C27B0); // Lila
+      iconBg = const Color(0xFF9C27B0).withOpacity(0.2);
+    } else if (icon == Icons.lock_outline) {
+      iconColor = const Color(0xFF4CAF50); // Grün
+      iconBg = const Color(0xFF4CAF50).withOpacity(0.2);
     } else {
-      iconColor = const Color(0xFF388E3C);
-      iconBg = const Color(0xFF388E3C).withOpacity(0.2);
+      // Fallback (z.B. Benachrichtigungen wenn hier genutzt, oder andere)
+      iconColor = const Color(0xFFFFB129);
+      iconBg = const Color(0xFFFFB129).withOpacity(0.2);
     }
 
     return Material(

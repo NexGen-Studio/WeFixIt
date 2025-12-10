@@ -394,13 +394,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2196F3).withOpacity(0.2),
+                            color: const Color(0xFFFFB129).withOpacity(0.2),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.person_outline,
                             size: 48,
-                            color: Color(0xFF2196F3),
+                            color: Color(0xFFFFB129),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -438,7 +438,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             ),
                           ),
@@ -460,10 +460,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1117),
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Header
+        child: RefreshIndicator(
+          color: const Color(0xFFFFB129),
+          backgroundColor: const Color(0xFF151C23),
+          onRefresh: () async {
+            await Future.wait([
+              _load(),
+              _loadCreditsInfo(),
+            ]);
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            slivers: [
+              // Header
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -527,14 +536,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF1976D2),
-                              const Color(0xFF1565C0),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: const Color(0xFF151C23),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.white12, width: 1),
                         ),
@@ -546,12 +548,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: const Color(0xFFFFB129).withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
                                     _isPro ? Icons.workspace_premium : Icons.star_outline,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFB129),
                                     size: 24,
                                   ),
                                 ),
@@ -572,8 +574,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           t.creditsRemaining(3 - _freeQuotaConsumed),
+                                          textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
                                             color: Colors.white.withOpacity(0.9),
                                           ),
                                         ),
@@ -604,7 +608,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
-                                            Icon(Icons.monetization_on, color: Colors.amber[300], size: 20),
+                                            Icon(Icons.monetization_on, color: const Color(0xFFFFB129), size: 20),
                                             const SizedBox(width: 6),
                                             Text(
                                               '$_creditBalance',
@@ -622,8 +626,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ElevatedButton.icon(
                                     onPressed: () => context.push('/paywall'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: const Color(0xFF1976D2),
+                                      backgroundColor: const Color(0xFFFFB129),
+                                      foregroundColor: Colors.black,
                                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
@@ -639,11 +643,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ),
                               if (_weekStartDate != null) ...[
                                 const SizedBox(height: 12),
-                                Text(
-                                  t.credits_quota_renews_weekly,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white.withOpacity(0.7),
+                                Center(
+                                  child: Text(
+                                    t.credits_quota_renews_weekly,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white.withOpacity(0.7),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -894,14 +901,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: _saving
                           ? const Center(child: CircularProgressIndicator())
                           : ElevatedButton(
+                              onPressed: _saveAll,
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                foregroundColor: Colors.black,
                               ),
-                              onPressed: _saveAll,
                               child: Text(
                                 t.profile_save,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                             ),
                     ),
@@ -941,8 +949,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _GlassCard extends StatelessWidget {
@@ -999,12 +1008,13 @@ class _GlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
+      onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 0,
+        foregroundColor: Colors.black,
       ),
-      onPressed: onPressed,
-      child: Text(label),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 }
@@ -1228,12 +1238,12 @@ class _UnitSwitch extends StatelessWidget {
         children: [
           TextButton(
             onPressed: () => onChanged(true),
-            child: Text('kW', style: TextStyle(color: isKw ? Colors.blue : const Color(0xFF94A3B8))),
+            child: Text('kW', style: TextStyle(color: isKw ? const Color(0xFFFFB129) : const Color(0xFF94A3B8))),
           ),
           const SizedBox(width: 4),
           TextButton(
             onPressed: () => onChanged(false),
-            child: Text('PS', style: TextStyle(color: !isKw ? Colors.blue : const Color(0xFF94A3B8))),
+            child: Text('PS', style: TextStyle(color: !isKw ? const Color(0xFFFFB129) : const Color(0xFF94A3B8))),
           ),
         ],
       ),

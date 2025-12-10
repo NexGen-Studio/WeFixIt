@@ -102,3 +102,41 @@ class SystemCategories {
   static const String income = 'income';
   static const String other = 'other';
 }
+
+/// Extension für lokalisierte Kategorien-Namen
+extension CostCategoryLocalization on CostCategory {
+  /// Gibt den lokalisierten Namen der Kategorie zurück
+  /// Verwendet i18n Keys basierend auf dem deutschen Namen aus der DB
+  String getLocalizedName(dynamic localizationContext) {
+    // Für Custom-Kategorien (user_id != null) gib den Namen direkt zurück
+    if (userId != null) {
+      return name;
+    }
+    
+    // Map deutsche Namen auf i18n Keys
+    final nameKeyMap = {
+      'Treibstoff': 'costs.category_fuel_name',
+      'Wartung & Reparatur': 'costs.category_maintenance_name',
+      'Versicherung': 'costs.category_insurance_name',
+      'Steuer': 'costs.category_tax_name',
+      'Parkgebühren': 'costs.category_parking_name',
+      'Autowäsche': 'costs.category_washing_name',
+      'Maut & Vignette': 'costs.category_toll_name',
+      'Reifen': 'costs.category_tires_name',
+      'Zubehör': 'costs.category_accessories_name',
+      'Einnahmen': 'costs.category_income_name',
+      'Sonstiges': 'costs.category_other_name',
+    };
+    
+    final i18nKey = nameKeyMap[name];
+    if (i18nKey != null && localizationContext != null) {
+      try {
+        return localizationContext.tr(i18nKey);
+      } catch (_) {
+        return name; // Fallback
+      }
+    }
+    
+    return name; // Fallback für unbekannte Kategorien
+  }
+}

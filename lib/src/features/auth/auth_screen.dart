@@ -168,7 +168,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         child: Text(
                           _isSignUp ? t.tr('auth.switch_to_login') : t.tr('auth.switch_to_signup'),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.blue),
+                          style: const TextStyle(color: Colors.white),
                         ),
                       ),
                     ),
@@ -214,7 +214,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         child: Text(
                           t.tr('auth.forgot_password'),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, color: Colors.blue),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
                         ),
                       ),
                     ),
@@ -232,7 +232,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                       child: Text(
                         _isSignUp ? t.tr('auth.signup') : t.tr('auth.login'),
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ),
                     const SizedBox(height: 8),

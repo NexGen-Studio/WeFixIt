@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:purchases_flutter/purchases_flutter.dart'; // Import purchases_flutter
 import '../../i18n/app_localizations.dart';
 import '../../services/costs_service.dart';
 import '../../services/category_service.dart';
@@ -100,8 +101,29 @@ class _CostFormScreenState extends State<CostFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final categories = await _categoryService.fetchAllCategories();
+      final allCategories = await _categoryService.fetchAllCategories();
       final suggestions = await _costsService.getGasStationSuggestions();
+      
+      // Filtere Wartungskategorien heraus (die automatisch aus Wartungen erstellt wurden)
+      final maintenanceCategoryNames = [
+        'Ölwechsel', 'Oil Change',
+        'Reifenwechsel', 'Tire Change',
+        'Bremsen', 'Brakes',
+        'TÜV/AU', 'TÜV', 'Inspection',
+        'Inspektion',
+        'Batterie', 'Battery',
+        'Filter',
+      ];
+      
+      final categories = allCategories.where((cat) {
+        // System-Kategorien immer anzeigen
+        if (cat.isSystem) return true;
+        // Custom-Kategorien NUR anzeigen wenn sie NICHT aus Wartungen stammen
+        return !maintenanceCategoryNames.any((name) => 
+          cat.name.toLowerCase().contains(name.toLowerCase()) ||
+          name.toLowerCase().contains(cat.name.toLowerCase())
+        );
+      }).toList();
 
       setState(() {
         _categories = categories;
@@ -320,67 +342,141 @@ class _CostFormScreenState extends State<CostFormScreen> {
     return !category.isLocked;
   }
   
-  void _showPaywallDialog() {
+  Future<void> _showPaywallDialog() async {
     final t = AppLocalizations.of(context);
+    
+    // Lade Preise
+    String lifetimePrice = '1,99€';
+    String monthlyPrice = '4,99€';
+    
+    try {
+      final offerings = await PurchaseService().getOfferings();
+      if (offerings != null && offerings.current != null) {
+        final current = offerings.current!;
+        // Suche nach passenden Paketen
+        final lifetimePkg = current.availablePackages.firstWhere(
+          (p) => p.packageType == PackageType.lifetime || p.identifier.contains('lifetime'),
+          orElse: () => current.availablePackages.first, // Fallback, aber riskant -> besser checken
+        );
+        // Check if it really looks like lifetime if we used fallback logic blindly
+        if (lifetimePkg.packageType == PackageType.lifetime || lifetimePkg.identifier.contains('lifetime')) {
+             lifetimePrice = lifetimePkg.storeProduct.priceString;
+        }
+
+        final monthlyPkg = current.monthly;
+        if (monthlyPkg != null) {
+          monthlyPrice = monthlyPkg.storeProduct.priceString;
+        }
+      }
+    } catch (e) {
+      print('Error loading prices for dialog: $e');
+    }
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1F26),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.lock, color: Color(0xFFFFB129)),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                t.tr('costs.category_locked_title'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.92,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1F26),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.lock, color: Color(0xFFFFB129), size: 28),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          t.tr('costs.category_locked_title'),
+                          style: const TextStyle(
+                            color: Colors.white, 
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    t.tr('costs.category_locked_message'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    t.tr('costs.unlock_options'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  SizedBox(height: 16),
+                  _buildPriceRow(t.tr('costs.lifetime_unlock'), lifetimePrice),
+                  SizedBox(height: 12),
+                  _buildPriceRow(t.tr('costs.pro_unlock'), '$monthlyPrice / ${t.tr('repeat.month')}'),
+                  SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(
+                          t.tr('common.cancel'), 
+                          style: const TextStyle(color: Colors.white70, fontSize: 14)
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.push('/paywall');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFB129),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        child: Text(t.tr('costs.go_to_paywall')),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t.tr('costs.category_locked_message'),
-              style: const TextStyle(color: Colors.white70),
-            ),
-            SizedBox(height: 16),
-            Text(
-              t.tr('costs.unlock_options'),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-            SizedBox(height: 8),
-            Text(
-              '• ' + t.tr('costs.lifetime_unlock') + ': 1,99€',
-              style: const TextStyle(color: Color(0xFFFFB129)),
-            ),
-            Text(
-              '• ' + t.tr('costs.pro_unlock') + ': 4,99€/Monat',
-              style: const TextStyle(color: Color(0xFFFFB129)),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white70)),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push('/paywall');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFB129),
-              foregroundColor: Colors.black,
-            ),
-            child: Text(t.tr('costs.go_to_paywall')),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildPriceRow(String label, String price) {
+    return Row(
+      children: [
+        const Icon(Icons.check_circle, color: Color(0xFFFFB129), size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Text(
+          price,
+          style: const TextStyle(color: Color(0xFFFFB129), fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+      ],
     );
   }
 
@@ -463,7 +559,7 @@ class _CostFormScreenState extends State<CostFormScreen> {
                       const SizedBox(width: 12),
                       Flexible(
                         child: Text(
-                          cat.name,
+                          cat.getLocalizedName(t),
                           style: TextStyle(color: isUnlocked ? Colors.white : Colors.grey),
                           overflow: TextOverflow.ellipsis,
                         ),

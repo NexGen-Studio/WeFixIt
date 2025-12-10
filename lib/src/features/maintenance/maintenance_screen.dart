@@ -64,20 +64,21 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   }
 
   Future<void> _deleteReminder(MaintenanceReminder reminder) async {
+    final t = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Erinnerung löschen?'),
-        content: Text('Möchtest du "${reminder.title}" wirklich löschen?'),
+        title: Text(t.tr('maintenance.delete_reminder_title')),
+        content: Text(t.tr('maintenance.delete_reminder_message').replaceAll('{title}', reminder.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Abbrechen'),
+            child: Text(t.tr('common.cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Löschen'),
+            child: Text(t.tr('common.delete')),
           ),
         ],
       ),
@@ -166,7 +167,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               child: Text(
-                'Deine Erinnerungen im Überblick',
+                t.tr('maintenance.reminders_overview'),
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -202,8 +203,8 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       const SizedBox(height: 24),
                       Text(
                         _showCompleted
-                            ? 'Keine erledigten Erinnerungen'
-                            : 'Noch keine Erinnerungen',
+                            ? t.tr('maintenance.no_completed_reminders')
+                            : t.tr('maintenance.no_reminders'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -250,9 +251,9 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         onPressed: _showAddReminderDialog,
         backgroundColor: const Color(0xFF1976D2),
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Neue Erinnerung',
-          style: TextStyle(
+        label: Text(
+          t.tr('maintenance.new_reminder'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
           ),

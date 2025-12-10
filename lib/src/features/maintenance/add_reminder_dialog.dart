@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../i18n/app_localizations.dart';
 import '../../models/maintenance_reminder.dart';
 import '../../services/maintenance_service.dart';
 import '../../widgets/login_required_dialog.dart';
@@ -39,16 +40,10 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Login-Check
-    if (Supabase.instance.client.auth.currentUser == null) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      showLoginRequiredDialog(context);
-      return;
-    }
 
     setState(() => _saving = true);
 
+    final t = AppLocalizations.of(context);
     try {
       await _service.createReminder(
         title: _titleCtrl.text.trim(),
@@ -71,7 +66,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler: $e')),
+        SnackBar(content: Text('${t.tr('reminder.error')}: $e')),
       );
     }
   }
@@ -90,8 +85,9 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Dialog(
-      backgroundColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 650),
@@ -124,9 +120,9 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Neue Erinnerung',
+                          t.tr('maintenance.new_reminder'),
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
@@ -146,8 +142,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                   TextFormField(
                     controller: _titleCtrl,
                     decoration: InputDecoration(
-                      labelText: 'Titel *',
-                      hintText: 'z.B. Ölwechsel, Inspektion',
+                      labelText: t.tr('form.title_required'),
+                      hintText: t.tr('form.title_hint'),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -155,7 +151,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                       fillColor: Colors.grey[50],
                     ),
                     validator: (v) =>
-                        v?.trim().isEmpty == true ? 'Bitte einen Titel eingeben' : null,
+                        v?.trim().isEmpty == true ? t.tr('form.title_error') : null,
                     textCapitalization: TextCapitalization.sentences,
                   ),
                   const SizedBox(height: 16),
@@ -164,8 +160,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                   TextFormField(
                     controller: _descCtrl,
                     decoration: InputDecoration(
-                      labelText: 'Beschreibung (optional)',
-                      hintText: 'Weitere Details...',
+                      labelText: t.tr('form.description_optional'),
+                      hintText: t.tr('form.description_hint'),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -189,7 +185,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                         Expanded(
                           child: _TypeButton(
                             icon: Icons.event,
-                            label: 'Datum',
+                            label: t.tr('reminder.type_date'),
                             isSelected: _type == ReminderType.date,
                             onTap: () => setState(() => _type = ReminderType.date),
                           ),
@@ -197,7 +193,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                         Expanded(
                           child: _TypeButton(
                             icon: Icons.speed,
-                            label: 'Kilometer',
+                            label: t.tr('reminder.type_mileage'),
                             isSelected: _type == ReminderType.mileage,
                             onTap: () => setState(() => _type = ReminderType.mileage),
                           ),
@@ -275,8 +271,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Wiederkehrend',
+                              Text(
+                                t.tr('reminder.recurring'),
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
@@ -286,8 +282,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                               const SizedBox(height: 4),
                               Text(
                                 _type == ReminderType.date
-                                    ? 'Alle $_recurringMonths Monate'
-                                    : 'Alle ${_mileageCtrl.text.isEmpty ? "..." : _mileageCtrl.text} km',
+                                    ? t.tr('reminder.every_x_months').replaceAll('{count}', '$_recurringMonths')
+                                    : t.tr('reminder.every_x_km').replaceAll('{km}', _mileageCtrl.text.isEmpty ? "..." : _mileageCtrl.text),
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey[600],
@@ -308,7 +304,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                   if (_isRecurring && _type == ReminderType.date) ...[
                     const SizedBox(height: 12),
                     Text(
-                      'Wiederholung alle:',
+                      t.tr('reminder.repeat_every'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -321,7 +317,7 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                       children: [3, 6, 12].map((months) {
                         final isSelected = _recurringMonths == months;
                         return ChoiceChip(
-                          label: Text('$months Monate'),
+                          label: Text('$months ${t.tr('reminder.months')}'),
                           selected: isSelected,
                           onSelected: (selected) {
                             if (selected) setState(() => _recurringMonths = months);
@@ -350,8 +346,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Abbrechen',
+                          child: Text(
+                            t.tr('common.cancel'),
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
@@ -379,8 +375,8 @@ class _AddReminderDialogState extends State<AddReminderDialog> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'Speichern',
+                              : Text(
+                                  t.tr('common.save'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,

@@ -16,7 +16,7 @@ class WeFixItApplication : Application() {
     companion object {
         private const val TAG = "WeFixItApplication"
         private const val CHANNEL_ID = "maintenance_reminders"
-        private const val CHANNEL_NAME = "Wartungserinnerungen"
+        private const val CHANNEL_NAME = "Maintenance Reminders"  // Flutter überschreibt dies mit Locale
     }
     
     override fun onCreate() {

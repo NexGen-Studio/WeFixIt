@@ -101,14 +101,21 @@ class _SplashScreenState extends State<SplashScreen>
     final splashTimer = Future.delayed(const Duration(milliseconds: 1600));
     
     try {
-      // Env-Variablen prüfen
-      const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-      const supabaseAnon = String.fromEnvironment('SUPABASE_ANON_KEY');
+      // Env-Variablen prüfen (mit Development-Fallback)
+      const supabaseUrl = String.fromEnvironment(
+        'SUPABASE_URL',
+        defaultValue: 'https://zbrlhswafnlpfwqikapu.supabase.co', // Development-Fallback
+      );
+      const supabaseAnon = String.fromEnvironment(
+        'SUPABASE_ANON_KEY',
+        defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0', // Development-Fallback
+      );
       
       if (supabaseUrl.isEmpty || supabaseAnon.isEmpty) {
+        print('❌ Supabase Credentials fehlen!');
         await splashTimer;
         if (!mounted) return;
-        // Hier könnte man zu einem Fehler-Screen navigieren
+        context.go('/home'); // Trotzdem weiter zur App (für Offline-Nutzung)
         return;
       }
 

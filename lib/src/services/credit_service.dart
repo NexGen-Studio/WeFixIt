@@ -9,20 +9,23 @@ class CreditService {
     if (user == null) return 0;
 
     try {
-      // Wir holen den letzten Eintrag aus credit_events
+      // Hole ALLE credit_events und berechne die Balance
       final response = await _supabase
           .from('credit_events')
-          .select('balance')
-          .eq('user_id', user.id)
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+          .select('delta')
+          .eq('user_id', user.id);
 
-      if (response == null) {
-        return 0; // Noch keine Events = 0 Credits (oder Startguthaben falls gewünscht)
+      if (response == null || response.isEmpty) {
+        return 0; // Noch keine Events = 0 Credits
       }
       
-      return response['balance'] as int;
+      // Summiere alle credits (positive und negative)
+      int balance = 0;
+      for (final event in response) {
+        balance += (event['delta'] as int);
+      }
+      
+      return balance;
     } catch (e) {
       print('Error fetching credit balance: $e');
       return 0;
@@ -71,14 +74,10 @@ class CreditService {
     if (user == null) return false;
 
     try {
-      final currentBalance = await getBalance();
-      final newBalance = currentBalance + amount;
-
       await _supabase.from('credit_events').insert({
         'user_id': user.id,
-        'event_type': type, // 'purchase', 'reward', etc.
-        'credits': amount,
-        'balance': newBalance,
+        'reason': type, // 'purchase', 'reward', etc.
+        'delta': amount,
       });
       
       return true;
@@ -86,6 +85,11 @@ class CreditService {
       print('Error adding credits: $e');
       return false;
     }
+  }
+
+  /// Alias für addCredits - für Werbung-Belohnungen
+  Future<bool> addFreeCredits(int amount, String type) async {
+    return await addCredits(amount, type);
   }
 
   /// Ruft das verbleibende wöchentliche Gratis-Kontingent ab
@@ -181,13 +185,10 @@ class CreditService {
         return false; // Nicht genug Guthaben
       }
 
-      final newBalance = currentBalance - amount;
-
       await _supabase.from('credit_events').insert({
         'user_id': user.id,
-        'event_type': type, // 'usage_chat', 'usage_diagnose', etc.
-        'credits': -amount,
-        'balance': newBalance,
+        'reason': type, // 'usage_chat', 'usage_diagnose', etc.
+        'delta': -amount,
       });
       
       return true;

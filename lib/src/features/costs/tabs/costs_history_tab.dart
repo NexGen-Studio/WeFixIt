@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../i18n/app_localizations.dart';
 import '../../../services/costs_service.dart';
 import '../../../services/category_service.dart';
 import '../../../services/costs_export_service.dart';
+import '../../../services/purchase_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../models/vehicle_cost.dart';
 import '../../../models/cost_category.dart';
 
@@ -60,9 +63,442 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
     }
   }
 
-  Future<void> _exportCsv() async {
+  void _showCostsCategoryLockedDialog(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF1A2028),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lock, color: Color(0xFFFFB129)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('dialog.category_locked_title'),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    const Icon(Icons.lock_outline, color: Colors.white54),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('costs.category_locked_message'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('dialog.unlock_with'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 16),
+                _buildCostsUnlockOption(Icons.check_circle, t.tr('subscription.lifetime_unlock'), t.tr('subscription.lifetime_price')),
+                const SizedBox(height: 8),
+                _buildCostsUnlockOption(Icons.check_circle, t.tr('subscription.pro_monthly'), t.tr('subscription.pro_monthly_price')),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white60)),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push('/paywall');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB129),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(t.tr('common.go_to_paywall')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCostsUnlockOption(IconData icon, String title, String price) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFFFFB129), size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Text(
+          price,
+          style: const TextStyle(
+            color: Color(0xFFFFB129), 
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showExportDialog() async {
+    final t = AppLocalizations.of(context);
+    
+    // 1. Pro/Lifetime Status prüfen
+    final isPro = await PurchaseService().isPro();
+    final hasLifetime = await PurchaseService().hasCostsUnlock();
+    final canExportAll = isPro || hasLifetime;
+    
+    if (!mounted) return;
+
+    // Initial selection: Nur Treibstoff für Free, Alle für Pro
+    final fuelCategory = _categories.firstWhere(
+      (c) => c.name.toLowerCase().contains('fuel') || c.name.toLowerCase().contains('treibstoff') || c.name == 'Fuel', // Fallback detection
+      orElse: () => _categories.first,
+    );
+    
+    // Set selected categories based on subscription
+    final Set<String> selectedCategoryIds = canExportAll 
+        ? _categories.map((c) => c.id).toSet()
+        : {fuelCategory.id};
+
+    String exportFormat = 'pdf'; // Default 'pdf' or 'csv'
+    DateTime? startDate;
+    DateTime? endDate;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF151C23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateSheet) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            height: MediaQuery.of(context).size.height * 0.85, // Etwas höher für Datumsfelder
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.tr('costs.export_title'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Format Auswahl
+                Text(
+                  'Format',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: Text(t.tr('costs.export_pdf')),
+                        selected: exportFormat == 'pdf',
+                        onSelected: (selected) => setStateSheet(() => exportFormat = 'pdf'),
+                        selectedColor: const Color(0xFFFFB129),
+                        labelStyle: TextStyle(
+                          color: exportFormat == 'pdf' ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        backgroundColor: const Color(0xFF1A2028),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: Text(t.tr('costs.export_csv_format')),
+                        selected: exportFormat == 'csv',
+                        onSelected: (selected) => setStateSheet(() => exportFormat = 'csv'),
+                        selectedColor: const Color(0xFFFFB129),
+                        labelStyle: TextStyle(
+                          color: exportFormat == 'csv' ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        backgroundColor: const Color(0xFF1A2028),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+
+                // Zeitraum-Filter
+                Text(
+                  t.tr('maintenance.export_timeframe'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFFFFB129),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (date != null) {
+                            setStateSheet(() => startDate = date);
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today, size: 18),
+                        label: Text(
+                          startDate != null
+                              ? DateFormat('dd.MM.yyyy').format(startDate!)
+                              : t.tr('export.from'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A2028),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFFFFB129),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (date != null) {
+                            setStateSheet(() => endDate = DateTime(date.year, date.month, date.day, 23, 59, 59));
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today, size: 18),
+                        label: Text(
+                          endDate != null
+                              ? DateFormat('dd.MM.yyyy').format(endDate!)
+                              : t.tr('export.to'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A2028),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+                
+                // Kategorien Auswahl
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      t.tr('export.categories'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    if (canExportAll)
+                      TextButton(
+                        onPressed: () {
+                          setStateSheet(() {
+                            if (selectedCategoryIds.length == _categories.length) {
+                              selectedCategoryIds.clear();
+                            } else {
+                              selectedCategoryIds.addAll(_categories.map((c) => c.id));
+                            }
+                          });
+                        },
+                        child: Text(
+                          selectedCategoryIds.length == _categories.length ? 'Keine' : 'Alle',
+                          style: const TextStyle(color: Color(0xFFFFB129)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2028),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListView.builder(
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isFuel = category.id == fuelCategory.id;
+                        final isSelected = selectedCategoryIds.contains(category.id);
+                        
+                        // Free User sehen nur Treibstoff als aktiv, andere ausgegraut
+                        final isLocked = !canExportAll && !isFuel;
+                        
+                        return ListTile(
+                          onTap: () {
+                            if (isLocked) {
+                              _showCostsCategoryLockedDialog(context);
+                            } else {
+                              setStateSheet(() {
+                                if (isSelected) {
+                                  selectedCategoryIds.remove(category.id);
+                                } else {
+                                  selectedCategoryIds.add(category.id);
+                                }
+                              });
+                            }
+                          },
+                          leading: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFFFFB129) : Colors.transparent,
+                              border: Border.all(
+                                color: isSelected ? const Color(0xFFFFB129) : Colors.white54,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: isSelected 
+                                ? const Icon(Icons.check, size: 16, color: Colors.black)
+                                : null,
+                          ),
+                          title: Row(
+                            children: [
+                              Icon(
+                                CostCategory.getIconData(category.iconName),
+                                color: isLocked 
+                                    ? Colors.white30 
+                                    : CostCategory.hexToColor(category.colorHex),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  category.getLocalizedName(t),
+                                  style: TextStyle(
+                                    color: isLocked ? Colors.white38 : Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              if (isLocked)
+                                const Icon(Icons.lock, size: 16, color: Color(0xFFFFB129)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                if (!canExportAll)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock, color: Color(0xFFFFB129), size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            t.tr('costs.export_upgrade_message'),
+                            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: selectedCategoryIds.isEmpty 
+                        ? null 
+                        : () {
+                            Navigator.pop(context);
+                            _performExport(exportFormat, selectedCategoryIds.toList(), canExportAll, startDate, endDate);
+                          },
+                    icon: const Icon(Icons.download),
+                    label: Text(t.tr('maintenance.export_download')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFB129),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _performExport(
+    String format, 
+    List<String> categoryIds, 
+    bool isPro, 
+    DateTime? startDate, 
+    DateTime? endDate,
+  ) async {
     final t = AppLocalizations.of(context);
     try {
+      // Filtere Kosten basierend auf Auswahl und Datum
+      final filteredCosts = _costs.where((c) {
+        if (!categoryIds.contains(c.categoryId)) return false;
+        if (startDate != null && c.date.isBefore(startDate)) return false;
+        if (endDate != null && c.date.isAfter(endDate)) return false;
+        return true;
+      }).toList();
+      
       // Erstelle Map für schnellere Kategorie-Lookups
       final categoriesMap = <String, CostCategory>{};
       for (var cat in _categories) {
@@ -70,7 +506,38 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
       }
       
       final exportService = CostsExportService();
-      await exportService.exportToCsv(_costs, categoriesMap);
+      
+      if (format == 'csv') {
+        await exportService.exportToCsv(filteredCosts, categoriesMap, isPro: isPro);
+      } else {
+        // Fahrzeugdaten laden für PDF
+        VehicleData? vehicleData;
+        try {
+          final vehicleMap = await SupabaseService(Supabase.instance.client).fetchPrimaryVehicle();
+          if (vehicleMap != null) {
+            vehicleData = VehicleData(
+              make: vehicleMap['make'] as String?,
+              model: vehicleMap['model'] as String?,
+              year: vehicleMap['year'] as int?,
+              engineCode: vehicleMap['engine_code'] as String?,
+              vin: vehicleMap['vin'] as String?,
+              displacementCc: vehicleMap['displacement_cc'] as int?,
+              displacementL: (vehicleMap['displacement_l'] as num?)?.toDouble(),
+              mileageKm: vehicleMap['mileage_km'] as int?,
+              powerKw: vehicleMap['power_kw'] as int?,
+            );
+          }
+        } catch (e) {
+          print('Fehler beim Laden der Fahrzeugdaten: $e');
+        }
+        
+        await exportService.exportToPdf(
+          filteredCosts, 
+          categoriesMap, 
+          isPro: isPro,
+          vehicleData: vehicleData,
+        );
+      }
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,7 +550,7 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(t.tr('costs.export_error')),
+          content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -153,7 +620,7 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                           color: CostCategory.hexToColor(cat.colorHex),
                         ),
                         const SizedBox(width: 8),
-                        Text(cat.name),
+                        Text(cat.getLocalizedName(t)),
                       ],
                     ),
                   )),
@@ -327,9 +794,9 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.file_download, color: Colors.white70),
-                onPressed: _costs.isEmpty ? null : _exportCsv,
-                tooltip: t.tr('costs.export_csv'),
+                icon: const Icon(Icons.download, color: Colors.white70),
+                onPressed: _costs.isEmpty ? null : _showExportDialog,
+                tooltip: 'Exportieren',
               ),
             ],
           ),

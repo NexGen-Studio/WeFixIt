@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-// Farben laut Vorgaben
-const Color kPrimary = Color(0xFF0384F4);
+// Farben laut Vorgaben - WeFixIt Branding
+const Color kPrimary = Color(0xFFFFB129); // Orange/Gelb Branding
 const Color kAccent = Color(0xFFFFA521);
 const Color kNeutralGray = Color(0xFF4F4F4F);
 

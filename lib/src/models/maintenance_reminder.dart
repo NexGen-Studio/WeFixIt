@@ -58,6 +58,17 @@ extension MaintenanceCategoryExtension on MaintenanceCategory {
         return 'other';
     }
   }
+
+  /// Freie Kategorien für Free-User (ohne Pro Abo)
+  static const List<MaintenanceCategory> freeCategories = [
+    MaintenanceCategory.oilChange,
+    MaintenanceCategory.tireChange,
+    MaintenanceCategory.tuv,
+    MaintenanceCategory.inspection,
+  ];
+
+  /// Prüft ob diese Kategorie für Free-User verfügbar ist
+  bool get isFreeCategory => freeCategories.contains(this);
 }
 
 enum MaintenanceStatus {

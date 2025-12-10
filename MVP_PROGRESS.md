@@ -6,15 +6,18 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 
 ## Wartungen – Vollständiges System (FERTIG)
 
-- Kategorien: Ölwechsel, Reifenwechsel, Bremsen, TÜV/AU, Inspektion, Batterie, Filter, Versicherung, Steuer, Sonstiges.
-- Erweiterte Details: Werkstatt (Name, Adresse), Notizen, Kilometerstand bei Wartung, Kosten (mit Währung).
-- Medien: Foto-Upload (Bilder), Dokumente-Upload (PDF), Supabase Storage-Anbindung.
-- Status & Logik: Geplant, Erledigt, Überfällig; wiederkehrend (3/6/12 Monate) bzw. km-basiert.
-- Intelligente Vorschläge: Ölwechsel/TÜV/Reifen/Inspektion/Batterie basierend auf Historie und Kilometerstand.
-- Benachrichtigungen: Lokale Push-Notifications (Reminder vor Fälligkeit, Overdue-Hinweis), Timezone-Support.
-- Export: CSV und detaillierter PDF/Report (Statistiken, Summen, Filter).
-- UI: Neues Grid-Dashboard mit Stats, Kategorien-Grid, Vorschläge-Sektion und Quick Actions.
-- Routing & Integration: Home-Link, neue Routen, i18n (de/en) für alle Texte.
+- **Kategorien**: Ölwechsel, Reifenwechsel, Bremsen, TÜV/AU, Inspektion, Batterie, Filter, Versicherung, Steuer, Sonstiges.
+- **Monetarisierung**:
+  - **Free User**: 4 Basis-Kategorien frei (Ölwechsel, Reifenwechsel, TÜV/AU, Inspektion) - kein Export
+  - **Pro Abo**: Alle Kategorien + CSV & PDF Export
+- **Erweiterte Details**: Werkstatt (Name, Adresse), Notizen, Kilometerstand bei Wartung, Kosten (mit Währung).
+- **Medien**: Foto-Upload (Bilder), Dokumente-Upload (PDF), Supabase Storage-Anbindung.
+- **Status & Logik**: Geplant, Erledigt, Überfällig; wiederkehrend (3/6/12 Monate) bzw. km-basiert.
+- **Intelligente Vorschläge**: Ölwechsel/TÜV/Reifen/Inspektion/Batterie basierend auf Historie und Kilometerstand.
+- **Benachrichtigungen**: Lokale Push-Notifications (Reminder vor Fälligkeit, Overdue-Hinweis), Timezone-Support.
+- **Export**: CSV und detaillierter PDF/Report (Statistiken, Summen, Filter) - nur Pro Abo.
+- **UI**: Neues Grid-Dashboard mit Stats, Kategorien-Grid, Vorschläge-Sektion und Quick Actions, Schloss-Icons auf gesperrten Kategorien.
+- **Routing & Integration**: Home-Link, neue Routen, i18n (de/en) für alle Texte.
 
 ## Fahrzeugkosten – Vollständiges System (FERTIG ✅)
 
@@ -34,6 +37,14 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **Wartungs-Integration**: Toggle "In Fahrzeugkosten übernehmen" erstellt automatisch Kosteneintrag bei Wartung.
 - **Lokalisierung**: Vollständige i18n (de/en) für alle Texte und Labels.
 - **Future Dates**: Kosten mit zukünftigen Daten können erfasst und in Statistik/Diagramm angezeigt werden.
+
+## 🔒 Bildschirm-Orientierung (MVP: Portrait-Only)
+
+⚠️ **WICHTIG**: Für MVP wurde die App auf **Portrait-Modus** beschränkt.
+- **Android**: `android:screenOrientation="portrait"` in `AndroidManifest.xml`
+- **iOS**: Nur `UIInterfaceOrientationPortrait` in `Info.plist`
+- **Grund**: Dialoge und UI-Layouts sind primär für Portrait optimiert
+- **📌 TODO NACH MVP**: Landscape-Unterstützung implementieren mit responsiven Dialogen und angepassten Layouts für alle Screens
 
 ## Phase 1 – MVP
 
@@ -86,8 +97,8 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Initialisierung im SplashScreen nach Supabase-Init
   - **Produkte definiert:**
     - Credits: 5 (1,29€), 10 (2,49€), 25 (5,49€)
-    - KFZ-Kosten Lifetime: 1,99€ (wefixit_costs_lifetime)
-    - Pro Basic: 4,99€/Monat oder 39,99€/Jahr
+    - KFZ-Kosten Lifetime: 3,99€ (wefixit_costs_lifetime) - NUR Fahrzeugkosten + Export
+    - Pro Basic: 4,99€/Monat oder 39,99€/Jahr - Kosten + Wartungen + KI + Export
     - Pro Familie: 7,99€/Monat oder 59,99€/Jahr (Phase 3)
   - **TODO:** RevenueCat API Keys in Environment-Config hinterlegen
 
@@ -137,11 +148,11 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
     - i18n: Alle neuen Texte in `assets/i18n/de.json` und `assets/i18n/en.json`
 
 - **[KFZ-Kosten Tracker]**
-  - Status: IN UMSETZUNG ✅
+  - Status: ERLEDIGT ✅
   - **Monetarisierungsstrategie:**
     - **Free User**: Nur Treibstoff/Kraftstoff-Kosten kostenlos erfassen
-    - **Pro Basic Abo (4,99€/Monat)**: ALLE Kategorien + 1 Fahrzeug + CSV-Export
-    - **Lifetime Unlock (1,99€)**: Einmalkauf schaltet ALLE KFZ-Kosten Kategorien für 1 Fahrzeug für immer frei (Produkt-ID: wefixit_costs_lifetime)
+    - **Lifetime Unlock (3,99€)**: Einmalkauf schaltet ALLE KFZ-Kosten Kategorien + CSV/PDF Export für Kosten frei (Produkt-ID: wefixit_costs_lifetime)
+    - **Pro Basic Abo (4,99€/Monat)**: ALLE Kategorien (Kosten + Wartungen) + CSV/PDF Export + Unbegrenzte KI + Notifications
   
   - **Phase 1 (MVP) Features - JETZT umgesetzt:**
     - ✅ Standard-Kategorien mit Icons: Treibstoff, Wartung, Versicherung, Steuer, Leasing, Parken/Maut, Reinigung, Zubehör, Vignetten, Einnahmen, Sonstiges
@@ -235,30 +246,625 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Login-Strategie]**: Kostenlose Features (Diagnose, Settings, Sprache) sind ohne Login nutzbar. KI-Features und Profil-Verwaltung benötigen Anmeldung. Freundliche Login-Dialoge/CTAs statt harter Auth-Gate.
 - **[Hintergrund]**: Heller, professioneller Look (#FAFAFA) mit weißen Cards und Borders (statt dunkler automotive-Look); Tesla/Kleinanzeigen-inspiriert.
 
-## Nächste Aufgaben (Kurzfristige Roadmap)
+## 🚀 Launch-Roadmap (MVP → Production)
 
-- **[Dokumentation & Pflege]**
-  - Status: LAUFEND
-  - `MVP_PROGRESS.md` wird bei jeder Änderung am Wartungsmodul aktualisiert (Quelle: `WARTUNGSERINNERUNGEN_SETUP.md`, `WARTUNGEN_FEATURES_ROADMAP.md`).
+### ✅ **PHASE 1: GRUNDLAGEN (100% FERTIG)**
+- ✅ App-Grundstruktur (Flutter + Supabase + Riverpod)
+- ✅ Design-System (Tesla/Kleinanzeigen-Hybrid)
+- ✅ Authentifizierung (Supabase Auth)
+- ✅ Profil-Management (Avatar, Fahrzeug)
+- ✅ Wartungen (vollständiges System mit 10 Kategorien, Export, Notifications)
+- ✅ Fahrzeugkosten (vollständiges System mit Custom-Kategorien, CSV-Export)
+- ✅ Monetarisierung (RevenueCat, Credits, Paywall, Abo-System)
+- ✅ Lokalisierung (de/en)
 
-- **[Profil vervollständigen]**: Formular (Anzeigename, Nickname), Avatar-/Fahrzeugfoto-Upload; Sprache ist in Settings verschoben (de/en) – Supabase-Anbindung vorhanden.
-- **[Home personalisieren]**: „Hallo {Name}!“, kleines Fahrzeugfoto anzeigen.
-- **[Komponenten-Kit]**: Buttons, Cards, Badge, Modal, PaywallCarousel, AdBanner 320x50 & 300x250 (Platzhalter → echte AdMob-IDs später).
-- **[Screens refactoren]**: Bestehende Screens auf neues Komponenten-Kit umstellen (`PrimaryButton`, `SecondaryButton`, `GlassCard`, `Badge`, `showAppModal`, `PaywallCarousel`, `AdBannerPlaceholder` mit Größen).
-  - Schritte:
-    - Profil (`lib/src/features/profile/profile_screen.dart`): `_GlassCard`/`_GlassButton` entfernen und durch `GlassCard`/`PrimaryButton` ersetzen; `AdBannerPlaceholder(size: ...)` gezielt setzen.
-    - Home (`lib/src/features/home/home_screen.dart`): kleines Badge-Beispiel integrieren; `showAppModal()` Beispiel (z. B. Info-Overlay) hinzufügen.
-    - Settings (`lib/src/features/settings/settings_screen.dart`): Cards auf `GlassCard` konsolidieren; Overlays mit `showAppModal()`.
-    - Paywall-Stub: optionalen `paywall_screen.dart` mit `PaywallCarousel` und CTAs (`PrimaryButton`/`SecondaryButton`) anlegen; Route `/paywall` hinter Feature-Flag.
-    - Importe konsolidieren: `widgets/buttons.dart`, `widgets/glass_card.dart`, `widgets/badge.dart`, `widgets/modal.dart`, `widgets/paywall_carousel.dart` verwenden.
-  - Akzeptanzkriterien:
-    - Build läuft ohne Fehler/Warnings; keine privaten Duplikate (`_GlassCard`, `_GlassButton`).
-    - Optische Parität oder Verbesserung im Dark-Design.
-    - Ads: 320x50 im Shell-Footer, 300x250 (MREC) dort, wo vorgesehen.
-    - Modal: Öffnen/Schließen funktioniert (ein Beispiel in Home oder Settings).
-- **[Wartungserinnerungen & Kosten]**: Tabellen + RLS, einfache Screens (Listen/Forms), Home-Anbindung.
-- **[Splash mit Logo]**: Generierungsbefehle ausführen und testen.
-- **[Monetarisierung]**: Paywall + RevenueCat-Flows + Credit-Logik.
+### 🟡 **PHASE 2: KI & DIAGNOSE (60% FERTIG)**
+- ✅ Ask Toni! Chatbot-UI (Credit-Gating, Stub-Antworten)
+- ✅ OBD2-UI-Hooks (Diagnose-Screen vorhanden)
+- ❌ **Echte AI Edge Function** (siehe unten: KI-Daten-Sammel-Engine)
+- ❌ **OBD2 Bluetooth-Integration** (Fehlercodes auslesen/löschen)
+- ❌ **KI-gestützte Fehlercode-Analyse** (OpenAI/Anthropic + RAG)
+
+### 🔴 **PHASE 3: PRODUCTION-READY (0% FERTIG)**
+- ❌ Testing & QA (Unit-Tests, Integration-Tests)
+- ❌ Production API Keys (RevenueCat, AdMob, AI)
+- ❌ Play Store Deployment
+- ❌ iOS Build & App Store
+- ❌ Monitoring & Analytics
+
+---
+
+## 🤖 **NÄCHSTER GROSSER SCHRITT: KI-DATEN-SAMMEL-ENGINE**
+
+### **Was fehlt für vollständige KI-Integration?**
+
+**Problem:** 
+- Ask Toni! zeigt nur Stub-Antworten
+- Keine echte KI-Verarbeitung
+- Keine KFZ-Wissensdatenbank
+
+**Lösung: Automatische KI-Daten-Sammel-Engine** 🚀
+
+### **📋 TODO: KI-Wissensdatenbank aufbauen**
+
+#### **1. Rechtlich sichere Datenquellen (100% legal)**
+
+**🌍 Die KI sammelt ALLE KFZ-Daten aus dem Internet in ALLEN Sprachen:**
+
+**A) OBD2 & Fehlerdiagnose:**
+- ✅ **OBD2-Standardcodes** (P0xxx, C0xxx, B0xxx, U0xxx)
+- ✅ **Herstellerspezifische Codes** (VW, BMW, Mercedes, etc.)
+- ✅ **Diagnosetexte** (Symptome → Ursachen → Lösungen)
+- ✅ **Troubleshooting-Flows** (Startprobleme, Leistungsverlust, etc.)
+- ✅ **Live-Daten-Interpretation** (MAF, O2, MAP, etc.)
+
+**B) Reparatur & Wartung:**
+- ✅ **Reparaturanleitungen** (KI-generiert, nicht kopiert)
+- ✅ **Wartungspläne** (Ölwechsel, Filter, Bremsen, Zahnriemen)
+- ✅ **Schritt-für-Schritt Anleitungen** (mit Bildbeschreibungen)
+- ✅ **Werkzeug-Listen** (was brauche ich für Reparatur X?)
+- ✅ **Kosten-Schätzungen** (durchschnittliche Werkstattpreise)
+
+**C) Bauteile & Theorie:**
+- ✅ **Bauteile-Beschreibungen** (LMM, Lambda, AGR, Turbo, DPF, etc.)
+- ✅ **KFZ-Theorie** (Bremsen, Sensoren, Zündung, Motor, Getriebe)
+- ✅ **Funktionsweise** (Wie funktioniert ein Turbolader?)
+- ✅ **Verschleiß-Symptome** (Wann ist ein Bauteil defekt?)
+- ✅ **Austausch-Intervalle** (Wie oft tauschen?)
+
+**D) Fahrzeug-spezifisch:**
+- ✅ **Modell-spezifische Probleme** (VW Golf 7 TDI, BMW E90, etc.)
+- ✅ **Rückrufaktionen** (Safety Recalls, TSBs)
+- ✅ **Bekannte Schwachstellen** (N47 Motor, DSG Getriebe, etc.)
+- ✅ **Community-Wissen** (häufigste Probleme pro Modell)
+
+**E) Tuning & Modifikationen:**
+- ✅ **Performance-Tuning** (Chiptuning, Auspuff, Luftfilter)
+- ✅ **Styling-Mods** (Fahrwerk, Felgen, Optik)
+- ✅ **ECU-Tuning** (Kennfeldoptimierung, E85, etc.)
+- ✅ **Legal/Illegal** (Was ist TÜV-konform?)
+
+**F) Elektro & Hybrid:**
+- ✅ **Hybrid-Systeme** (Toyota, Honda, etc.)
+- ✅ **Elektroautos** (Tesla, VW ID, etc.)
+- ✅ **Batterie-Pflege** (Lebensdauer, Ladezyklen)
+- ✅ **Hochvolt-Sicherheit** (Warnung: Gefahr!)
+
+**🌐 Multi-Language Harvesting:**
+- ✅ **Primär-Sprachen:** Englisch, Deutsch, Französisch, Spanisch, Italienisch
+- ✅ **Sekundär-Sprachen:** Polnisch, Türkisch, Russisch, Chinesisch
+- ✅ **Automatische Übersetzung:** Alle Sprachen → Deutsch & Englisch
+- ✅ **Original-Quelle behalten:** Für Qualitätskontrolle
+
+#### **2. Was die KI NICHT sammeln darf (illegal)**
+- ❌ Hersteller-Dokumentation (VW, BMW, Mercedes)
+- ❌ Kostenpflichtige Datenbanken (Autodata, Alldata, Haynes)
+- ❌ 1:1 Kopien aus Foren (MotorTalk, BMW-Syndikat)
+- ❌ Kommerzielle Werkstattdaten
+- ❌ Geschützte PDFs / Handbücher
+
+**Aber:** KI darf diese Inhalte **lesen und neu formulieren** → dann legal!
+
+#### **3. Automatische Daten-Sammel-Engine (Backend-Workflow)**
+
+**🌐 Web-Recherche-Workflow (Vollautomatisch):**
+
+Die KI durchsucht **täglich/stündlich** das Internet und baut die Wissensdatenbank auf:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  CRON-Job/Worker startet (z.B. täglich 2:00 Uhr)       │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  KI-Modell mit Web-Search (GPT-4.1 / Claude 3.7)       │
+│  🌍 Durchsucht automatisch in ALLEN Sprachen:          │
+│                                                         │
+│  🇩🇪 Deutsch:                                           │
+│  • "BMW E90 Turbolader defekt Symptome"                │
+│  • "VW Golf 7 TDI DPF regenerieren Anleitung"          │
+│                                                         │
+│  🇬🇧 Englisch:                                          │
+│  • "Common car repair issues for [Thema]"               │
+│  • "OBD2 error code P0420 causes and solutions"        │
+│  • "How to diagnose rough idle"                         │
+│                                                         │
+│  🇫🇷 Französisch:                                       │
+│  • "Problèmes courants moteur diesel"                   │
+│  • "Réparer turbo cassé étape par étape"               │
+│                                                         │
+│  🇪🇸 Spanisch:                                          │
+│  • "Problemas comunes motor gasolina"                   │
+│  • "Diagnosticar fallo turbo"                           │
+│                                                         │
+│  🇮🇹 Italienisch, 🇵🇱 Polnisch, 🇹🇷 Türkisch, etc.   │
+│                                                         │
+│  📚 Quellen: Wikipedia, Open Data, Foren, Blogs,       │
+│             YouTube-Transkripte, freie Artikel          │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  KI filtert & validiert Quellen                         │
+│  ✅ Nur legale, freie Inhalte                          │
+│  ❌ Keine geschützten Datenbanken                       │
+│  ❌ Keine 1:1 Kopien aus Foren                         │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  KI fasst zusammen & formuliert neu                     │
+│  • Symptome                                              │
+│  • Ursachen                                              │
+│  • Schritt-für-Schritt-Diagnosen                        │
+│  • Reparaturverfahren                                    │
+│  • Checklisten                                           │
+│  • Technische Werte                                      │
+│  ✅ Original-Sprache wird erkannt                       │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  🌐 AUTOMATISCHE ÜBERSETZUNG in Ziel-Sprachen          │
+│                                                         │
+│  Original (z.B. Englisch):                              │
+│  "P0420 indicates catalyst efficiency below threshold" │
+│                                                         │
+│  ↓ GPT-4 Translation (hochwertig!)                     │
+│                                                         │
+│  🇩🇪 Deutsch:                                           │
+│  "P0420 zeigt an, dass Katalysator-Effizienz           │
+│   unter Schwellenwert liegt"                            │
+│                                                         │
+│  🇬🇧 Englisch: (Original beibehalten)                  │
+│                                                         │
+│  🇫🇷 Französisch:                                       │
+│  "P0420 indique efficacité catalyseur sous seuil"      │
+│                                                         │
+│  🇪🇸 Spanisch:                                          │
+│  "P0420 indica eficiencia del catalizador bajo         │
+│   el umbral"                                            │
+│                                                         │
+│  💾 Alle Übersetzungen werden gespeichert!             │
+│  • content_de, content_en, content_fr, content_es      │
+│  • original_language Feld für Qualitätskontrolle       │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  Text wird in Chunks geteilt (500-1000 Tokens)         │
+│  • Pro Sprache separate Chunks                          │
+│  • Embeddings werden PER Sprache erzeugt                │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  KI erzeugt Embeddings (OpenAI vector(1536))           │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  Eintrag in Vektor-Datenbank (Supabase pgvector)       │
+│  • automotive_knowledge Tabelle                         │
+│  • error_codes Tabelle (für OBD2-Codes)                │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  Index aktualisiert (ivfflat für schnelle Suche)       │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│  Worker fährt mit nächstem Thema fort                   │
+│  • Nächster Fehlercode                                   │
+│  • Nächstes Bauteil                                      │
+│  • Nächstes Symptom                                      │
+│  • Aktualisierung alter Einträge                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**🎯 Resultat:** 
+- ✅ Vollständig autonome Wissenserweiterung
+- ✅ Täglich neue KFZ-Daten ohne manuelles Zutun
+- ✅ 100% legal & rechtssicher
+- ✅ Datenbank wächst automatisch
+
+#### **4. Themen die automatisiert werden können**
+
+**Fehlerdiagnose:**
+- Leistungsverlust, Ruckeln, Startprobleme
+- Leerlaufschwankungen, hoher Verbrauch
+- Klopfgeräusche, Abgasfarben
+
+**Bauteile:**
+- LMM, Lambda-Sonde, Katalysator, AGR-Ventil
+- Nockenwellensensor, Kurbelwellensensor
+- Turbolader, Einspritzventile, Zündspulen
+
+**Reparatur-Anleitungen (generisch):**
+- Ölwechsel, Bremsen, Auspuff, Kühlsystem
+- Zündanlage, Kraftstoffsystem
+
+**Troubleshooting-Flows:**
+- "Wenn Motor heiß wird → prüfe A, B, C…"
+
+**KFZ-Theorie:**
+- 4-Takt-Motor, Sensoren, Aktoren, Elektrik
+
+#### **5. Technische Umsetzung**
+
+**🔧 KI-Modelle mit Web-Search (Auswahl):**
+
+| Anbieter | Modell | Web-Search | Kosten |
+|----------|--------|------------|--------|
+| **OpenAI** | GPT-4.1 Turbo | ✅ Ja (via Function Calling) | $10/1M Tokens |
+| **Anthropic** | Claude 3.7 Sonnet | ✅ Ja (via Web Search Tool) | $3/1M Tokens |
+| **Perplexity** | pplx-7b-online | ✅ Ja (Spezialisiert) | $0.20/1M Tokens |
+| **FireworksAI** | Mixtral + Brave API | ✅ Ja (via Integration) | $0.50/1M Tokens |
+
+**💡 Empfehlung:** Perplexity AI für Daten-Harvester (günstig + spezialisiert auf Web-Search)
+
+---
+
+**Backend (Supabase Edge Function oder CRON-Worker):**
+
+```typescript
+// Edge Function: auto_knowledge_harvester
+import { OpenAI } from 'openai'
+import { createClient } from '@supabase/supabase-js'
+
+// Worker läuft täglich/stündlich als Supabase pg_cron Job
+export async function harvestKnowledge() {
+  const openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY,
+    // Oder: Perplexity API für Web-Search
+  });
+  
+  const topics = [
+    'P0420 catalyst efficiency below threshold',
+    'P0171 system too lean bank 1',
+    'How to diagnose rough idle',
+    'Common causes turbocharger failure',
+    // ... 1000+ Themen
+  ];
+  
+  for (const topic of topics) {
+    // 1. Web-Search via KI
+    const searchResults = await openai.chat.completions.create({
+      model: 'gpt-4.1-turbo',
+      messages: [{
+        role: 'user',
+        content: `Research automotive repair information about: ${topic}. 
+                  Use only free, legal sources. Summarize in German.`
+      }],
+      tools: [{
+        type: 'web_search', // GPT-4.1 Feature
+      }]
+    });
+    
+    // 2. Strukturierte Daten extrahieren
+    const structuredData = extractStructuredData(searchResults);
+    
+    // 3. Embedding erzeugen
+    const embedding = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: structuredData.content
+    });
+    
+    // 4. In Supabase speichern
+    await supabase.from('automotive_knowledge').insert({
+      topic: topic,
+      category: structuredData.category,
+      title: structuredData.title,
+      content: structuredData.content,
+      keywords: structuredData.keywords,
+      embedding: embedding.data[0].embedding
+    });
+    
+    console.log(`✅ Processed: ${topic}`);
+  }
+}
+
+// Supabase pg_cron Setup:
+// SELECT cron.schedule(
+//   'knowledge-harvester',
+//   '0 2 * * *', -- Täglich 2:00 Uhr
+//   $$ SELECT net.http_post(
+//     url := 'https://your-project.supabase.co/functions/v1/auto_knowledge_harvester',
+//     headers := '{"Authorization": "Bearer YOUR_KEY"}'::jsonb
+//   ) $$
+// );
+```
+
+**Neue Datenbank-Tabellen (Multi-Language Support):**
+```sql
+-- 🌍 KFZ-Wissensdatenbank mit Multi-Language Support
+CREATE TABLE automotive_knowledge (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  -- Metadaten
+  topic TEXT NOT NULL,
+  category TEXT, -- 'fehlercode', 'bauteil', 'reparatur', 'theorie', 'tuning', 'elektro'
+  subcategory TEXT, -- 'motor', 'getriebe', 'bremsen', 'elektrik', etc.
+  vehicle_specific JSONB, -- {brand: 'VW', model: 'Golf 7', year: '2012-2020'}
+  
+  -- Multi-Language Content (alle Sprachen in einem Eintrag!)
+  title_de TEXT,
+  title_en TEXT,
+  title_fr TEXT,
+  title_es TEXT,
+  
+  content_de TEXT,
+  content_en TEXT,
+  content_fr TEXT,
+  content_es TEXT,
+  
+  -- Strukturierte Daten (sprachunabhängig)
+  symptoms TEXT[], -- ['Leistungsverlust', 'Ruckeln', 'Schwarzer Rauch']
+  causes TEXT[], -- ['Defekter Turbolader', 'Verstopfter DPF']
+  diagnostic_steps TEXT[], -- ['Prüfe Luftmassenmesser', 'Teste Ladedruck']
+  repair_steps TEXT[], -- ['Turbolader ausbauen', 'Dichtungen prüfen']
+  tools_required TEXT[], -- ['Drehmomentschlüssel', 'OBD2-Adapter']
+  estimated_cost_eur NUMERIC(10,2), -- Durchschnittliche Kosten
+  difficulty_level TEXT, -- 'easy', 'medium', 'hard', 'expert'
+  
+  -- Vector Embeddings (ein Embedding pro Sprache!)
+  embedding_de vector(1536),
+  embedding_en vector(1536),
+  embedding_fr vector(1536),
+  embedding_es vector(1536),
+  
+  -- Metadaten
+  keywords TEXT[],
+  original_language TEXT, -- 'en', 'de', 'fr', etc. (Qualitätskontrolle)
+  source_urls TEXT[], -- Für Nachvollziehbarkeit
+  quality_score NUMERIC(3,2), -- 0.0 - 1.0 (KI-Bewertung der Qualität)
+  view_count INTEGER DEFAULT 0,
+  helpful_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indizes für schnelle Vector Search (pro Sprache!)
+CREATE INDEX ON automotive_knowledge USING ivfflat (embedding_de vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX ON automotive_knowledge USING ivfflat (embedding_en vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX ON automotive_knowledge USING ivfflat (embedding_fr vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX ON automotive_knowledge USING ivfflat (embedding_es vector_cosine_ops) WITH (lists = 100);
+
+-- Indizes für Text-Suche
+CREATE INDEX idx_knowledge_category ON automotive_knowledge(category);
+CREATE INDEX idx_knowledge_vehicle ON automotive_knowledge USING gin(vehicle_specific);
+
+---
+
+-- 🚗 Fehlercode-Datenbank (OBD2, Hersteller-spezifisch)
+CREATE TABLE error_codes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  -- Code-Identifikation
+  code TEXT UNIQUE NOT NULL, -- P0420, P0171, C1234, B0001, U0100
+  code_type TEXT, -- 'powertrain', 'chassis', 'body', 'network'
+  is_generic BOOLEAN DEFAULT true, -- true = SAE Standard, false = Hersteller-spezifisch
+  manufacturer TEXT[], -- ['VW', 'Audi', 'Seat', 'Skoda'] wenn hersteller-spezifisch
+  
+  -- Multi-Language Beschreibungen
+  description_de TEXT,
+  description_en TEXT,
+  description_fr TEXT,
+  description_es TEXT,
+  
+  -- Technische Details
+  symptoms TEXT[],
+  common_causes TEXT[],
+  diagnostic_steps TEXT[],
+  repair_suggestions TEXT[],
+  affected_components TEXT[], -- ['Catalytic Converter', 'O2 Sensor', 'ECU']
+  
+  -- Schweregrad & Priorität
+  severity TEXT, -- 'low', 'medium', 'high', 'critical'
+  drive_safety BOOLEAN DEFAULT true, -- Kann man weiterfahren?
+  immediate_action_required BOOLEAN DEFAULT false,
+  
+  -- Zusatz-Infos
+  related_codes TEXT[], -- ['P0171', 'P0174'] (oft zusammen auftretend)
+  typical_cost_range_eur TEXT, -- '50-200' oder '500-1500'
+  
+  -- Statistik
+  occurrence_frequency TEXT, -- 'very_common', 'common', 'rare'
+  search_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index für schnelle Code-Suche
+CREATE INDEX idx_error_codes_code ON error_codes(code);
+CREATE INDEX idx_error_codes_manufacturer ON error_codes USING gin(manufacturer);
+
+---
+
+-- 📊 Themen-Warteschlange (für automatisches Harvesting)
+CREATE TABLE knowledge_harvest_queue (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  topic TEXT NOT NULL,
+  search_language TEXT NOT NULL, -- 'de', 'en', 'fr', 'es'
+  category TEXT,
+  priority INTEGER DEFAULT 0, -- höher = wichtiger
+  
+  status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+  attempts INTEGER DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  error_message TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index für Warteschlangen-Verarbeitung
+CREATE INDEX idx_harvest_queue_status ON knowledge_harvest_queue(status, priority DESC);
+```
+
+**AI Edge Function für Ask Toni!:**
+```typescript
+// Edge Function: chat_completion
+// 1. User Nachricht empfangen
+// 2. Vector Search in automotive_knowledge (RAG)
+// 3. Relevante Infos abrufen
+// 4. OpenAI/Anthropic API Call mit Context
+// 5. Antwort zurück an App
+```
+
+#### **6. Integration in die App**
+
+**Was ändert sich:**
+- ✅ Ask Toni! bekommt echte AI-Antworten
+- ✅ KI-Diagnose zeigt relevante Infos zu Fehlercodes
+- ✅ Automatische Vorschläge basierend auf Symptomen
+- ✅ Wissensdatenbank wächst automatisch
+
+**Code-Änderungen minimal:**
+- `ChatbotScreen`: API-Call zu Edge Function (statt Stub)
+- `DiagnoseScreen`: API-Call für Fehlercode-Analyse
+- Alles andere bleibt gleich!
+
+#### **7. Vorteile des Multi-Language-Ansatzes**
+
+**🌍 Für dich als Entwickler:**
+- ❌ Kein manuelles Daten-Sammeln
+- ❌ Keine Wochen in Foren investieren
+- ❌ Kein selber formulieren oder übersetzen
+- ❌ Keine Übersetzungskosten
+- ✅ KI macht alles automatisch & legal
+- ✅ Alle Sprachen parallel verfügbar
+
+**🚀 Für die App:**
+- ✅ **10x mehr Daten** durch Multi-Language Harvesting
+- ✅ Immer aktuelle Infos aus weltweiten Quellen
+- ✅ Wächst automatisch in allen Sprachen
+- ✅ 100% rechtlich sauber (neu formuliert)
+- ✅ Qualität durch KI-Generierung
+- ✅ **Internationale Skalierung** ohne Extra-Aufwand
+
+**📊 Erwartete Datenmenge (nach 1 Monat):**
+
+| Kategorie | Quell-Sprachen | Artikel | Total (übersetzt) |
+|-----------|----------------|---------|-------------------|
+| **OBD2-Fehlercodes** | 🇬🇧 🇩🇪 🇫🇷 | ~2.000 | 8.000 (4 Sprachen) |
+| **Reparaturanleitungen** | 🇬🇧 🇩🇪 🇫🇷 🇪🇸 | ~5.000 | 20.000 |
+| **Bauteile** | 🇬🇧 🇩🇪 | ~1.000 | 4.000 |
+| **Symptom-Diagnosen** | 🇬🇧 🇩🇪 🇫🇷 | ~3.000 | 12.000 |
+| **Fahrzeug-spezifisch** | 🇬🇧 🇩🇪 | ~10.000 | 40.000 |
+| **Tuning & Mods** | 🇬🇧 🇩🇪 | ~2.000 | 8.000 |
+| **Elektro/Hybrid** | 🇬🇧 🇩🇪 | ~1.000 | 4.000 |
+| **TOTAL** | | **~24.000** | **~96.000** |
+
+**💰 Kosten-Kalkulation:**
+
+```
+Phase 1: Initiales Harvesting (1 Monat)
+├─ 24.000 Artikel á 3.000 Tokens = 72M Tokens
+├─ Web-Search + Zusammenfassung (Perplexity): $14.40
+├─ Übersetzung (GPT-4o-mini): $5.76
+├─ Embeddings (text-embedding-3-small): $1.44
+└─ TOTAL: ~$22 für komplette Wissensbasis!
+
+Phase 2: Wartung (monatlich)
+├─ 500 neue Artikel + 1.000 Updates = 1.500 á 3.000 Tokens = 4.5M Tokens
+├─ Web-Search + Updates: $0.90
+├─ Übersetzungen: $0.36
+├─ Embeddings: $0.09
+└─ TOTAL: ~$1.35/Monat laufende Kosten
+
+Phase 3: User-Anfragen (Ask Toni!)
+├─ 10.000 Anfragen/Monat á 3.000 Tokens = 30M Tokens
+├─ Vector Search: kostenlos (Supabase pgvector)
+├─ GPT-4o-mini Response: $6.00/Monat
+└─ TOTAL: ~$6/Monat bei 10.000 User-Anfragen
+
+GESAMT: ~$30 Setup + ~$8/Monat = ~$126/Jahr
+```
+
+**🎯 ROI-Berechnung:**
+
+```
+Kosten pro Jahr: $126
+────────────────────────────
+Nur 13 Pro-Abos (4,99€/Monat) finanzieren
+die KOMPLETTE KI-Infrastruktur! 🎉
+────────────────────────────
+
+Bei 1.000 User:
+• ~10% werden Pro-Abos = 100 Abos
+• Umsatz: 100 x 4,99€ x 12 = 5.988€/Jahr
+• Kosten KI: $126 = ~120€/Jahr
+• PROFIT: 5.868€/Jahr 💰
+```
+
+---
+
+## 📋 **Nächste konkrete Schritte**
+
+### **Option A: KI-Integration zuerst** (Empfohlen! 🎯)
+1. **Edge Function für KI-Chat** implementieren
+2. **Automotive Knowledge Datenbank** aufsetzen
+3. **Auto-Daten-Harvester** erstellen (läuft täglich)
+4. **Ask Toni!** mit echter KI verbinden
+5. **Fehlercode-Analyse** implementieren
+
+**Zeitaufwand:** 2-3 Tage
+**Impact:** HOCH - Hauptfeature wird voll funktionsfähig!
+
+---
+
+### **Option B: OBD2 Bluetooth** (Hardware-abhängig)
+1. **OBD2 Bluetooth Package** integrieren
+2. **Device-Scanning** implementieren
+3. **Fehlercode auslesen/löschen**
+4. **Live-Daten** (optional)
+
+**Zeitaufwand:** 3-4 Tage
+**Impact:** MITTEL - Benötigt OBD2-Adapter zum Testen
+
+---
+
+### **Option C: Testing & Production** (Vor Launch)
+1. **Unit-Tests** schreiben
+2. **Integration-Tests** für Features
+3. **Production Keys** einfügen
+4. **Play Store Listing** vorbereiten
+5. **Beta-Testing**
+
+**Zeitaufwand:** 1 Woche
+**Impact:** KRITISCH für Launch
+
+---
+
+## 🎯 **Meine Empfehlung: STARTE MIT OPTION A (KI-Integration)**
+
+**Warum?**
+1. ✅ **Hauptfeature** wird voll funktionsfähig
+2. ✅ **Keine Hardware** nötig (im Gegensatz zu OBD2)
+3. ✅ **Großer Mehrwert** für User
+4. ✅ **Automatisch wachsende Wissensdatenbank**
+5. ✅ **Kann parallel zu anderem entwickelt werden**
+
+**Reihenfolge:**
+```
+1. KI-Integration (2-3 Tage) ← JETZT!
+2. OBD2 Bluetooth (3-4 Tage)
+3. Testing & QA (1 Woche)
+4. Production Launch 🚀
+```
+
+---
+
+## 🔄 **Was steht in diesem Dokument**
+
+- **[Dokumentation & Pflege]**: LAUFEND
+  - `MVP_PROGRESS.md` wird bei jeder Änderung am Wartungs-/Kosten-/KI-Feature aktualisiert
 
 ## Technische Hinweise/ToDos außerhalb der App
 
@@ -267,6 +873,24 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 - **[Branding]**: Icon/Splash-Konfigurationen/Assets entfernt (Rollback). Neue Umsetzung wird separat geplant.
 - **[Android Studio Run]**: App immer mit Defines starten: `--dart-define-from-file=env.example`.
 - **[RevenueCat/AdMob]**: Produkt-/App-IDs in den nächsten Schritten hinterlegen.
+
+### 🔴 TODO - Production Deployment:
+
+- **[7-Tage-Trial hinzufügen]**: 
+  - Im Google Play Console für das Pro-Abo eine 7-tägige kostenlose Testphase konfigurieren
+  - RevenueCat erkennt und zeigt das Trial automatisch in der Paywall an
+  - Keine Code-Änderungen erforderlich
+  
+- **[Production Keys einfügen]**: 
+  - **RevenueCat**: Test-Keys durch echte Production Keys ersetzen
+    - Android: `test_NZPOpTUffQhhAuREEDZaFvdGWvK` → Production Key
+    - iOS: Placeholder → Production Key
+  - **AdMob**: Test-IDs durch echte Production IDs ersetzen
+    - Android App ID: `ca-app-pub-3940256099942544~3347511713` → Echte ID
+    - Banner Unit ID: `ca-app-pub-3940256099942544/6300978111` → Echte ID  
+    - Rewarded Video Unit ID: `ca-app-pub-3940256099942544/5224354917` → Echte ID
+  - Keys befinden sich in `env.example` und `lib/src/services/purchase_service.dart`
+  - ⚠️ **WICHTIG**: Test-Keys NUR in Development, Production Keys NUR im Release Build verwenden!
 
 ## Heute erledigte Arbeiten (23. Oktober 2025)
 
@@ -471,6 +1095,75 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
 
 ---
 
+## Heute erledigte Arbeiten (4. Dezember 2025)
+
+- **[Wartungs-Monetarisierung - Kategorie-Sperre]** ✅
+  - **4 freie Kategorien für Free-User**: Ölwechsel, Reifenwechsel, TÜV/AU, Inspektion
+  - **Gesperrte Kategorien**: Bremsen, Batterie, Filter und alle weiteren nur mit Pro Abo
+  - **UI-Implementation**:
+    - Schloss-Icon auf gesperrten Kategorien beim Erstellen
+    - Kategorien ausgegraut mit reduzierter Opacity
+    - Paywall-Dialog beim Klick auf gesperrte Kategorie
+  - **Code**:
+    - `MaintenanceCategoryExtension.freeCategories` Liste definiert
+    - `isFreeCategory` Getter für schnelle Checks
+    - `_checkLoginAndSetCategory` mit Pro-Check erweitert
+    - `_CategoryIconTile` mit `isLocked` Parameter
+
+- **[Wartungs-Export nur mit Pro Abo]** ✅
+  - **Lifetime = NUR Fahrzeugkosten**: Wartungs-Export nicht mehr für Lifetime-User
+  - **Export-Dialog angepasst**:
+    - Free-User: Nur 4 Basis-Kategorien auswählbar
+    - Gesperrte Kategorien mit Schloss-Icon im Export-Dialog
+    - Klick auf gesperrte Kategorie öffnet Paywall-Dialog
+  - **Code-Änderungen**:
+    - `hasCostsUnlock()` durch `isPro()` ersetzt in allen Wartungs-Export-Checks
+    - `_performExport` prüft auf gesperrte Kategorien
+    - Export-Dialog UI zeigt Lock-Status korrekt an
+    - "Alle"-Button Toggle angepasst für 4 freie Kategorien
+
+- **[Fahrzeugkosten Export - Schloss-Icon]** ✅
+  - **Feature parity mit Wartungen**: Fahrzeugkosten-Export zeigt jetzt auch Schloss-Icons
+  - **UI-Verbesserungen**:
+    - Gesperrte Kategorien ausgegraut mit Schloss-Icon rechts
+    - Custom `ListTile` statt `CheckboxListTile` für bessere Kontrolle
+    - Paywall-Dialog beim Klick auf gesperrte Kategorie
+  - **Code**: `costs_history_tab.dart` mit `_showCostsCategoryLockedDialog`
+
+- **[Paywall-Anpassungen]** ✅
+  - **Lifetime Preis erhöht**: 1,99€ → 3,99€ (besseres Preis-Leistungs-Verhältnis)
+  - **Feature-Listen aktualisiert**:
+    - **Lifetime**: Nur Fahrzeugkosten + CSV/PDF Export für Kosten
+    - **Pro Abo**: Kosten + Wartungen + Export + KI + Notifications
+  - **Texte überarbeitet**:
+    - Deutsch: Klarere Beschreibung was Lifetime vs. Pro bietet
+    - Englisch: Analog angepasst
+  - **Dialog-Breite**: Wartungs-Paywall-Dialog jetzt 90% Bildschirmbreite (Center + SizedBox Wrapper)
+
+- **[Monetarisierungsstrategie finalisiert]** ✅
+  - **Free-User**:
+    - Fahrzeugkosten: Nur Treibstoff
+    - Wartungen: Nur 4 Basis-Kategorien (Ölwechsel, Reifen, TÜV, Inspektion)
+    - Export: Keine Exports
+  - **Lifetime Unlock (3,99€)**:
+    - Fahrzeugkosten: Alle Kategorien freigeschaltet
+    - Export: CSV & PDF für Fahrzeugkosten
+    - Wartungen: NICHT enthalten (nur Pro)
+  - **Pro Abo (4,99€/Monat)**:
+    - Fahrzeugkosten: Alle Kategorien
+    - Wartungen: Alle Kategorien + Export
+    - Export: CSV & PDF für Kosten & Wartungen
+    - KI: Unbegrenzte Anfragen
+    - Notifications: Intelligente Erinnerungen
+
+- **[Code-Qualität & Bugfixes]** ✅
+  - Syntax-Fehler in `costs_history_tab.dart` behoben (spread operator)
+  - Alle `hasUnlock`/`hasCostsUnlock` durch `isPro` ersetzt in Wartungs-Code
+  - Wartungs-Locked-Dialog Texte aktualisiert (entfernt Lifetime-Option)
+  - i18n-Keys für alle neuen Dialoge und Features hinzugefügt
+
+---
+
 ## 📊 Supabase Datenbank-Schema Übersicht
 
 Diese Tabelle dokumentiert alle Supabase-Tabellen und Views mit ihrer genauen Funktion. **WICHTIG: Bei jeder neuen Tabelle/View diese Liste aktualisieren!**
@@ -496,6 +1189,17 @@ Diese Tabelle dokumentiert alle Supabase-Tabellen und Views mit ihrer genauen Fu
 | **weekly_free_quota** | Tabelle | Wöchentliches Gratis-Kontingent für Free User (z.B. 3 KI-Anfragen/Woche) | `user_id`, `week_start_date`, `consumed` (Integer) |
 
 ### 🔄 Letzte Änderungen:
+- **05.12.2025**:
+  - **Bildschirm-Rotation gesperrt**: App nur im Portrait-Modus (Android + iOS)
+  - **Dialoge verbreitert**: Alle Paywall-Dialoge auf 92% Bildschirmbreite gesetzt
+  - **Wartungskategorien gefiltert**: Automatisch aus Wartungen erstellte Kategorien werden nicht mehr in Fahrzeugkosten-Dropdown angezeigt
+  - **TODO nach MVP**: Landscape-Support mit responsiven Layouts implementieren
+- **04.12.2025**:
+  - **Wartungs-Monetarisierung finalisiert**: 4 freie Kategorien für Free-User, restliche nur mit Pro
+  - **Lifetime Unlock auf 3,99€ erhöht**: NUR für Fahrzeugkosten + Export
+  - **Wartungs-Export nur Pro**: `hasCostsUnlock()` durch `isPro()` ersetzt in allen Checks
+  - **Paywall-Texte aktualisiert**: Klare Abgrenzung Lifetime vs. Pro
+  - **UI-Verbesserungen**: Schloss-Icons, Kategorie-Sperren, 90% Dialog-Breite
 - **25.11.2025**: 
   - `credit_events` und `weekly_free_quota` Tabellen vollständig implementiert und in `CreditService` integriert
   - Monetarisierungs-System aktiviert: RevenueCat + Purchase Service + Paywall

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'features/diagnose/diagnose_screen.dart';
-import 'features/chatbot/chatbot_screen.dart';
+import 'features/ask_toni/ask_toni_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/maintenance/create_reminder_screen.dart';
@@ -128,7 +128,7 @@ GoRouter createRouter() {
           GoRoute(
             path: '/asktoni',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: ChatbotScreen(),
+              child: AskToniScreen(),
             ),
           ),
           GoRoute(
@@ -223,7 +223,9 @@ class _RootScaffoldState extends State<_RootScaffold> {
         child: Column(
           children: [
             Expanded(child: widget.child),
-            const AdBannerWidget(),
+            // AdBanner ausblenden bei Ask Toni
+            if (!location.startsWith('/asktoni'))
+              const AdBannerWidget(),
           ],
         ),
       ),

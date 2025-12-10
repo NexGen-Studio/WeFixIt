@@ -20,18 +20,17 @@ class PurchaseService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // TODO: Keys aus Environment oder Config laden
-    // Hier bitte die echten Keys eintragen!
+    // RevenueCat Keys aus Environment Variables laden (SICHER!)
     String apiKey = ''; 
     if (Platform.isAndroid) {
-      apiKey = 'goog_...'; // Android Key
+      apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_ANDROID', defaultValue: '');
     } else if (Platform.isIOS) {
-      apiKey = 'appl_...'; // iOS Key
+      apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_IOS', defaultValue: '');
     }
 
-    if (apiKey.isEmpty || apiKey.startsWith('goog_...')) {
-      print('⚠️ RevenueCat API Key nicht konfiguriert.');
-      return;
+    if (apiKey.isEmpty) {
+      print('⚠️ RevenueCat API Key nicht konfiguriert. Bitte setze REVENUECAT_PUBLIC_SDK_KEY_ANDROID/IOS in den Dart-Defines.');
+      return; // Abbrechen wenn kein Key vorhanden
     }
 
     await Purchases.setLogLevel(LogLevel.debug);
@@ -50,10 +49,23 @@ class PurchaseService {
 
   /// Aktuelle Offerings abrufen
   Future<Offerings?> getOfferings() async {
+    if (!_isInitialized) {
+      print('⚠️ RevenueCat not initialized - skipping offerings');
+      // Versuchen wir nochmal zu initialisieren? Besser nicht automatisch.
+      return null;
+    }
+    
     try {
-      return await Purchases.getOfferings();
+      print('🔍 Calling Purchases.getOfferings()...');
+      final offerings = await Purchases.getOfferings();
+      print('✅ Purchases.getOfferings() success: ${offerings.all.length} offerings found');
+      return offerings;
     } on PlatformException catch (e) {
-      print('Error fetching offerings: $e');
+      print('❌ Error fetching offerings (PlatformException): ${e.message} | Code: ${e.code} | Details: ${e.details}');
+      // Silent fail if RevenueCat not configured (optional feature)
+      return null;
+    } catch (e) {
+      print('❌ Error fetching offerings (General): $e');
       return null;
     }
   }

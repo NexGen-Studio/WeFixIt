@@ -15,6 +15,7 @@ import '../../services/maintenance_service.dart';
 import '../../services/maintenance_notification_service.dart';
 import '../../services/costs_service.dart';
 import '../../services/category_service.dart';
+import '../../services/purchase_service.dart';
 import '../../models/vehicle_cost.dart';
 import '../../models/cost_category.dart';
 
@@ -286,7 +287,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            dayInterval == 1 ? 'Jeden' : 'Alle',
+                            dayInterval == 1 ? t.tr('repeat.every_singular_day') : t.tr('repeat.every_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(width: 8),
@@ -318,7 +319,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            dayInterval == 1 ? 'Tag' : 'Tage',
+                            dayInterval == 1 ? t.tr('repeat.day_singular') : t.tr('repeat.day_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ],
@@ -334,7 +335,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            weekInterval == 1 ? 'Jede' : 'Alle',
+                            weekInterval == 1 ? t.tr('repeat.every_singular_week') : t.tr('repeat.every_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(width: 8),
@@ -366,7 +367,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            weekInterval == 1 ? 'Woche' : 'Wochen',
+                            weekInterval == 1 ? t.tr('repeat.week_singular') : t.tr('repeat.week_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ],
@@ -415,7 +416,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            monthInterval == 1 ? 'Jeder' : 'Alle',
+                            monthInterval == 1 ? t.tr('repeat.every_singular_month') : t.tr('repeat.every_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(width: 8),
@@ -447,7 +448,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            monthInterval == 1 ? 'Monat' : 'Monate',
+                            monthInterval == 1 ? t.tr('repeat.month_singular') : t.tr('repeat.month_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ],
@@ -463,19 +464,19 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 _buildSecondaryButton(
-                                  'Am ${(_dueDate ?? DateTime.now()).day}. wiederholen',
+                                  t.tr('repeat.on_day_repeat').replaceAll('{day}', '${(_dueDate ?? DateTime.now()).day}'),
                                   isSelected: monthlyByDate && !monthlyByNth && !monthlyByCustomDays,
                                   onTap: () => setSt(() { monthlyByDate = true; monthlyByNth = false; monthlyByCustomDays = false; }),
                                 ),
                                 const SizedBox(height: 8),
                                 _buildSecondaryButton(
-                                  'Am ${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}. ${DateFormat.EEEE(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())} wiederholen',
+                                  t.tr('repeat.on_nth_weekday_repeat').replaceAll('{nth}', '${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}').replaceAll('{weekday}', DateFormat.EEEE(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())),
                                   isSelected: monthlyByNth && !monthlyByDate && !monthlyByCustomDays,
                                   onTap: () => setSt(() { monthlyByNth = true; monthlyByDate = false; monthlyByCustomDays = false; }),
                                 ),
                                 const SizedBox(height: 8),
                                 _buildSecondaryButton(
-                                  'Datumsangaben für die Wiederholung auswählen',
+                                  t.tr('repeat.select_dates'),
                                   isSelected: monthlyByCustomDays,
                                   onTap: () => setSt(() { monthlyByDate = false; monthlyByNth = false; monthlyByCustomDays = true; }),
                                 ),
@@ -531,7 +532,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            yearInterval == 1 ? 'Jedes' : 'Alle',
+                            yearInterval == 1 ? t.tr('repeat.every_singular_year') : t.tr('repeat.every_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(width: 8),
@@ -563,7 +564,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            yearInterval == 1 ? 'Jahr' : 'Jahre',
+                            yearInterval == 1 ? t.tr('repeat.year_singular') : t.tr('repeat.year_plural'),
                             style: const TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ],
@@ -579,13 +580,13 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildSecondaryButton(
-                        'Im ${DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))}. am ${(_dueDate ?? DateTime.now()).day}. wiederholen',
+                        t.tr('repeat.in_month_on_day').replaceAll('{month}', DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))).replaceAll('{day}', '${(_dueDate ?? DateTime.now()).day}'),
                         isSelected: !yearlyByNth,
                         onTap: () => setSt(() => yearlyByNth = false),
                         ),
                         const SizedBox(height: 8),
                         _buildSecondaryButton(
-                        'Am ${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}. ${DateFormat.E(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())} im ${DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))} wiederholen',
+                        t.tr('repeat.on_nth_weekday_in_month').replaceAll('{nth}', '${(((_dueDate ?? DateTime.now()).day - 1) ~/ 7) + 1}').replaceAll('{weekday}', DateFormat.E(Localizations.localeOf(context).languageCode).format(_dueDate ?? DateTime.now())).replaceAll('{month}', DateFormat.MMM(Localizations.localeOf(context).languageCode).format(DateTime(2000, selectedMonth, 1))),
                         isSelected: yearlyByNth,
                         onTap: () => setSt(() => yearlyByNth = true),
                         ),
@@ -805,62 +806,84 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     final interval = _repeatRule!['interval'] ?? 1;
     
     if (type == 'daily') {
-      return interval == 1 ? 'Jeden Tag' : 'Alle $interval Tage';
+      return interval == 1 ? t.tr('repeat.every_day') : t.tr('recurrence.every_x_days').replaceAll('{count}', '$interval');
     } else if (type == 'weekly') {
       final days = _repeatRule!['days'] as List?;
-      final weekdayNamesShort = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+      final weekdayNamesShort = [
+        t.tr('weekday.monday'), t.tr('weekday.tuesday'), t.tr('weekday.wednesday'),
+        t.tr('weekday.thursday'), t.tr('weekday.friday'), t.tr('weekday.saturday'), t.tr('weekday.sunday')
+      ];
       if (days != null && days.isNotEmpty) {
         if (interval == 1 && days.length == 1) {
-          // Bei einem Tag und Intervall 1: "Jeden Mittwoch"
           final weekdayName = weekdayNamesShort[(days[0] as int) - 1];
-          return 'Jeden $weekdayName';
+          return '${t.tr('repeat.every_day').replaceAll(t.tr('repeat.day'), weekdayName)}';
         } else {
-          // Bei mehreren Tagen oder Intervall > 1: "Alle X Wochen am Mo, Mi"
-          final weekdayNamesAbbr = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+          final weekdayNamesAbbr = [
+            t.tr('weekday.monday_short'), t.tr('weekday.tuesday_short'), t.tr('weekday.wednesday_short'),
+            t.tr('weekday.thursday_short'), t.tr('weekday.friday_short'), t.tr('weekday.saturday_short'), t.tr('weekday.sunday_short')
+          ];
           final dayLabels = days.map((d) => weekdayNamesAbbr[(d as int) - 1]).join(', ');
-          return interval == 1 ? 'Jede Woche am $dayLabels' : 'Alle $interval Wochen am $dayLabels';
+          return interval == 1 
+            ? t.tr('recurrence.every_week_on').replaceAll('{days}', dayLabels)
+            : t.tr('recurrence.every_x_weeks_on').replaceAll('{count}', '$interval').replaceAll('{days}', dayLabels);
         }
       }
-      return interval == 1 ? 'Jede Woche' : 'Alle $interval Wochen';
+      return interval == 1 ? t.tr('repeat.every_week') : t.tr('recurrence.every_x_weeks_on').replaceAll('{count}', '$interval').replaceAll(' am {days}', '');
     } else if (type == 'monthly') {
       final daysOfMonth = _repeatRule!['daysOfMonth'] as List?;
       if (daysOfMonth != null && daysOfMonth.isNotEmpty) {
         final dayList = daysOfMonth.map((d) => '$d.').join(', ');
-        return interval == 1 ? 'Jeden Monat am $dayList' : 'Alle $interval Monate am $dayList';
+        return interval == 1 
+          ? t.tr('recurrence.every_month_on_day').replaceAll('{day}', dayList)
+          : t.tr('recurrence.every_x_months_on_day').replaceAll('{count}', '$interval').replaceAll('{day}', dayList);
       }
       final dayOfMonth = _repeatRule!['dayOfMonth'];
       final nth = _repeatRule!['nth'];
       if (dayOfMonth != null) {
-        return interval == 1 ? 'Jeden Monat am $dayOfMonth.' : 'Alle $interval Monate am $dayOfMonth.';
+        return interval == 1 
+          ? t.tr('recurrence.every_month_on_day').replaceAll('{day}', '$dayOfMonth')
+          : t.tr('recurrence.every_x_months_on_day').replaceAll('{count}', '$interval').replaceAll('{day}', '$dayOfMonth');
       } else if (nth != null) {
         final weekday = _repeatRule!['weekday'];
-        final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+        final weekdayNames = [
+          t.tr('weekday.monday'), t.tr('weekday.tuesday'), t.tr('weekday.wednesday'),
+          t.tr('weekday.thursday'), t.tr('weekday.friday'), t.tr('weekday.saturday'), t.tr('weekday.sunday')
+        ];
         final weekdayName = weekdayNames[(weekday as int) - 1];
-        return interval == 1 ? 'Jeden Monat am $nth. $weekdayName' : 'Alle $interval Monate am $nth. $weekdayName';
+        return interval == 1 
+          ? t.tr('recurrence.every_month_on_weekday').replaceAll('{nth}', '$nth').replaceAll('{weekday}', weekdayName)
+          : t.tr('recurrence.every_x_months_on_weekday').replaceAll('{count}', '$interval').replaceAll('{nth}', '$nth').replaceAll('{weekday}', weekdayName);
       }
-      return interval == 1 ? 'Jeden Monat' : 'Alle $interval Monate';
+      return interval == 1 ? t.tr('repeat.every_month') : t.tr('recurrence.every_x_months_on_day').replaceAll('{count}', '$interval').replaceAll(' am {day}.', '');
     } else if (type == 'yearly') {
       final month = _repeatRule!['month'];
       final day = _repeatRule!['day'];
       final nth = _repeatRule!['nth'];
-      final monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-      final monthName = month != null ? monthNames[(month as int) - 1] : '';
+      final monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      final monthName = month != null ? t.tr('month_short.${monthKeys[(month as int) - 1]}') : '';
       
       if (day != null) {
-        // Am X. Tag im Monat
-        return interval == 1 ? 'Jedes Jahr am $day. $monthName' : 'Alle $interval Jahre am $day. $monthName';
+        return interval == 1 
+          ? t.tr('recurrence.every_year_on').replaceAll('{day}', '$day').replaceAll('{month}', monthName)
+          : t.tr('recurrence.every_x_years_on').replaceAll('{count}', '$interval').replaceAll('{day}', '$day').replaceAll('{month}', monthName);
       } else if (nth != null) {
-        // Am X. Wochentag im Monat
         final weekday = _repeatRule!['weekday'];
-        final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+        final weekdayNames = [
+          t.tr('weekday.monday'), t.tr('weekday.tuesday'), t.tr('weekday.wednesday'),
+          t.tr('weekday.thursday'), t.tr('weekday.friday'), t.tr('weekday.saturday'), t.tr('weekday.sunday')
+        ];
         final weekdayName = weekdayNames[(weekday as int) - 1];
-        return interval == 1 ? 'Jedes Jahr am $nth. $weekdayName im $monthName' : 'Alle $interval Jahre am $nth. $weekdayName im $monthName';
+        return interval == 1 
+          ? t.tr('recurrence.every_year_on_weekday').replaceAll('{nth}', '$nth').replaceAll('{weekday}', weekdayName).replaceAll('{month}', monthName)
+          : t.tr('recurrence.every_x_years_on_weekday').replaceAll('{count}', '$interval').replaceAll('{nth}', '$nth').replaceAll('{weekday}', weekdayName).replaceAll('{month}', monthName);
       }
       
-      return interval == 1 ? 'Jedes Jahr im $monthName' : 'Alle $interval Jahre im $monthName';
+      return interval == 1 
+        ? t.tr('recurrence.every_year_on').replaceAll(' {day}.', '').replaceAll('{month}', monthName)
+        : t.tr('recurrence.every_x_years_on').replaceAll('{count}', '$interval').replaceAll(' {day}.', '').replaceAll('{month}', monthName);
     }
     
-    return 'Alle ${_repeatEveryDays} Tage';
+    return t.tr('recurrence.every_x_days').replaceAll('{count}', '$_repeatEveryDays');
   }
 
   Future<void> _pickDueDate() async {
@@ -1362,12 +1385,14 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     // Bessere Formatierung für große Werte
     if (minutes >= 1440) {
       final days = (minutes / 1440).round();
-      return '$days Tag${days > 1 ? 'e' : ''} vorher';
+      return days == 1 
+        ? t.tr('reminder.day_before').replaceAll('{count}', '1')
+        : t.tr('reminder.days_before').replaceAll('{count}', '$days');
     } else if (minutes >= 60) {
       final hours = (minutes / 60).round();
-      return '$hours Std. vorher';
+      return t.tr('reminder.hours_before').replaceAll('{count}', '$hours');
     }
-    return '$minutes Min. vorher';
+    return t.tr('reminder.minutes_before').replaceAll('{count}', '$minutes');
   }
   
   String _notificationLabel(AppLocalizations t) {
@@ -1434,9 +1459,9 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             constraints: const BoxConstraints(),
                           ),
                           const SizedBox(width: 12),
-                          const Text(
-                            'Erinnerung',
-                            style: TextStyle(
+                          Text(
+                            t.tr('maintenance.reminder_notification_title'),
+                            style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 20,
                               color: Colors.white,
@@ -1456,9 +1481,9 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Ein',
-                              style: TextStyle(
+                            Text(
+                              t.tr('maintenance.reminder_notification_enabled'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500,
@@ -1590,8 +1615,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                             builder: (_) {
                               final mult = customUnit == 0 ? 1 : customUnit == 1 ? 60 : 1440;
                               final minutes = customAmount * mult;
-                              final unitText = customUnit == 0 ? 'Min' : customUnit == 1 ? 'Std' : 'Tag';
-                              final label = '$customAmount $unitText. vorher';
+                              final label = _offsetLabel(t, minutes);
                               
                               return CheckboxListTile(
                                 value: tempSelected.contains(minutes),
@@ -1658,10 +1682,10 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                                         dynamicCustomValue = customAmount * mult;
                                       });
                                     },
-                                    children: const [
-                                      Center(child: Text('Minute', style: TextStyle(color: Colors.white, fontSize: 18))),
-                                      Center(child: Text('Stunde', style: TextStyle(color: Colors.white, fontSize: 18))),
-                                      Center(child: Text('Tag', style: TextStyle(color: Colors.white, fontSize: 18))),
+                                    children: [
+                                      Center(child: Text(t.tr('maintenance.reminder_custom_minute'), style: const TextStyle(color: Colors.white, fontSize: 18))),
+                                      Center(child: Text(t.tr('maintenance.reminder_custom_hour'), style: const TextStyle(color: Colors.white, fontSize: 18))),
+                                      Center(child: Text(t.tr('maintenance.reminder_custom_day'), style: const TextStyle(color: Colors.white, fontSize: 18))),
                                     ],
                                   ),
                                 ),
@@ -2351,7 +2375,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                           final url = snapshot.data;
                           return ListTile(
                             leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                            title: Text('PDF Dokument', style: const TextStyle(color: Colors.white)),
+                            title: Text(t.tr('maintenance.pdf_document'), style: const TextStyle(color: Colors.white)),
                             trailing: IconButton(
                               icon: const Icon(Icons.close, color: Colors.white70),
                               onPressed: () => setState(() => _documentKeys.remove(key)),
@@ -2443,6 +2467,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
             label: label,
             color: const Color(0xFF90A4AE),
             selected: isSelected,
+            isLocked: false, // Custom-Categories sind immer frei
             onTap: () => setState(() {
               _customSelectedLabel = label;
               _category = MaintenanceCategory.other;
@@ -2454,6 +2479,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
       
       // Normale Kategorie hinzufügen
       final isSelected = _category == cat && (cat != MaintenanceCategory.other || _customSelectedLabel == null);
+      final isLocked = !cat.isFreeCategory; // Nicht in freien 4 Kategorien
       final icon = _getCategoryIcon(cat);
       final color = _getCategoryColor(cat);
       allTiles.add(_CategoryIconTile(
@@ -2461,6 +2487,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
         label: _getCategoryLabel(t, cat),
         color: color,
         selected: isSelected,
+        isLocked: isLocked,
         onTap: () {
           _checkLoginAndSetCategory(cat);
         },
@@ -2576,10 +2603,17 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     }
   }
 
-  void _checkLoginAndSetCategory(MaintenanceCategory cat) {
+  Future<void> _checkLoginAndSetCategory(MaintenanceCategory cat) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       _checkLogin();
+      return;
+    }
+    
+    // Paywall-Check: Nur 4 Kategorien für Free-User
+    final isPro = await PurchaseService().isPro();
+    if (!isPro && !cat.isFreeCategory) {
+      _showCategoryLockedDialog();
       return;
     }
     
@@ -2596,6 +2630,96 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
         _showCustomCategoryInput = false;
       }
     });
+  }
+
+  void _showCategoryLockedDialog() {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF1A2028),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lock, color: Color(0xFFFFB129)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('dialog.category_locked_title'),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    const Icon(Icons.lock_outline, color: Colors.white54),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('maintenance.lock_message'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('dialog.unlock_with'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Color(0xFFFFB129), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('subscription.pro_monthly'),
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                    Text(
+                      '4,99 € / ${t.tr('repeat.month')}',
+                      style: TextStyle(
+                        color: Color(0xFFFFB129),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white60)),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push('/paywall');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB129),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(t.tr('common.go_to_paywall')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -2693,6 +2817,7 @@ class _CategoryIconTile extends StatelessWidget {
   final String label;
   final Color color;
   final bool selected;
+  final bool isLocked;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -2702,6 +2827,7 @@ class _CategoryIconTile extends StatelessWidget {
     required this.label,
     required this.color,
     required this.selected,
+    this.isLocked = false,
     required this.onTap,
     this.onLongPress,
   });
@@ -2715,15 +2841,40 @@ class _CategoryIconTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            height: 56,
-            width: 56,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: selected ? color : Colors.transparent, width: 1.5),
-            ),
-            child: Icon(icon, color: color, size: 24),
+          Stack(
+            children: [
+              Container(
+                height: 56,
+                width: 56,
+                decoration: BoxDecoration(
+                  color: (isLocked ? color.withOpacity(0.05) : color.withOpacity(0.1)),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: selected ? color : Colors.transparent, width: 1.5),
+                ),
+                child: Icon(
+                  icon, 
+                  color: isLocked ? color.withOpacity(0.3) : color, 
+                  size: 24
+                ),
+              ),
+              if (isLocked)
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB129),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.lock,
+                      size: 12,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(
@@ -2731,7 +2882,11 @@ class _CategoryIconTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             maxLines: 2,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
+            style: TextStyle(
+              fontSize: 10, 
+              fontWeight: FontWeight.w600, 
+              color: isLocked ? Colors.white38 : Colors.white
+            ),
           ),
         ],
       ),

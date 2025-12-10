@@ -4,6 +4,32 @@ import 'package:go_router/go_router.dart';
 import '../../services/purchase_service.dart';
 import '../../i18n/app_localizations.dart';
 
+/// Kategorie für Tabs
+enum PaywallCategory { credits, lifetime, subscription }
+
+/// UI-Model für Paywall Items
+class PaywallItem {
+  final String id;
+  final String title;
+  final String subtitle;
+  final String price;
+  final bool isLifetime;
+  final bool isCredit;
+  final bool isBestValue;
+  final Package? realPackage;
+
+  PaywallItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.price,
+    required this.isLifetime,
+    required this.isCredit,
+    this.isBestValue = false,
+    this.realPackage,
+  });
+}
+
 class PaywallScreen extends StatefulWidget {
   const PaywallScreen({Key? key}) : super(key: key);
 
@@ -12,9 +38,16 @@ class PaywallScreen extends StatefulWidget {
 }
 
 class _PaywallScreenState extends State<PaywallScreen> {
-  Offerings? _offerings;
   bool _isLoading = true;
-  int _selectedTabIndex = 1; // 0=Credits, 1=Lifetime, 2=Pro
+  bool _isTestMode = false;
+  
+  // Aktive Kategorie (Standard: Subscription)
+  PaywallCategory _selectedCategory = PaywallCategory.subscription;
+
+  // Listen für die Kategorien
+  List<PaywallItem> _subscriptionItems = [];
+  List<PaywallItem> _lifetimeItems = [];
+  List<PaywallItem> _creditItems = [];
 
   @override
   void initState() {
@@ -24,25 +57,188 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _loadOfferings() async {
     setState(() => _isLoading = true);
-    final offerings = await PurchaseService().getOfferings();
+    
+    try {
+      final offerings = await PurchaseService().getOfferings();
+      
+      if (offerings != null && (offerings.current != null || offerings.all.isNotEmpty)) {
+        final t = AppLocalizations.of(context);
+        _categorizeRealPackages(offerings, t);
+        _isTestMode = false;
+      } else {
+        print('⚠️ Keine RevenueCat Daten gefunden. Aktiviere Design-Modus.');
+        final t = AppLocalizations.of(context);
+        _loadMockData(t);
+        _isTestMode = true;
+      }
+    } catch (e) {
+      print('❌ Fehler: $e. Aktiviere Design-Modus.');
+      final t = AppLocalizations.of(context);
+      _loadMockData(t);
+      _isTestMode = true;
+    }
+
     if (mounted) {
-      setState(() {
-        _offerings = offerings;
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _buy(Package package) async {
+  void _loadMockData(AppLocalizations t) {
+    _subscriptionItems = [
+      PaywallItem(
+        id: 'pro_monthly',
+        title: t.tr('paywall.pro_subscription_monthly'),
+        subtitle: t.tr('paywall.per_month'),
+        price: '4,99 €',
+        isLifetime: false,
+        isCredit: false,
+      ),
+      PaywallItem(
+        id: 'pro_yearly',
+        title: t.tr('paywall.pro_subscription_yearly'),
+        subtitle: t.tr('paywall.per_year'),
+        price: '39,99 €',
+        isLifetime: false,
+        isCredit: false,
+        isBestValue: true,
+      ),
+    ];
+
+    _lifetimeItems = [
+      PaywallItem(
+        id: 'lifetime',
+        title: 'Lifetime Unlock',
+        subtitle: t.tr('paywall.one_time'),
+        price: '19,99 €',
+        isLifetime: true,
+        isCredit: false,
+        isBestValue: true,
+      ),
+    ];
+
+    _creditItems = [
+      PaywallItem(
+        id: 'credits_10',
+        title: '10 Credits',
+        subtitle: t.tr('paywall.one_time'),
+        price: '2,49 €',
+        isLifetime: false,
+        isCredit: true,
+      ),
+      PaywallItem(
+        id: 'credits_25',
+        title: '25 Credits',
+        subtitle: t.tr('paywall.one_time'),
+        price: '5,49 €',
+        isLifetime: false,
+        isCredit: true,
+        isBestValue: true,
+      ),
+    ];
+  }
+
+  void _categorizeRealPackages(Offerings offerings, AppLocalizations t) {
+    final allPackages = <Package>[];
+    final uniqueIds = <String>{};
+
+    void addUnique(List<Package> packages) {
+      for (var p in packages) {
+        if (!uniqueIds.contains(p.identifier)) {
+          uniqueIds.add(p.identifier);
+          allPackages.add(p);
+        }
+      }
+    }
+
+    if (offerings.current != null) addUnique(offerings.current!.availablePackages);
+    for (var o in offerings.all.values) {
+      if (o.identifier == offerings.current?.identifier) continue;
+      addUnique(o.availablePackages);
+    }
+
+    _subscriptionItems.clear();
+    _lifetimeItems.clear();
+    _creditItems.clear();
+
+    for (var package in allPackages) {
+      final id = package.storeProduct.identifier.toLowerCase();
+      final pkgId = package.identifier.toLowerCase();
+      
+      bool isCredit = id.contains('credit') || pkgId.contains('credit') || id.contains('token');
+      bool isLifetime = id.contains('lifetime');
+      
+      // Titel Bereinigung
+      String title = package.storeProduct.title;
+      if (title.contains('(')) title = title.substring(0, title.indexOf('(')).trim();
+      
+      String subtitle = "";
+      if (isCredit || isLifetime) {
+        subtitle = t.tr('paywall.one_time'); // Lokalisiert
+      } else {
+         if (package.packageType == PackageType.monthly) subtitle = t.tr('paywall.per_month');
+         else if (package.packageType == PackageType.annual) subtitle = t.tr('paywall.per_year');
+      }
+
+      final item = PaywallItem(
+        id: package.identifier,
+        title: title,
+        subtitle: subtitle,
+        price: package.storeProduct.priceString,
+        isLifetime: isLifetime,
+        isCredit: isCredit,
+        realPackage: package,
+        isBestValue: package.packageType == PackageType.annual || isLifetime,
+      );
+
+      if (isCredit) {
+        _creditItems.add(item);
+      } else if (isLifetime) {
+        _lifetimeItems.add(item);
+      } else {
+        _subscriptionItems.add(item);
+      }
+    }
+    
+    // Sortieren
+    _sortItems(_subscriptionItems);
+    _sortItems(_creditItems);
+    // Lifetime meist nur eins, aber sicherheitshalber
+    _sortItems(_lifetimeItems);
+  }
+
+  void _sortItems(List<PaywallItem> items) {
+    items.sort((a, b) {
+      if (a.realPackage != null && b.realPackage != null) {
+        return a.realPackage!.storeProduct.price.compareTo(b.realPackage!.storeProduct.price);
+      }
+      return 0; // Mock Data Order beibehalten
+    });
+  }
+
+  Future<void> _onItemTapped(PaywallItem item) async {
+    if (_isTestMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎨 Design-Modus: Kauf erfolgreich simuliert!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      if (mounted) context.pop();
+      return;
+    }
+
+    if (item.realPackage == null) return;
+
     setState(() => _isLoading = true);
-    final success = await PurchaseService().purchasePackage(package);
+    final success = await PurchaseService().purchasePackage(item.realPackage!);
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Kauf erfolgreich! Danke für deinen Support.'),
-            backgroundColor: Color(0xFF4CAF50),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('paywall.purchase_success')),
+            backgroundColor: const Color(0xFF4CAF50),
           ),
         );
         context.pop();
@@ -50,13 +246,22 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
-  Future<void> _restore() async {
+  Future<void> _restorePurchases() async {
+    if (_isTestMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('🎨 Design-Modus: Restore simuliert')),
+      );
+      return;
+    }
+    
     setState(() => _isLoading = true);
     await PurchaseService().restorePurchases();
     if (mounted) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Käufe wiederhergestellt.')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('paywall.restore_success')),
+        ),
       );
     }
   }
@@ -65,166 +270,204 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     
+    // Dynamischer Text basierend auf Kategorie
+    String descriptionText = "";
+    List<PaywallItem> currentItems = [];
+
+    switch (_selectedCategory) {
+      case PaywallCategory.credits:
+        descriptionText = t.tr('paywall.desc_credits');
+        currentItems = _creditItems;
+        break;
+      case PaywallCategory.lifetime:
+        descriptionText = t.tr('paywall.desc_lifetime');
+        currentItems = _lifetimeItems;
+        break;
+      case PaywallCategory.subscription:
+        descriptionText = t.tr('paywall.desc_subscription');
+        currentItems = _subscriptionItems;
+        break;
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFF0F141A),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF1A2028),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black87),
+          icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => context.pop(),
         ),
         title: Text(
           t.tr('paywall.title'),
-          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w800),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFB129)))
-        : SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Section
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
+        actions: [
+          if (_isTestMode)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFFFB129), Color(0xFFFF8C00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange),
                   ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.workspace_premium, size: 64, color: Colors.white),
-                      SizedBox(height: 16),
-                      Text(
-                        t.tr('paywall.headline'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        t.tr('paywall.subheadline'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
-                      ),
-                    ],
+                  child: const Text(
+                    "DESIGN MODE",
+                    style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
-                
-                // Benefits Section
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.tr('paywall.benefits_title'),
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.black87),
-                      ),
-                      SizedBox(height: 16),
-                      _buildBenefit(Icons.attach_money, t.tr('paywall.benefit_costs')),
-                      _buildBenefit(Icons.smart_toy, t.tr('paywall.benefit_ai')),
-                      _buildBenefit(Icons.notifications_active, t.tr('paywall.benefit_notifications')),
-                      _buildBenefit(Icons.file_download, t.tr('paywall.benefit_export')),
-                      _buildBenefit(Icons.no_accounts, t.tr('paywall.benefit_no_ads')),
-                    ],
-                  ),
-                ),
-                
-                // Tab Selector
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      _buildTab(0, 'Credits'),
-                      SizedBox(width: 12),
-                      _buildTab(1, 'Lifetime'),
-                      SizedBox(width: 12),
-                      _buildTab(2, 'Pro Abo'),
-                    ],
-                  ),
-                ),
-                
-                SizedBox(height: 20),
-                
-                // Pricing Cards
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: _buildPricingSection(),
-                ),
-                
-                SizedBox(height: 24),
-                
-                // Restore Button
-                Center(
-                  child: TextButton(
-                    onPressed: _restore,
-                    child: Text(
-                      t.tr('paywall.restore_purchases'),
-                      style: TextStyle(color: Colors.black54, decoration: TextDecoration.underline),
-                    ),
-                  ),
-                ),
-                
-                SizedBox(height: 40),
-              ],
-            ),
-          ),
-    );
-  }
-
-  Widget _buildBenefit(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Color(0xFFFFB129).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: Color(0xFFFFB129), size: 20),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 16, color: Colors.black87),
-            ),
-          ),
+              ),
+            )
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFB129)))
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 24),
+                        
+                        // App Logo & Headline
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFFB129).withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.asset('assets/images/app_icon.png', fit: BoxFit.cover),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Dynamische Headline
+                        Text(
+                          t.tr('paywall.headline'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            descriptionText, // DYNAMISCHER TEXT
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Features List (Passt sich evtl. an? Hier statisch, da Feature Set meist gleich ist)
+                        // Du könntest hier auch switch(_selectedCategory) machen für unterschiedliche Features
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _buildFeaturesList(t),
+                        ),
+                        
+                        const SizedBox(height: 32),
+                        
+                        // TABS (Toggle Buttons)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A2028),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            ),
+                            child: Row(
+                              children: [
+                                _buildTabButton(t, PaywallCategory.credits, t.tr('paywall.tab_credits')),
+                                _buildTabButton(t, PaywallCategory.lifetime, t.tr('paywall.tab_lifetime')),
+                                _buildTabButton(t, PaywallCategory.subscription, t.tr('paywall.tab_subscription')),
+                              ],
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 24),
+                        
+                        // PACKAGE LIST (Dynamisch)
+                        if (currentItems.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              children: currentItems
+                                  .map((item) => _buildPackageCard(item))
+                                  .toList(),
+                            ),
+                          )
+                        else
+                           Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              t.tr('paywall.no_offers'),
+                              style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            ),
+                          ),
+                          
+                        const SizedBox(height: 16),
+                        
+                        // Restore Link
+                        TextButton(
+                          onPressed: _restorePurchases,
+                          child: Text(
+                            t.tr('paywall.restore'),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              decoration: TextDecoration.underline,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildTab(int index, String label) {
-    final isSelected = _selectedTabIndex == index;
+  Widget _buildTabButton(AppLocalizations t, PaywallCategory category, String label) {
+    final bool isSelected = _selectedCategory == category;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTabIndex = index),
+        onTap: () => setState(() => _selectedCategory = category),
         child: Container(
-          padding: EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? Color(0xFFFFB129) : Colors.white,
+            color: isSelected ? const Color(0xFFFFB129) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? Color(0xFFFFB129) : Colors.grey.shade300),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isSelected ? Colors.black : Colors.black54,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              color: isSelected ? Colors.black : Colors.white.withOpacity(0.7),
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               fontSize: 14,
             ),
           ),
@@ -233,167 +476,169 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
-  Widget _buildPricingSection() {
-    if (_offerings?.current == null || _offerings!.current!.availablePackages.isEmpty) {
-      return Center(
-        child: Text(
-          'Keine Angebote verfügbar',
-          style: TextStyle(color: Colors.black54),
-        ),
-      );
-    }
-
-    final packages = _offerings!.current!.availablePackages;
-    
-    switch (_selectedTabIndex) {
-      case 0: // Credits
-        final creditPackages = packages.where((p) => 
-          p.storeProduct.identifier.contains('credit') || 
-          p.storeProduct.identifier.contains('5') ||
-          p.storeProduct.identifier.contains('10') ||
-          p.storeProduct.identifier.contains('25')
-        ).toList();
-        return Column(
-          children: creditPackages.map((p) => _buildPackageCard(
-            p,
-            '${p.storeProduct.title}',
-            'Für KI-Diagnosen & Chatbot',
-          )).toList(),
-        );
+  Widget _buildFeaturesList(AppLocalizations t) {
+    return Column(
+      children: [
+        // Credits: Nur KI-Features
+        if (_selectedCategory == PaywallCategory.credits) ...[
+          _buildFeature(Icons.bolt, t.tr('paywall.feature_ai_instant')),
+          _buildFeature(Icons.chat, t.tr('paywall.feature_ai_credits')),
+        ],
         
-      case 1: // Lifetime
-        final lifetimePackage = packages.firstWhere(
-          (p) => p.storeProduct.identifier.contains('lifetime'),
-          orElse: () => packages.first,
-        );
-        return _buildPackageCard(
-          lifetimePackage,
-          '🚗 Lifetime Unlock',
-          'Alle KFZ-Kosten Kategorien für immer freischalten',
-          isRecommended: true,
-        );
+        // Lifetime: NUR KFZ-Kosten + Export
+        if (_selectedCategory == PaywallCategory.lifetime) ...[
+          _buildFeature(Icons.attach_money, t.tr('paywall.feature_costs')),
+          _buildFeature(Icons.file_download, t.tr('paywall.feature_export_costs')),
+        ],
         
-      case 2: // Pro
-        final proPackages = packages.where((p) => 
-          p.storeProduct.identifier.contains('pro') ||
-          p.storeProduct.identifier.contains('premium')
-        ).toList();
-        return Column(
-          children: proPackages.map((p) => _buildPackageCard(
-            p,
-            '⭐ ${p.storeProduct.title}',
-            'Alle Features + unbegrenzte KI-Nutzung',
-          )).toList(),
-        );
-        
-      default:
-        return SizedBox.shrink();
-    }
+        // Pro Abo: Kosten + Wartungen + KI + Export
+        if (_selectedCategory == PaywallCategory.subscription) ...[
+          _buildFeature(Icons.attach_money, t.tr('paywall.feature_costs')),
+          _buildFeature(Icons.build, t.tr('paywall.feature_maintenance_all')),
+          _buildFeature(Icons.file_download, t.tr('paywall.feature_export_all')),
+          _buildFeature(Icons.chat, t.tr('paywall.feature_ai_unlimited')),
+          _buildFeature(Icons.notifications_active, t.tr('paywall.feature_reminders')),
+        ],
+      ],
+    );
   }
 
-  Widget _buildPackageCard(Package package, String title, String subtitle, {bool isRecommended = false}) {
-    final product = package.storeProduct;
-    
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isRecommended ? Color(0xFFFFB129) : Colors.grey.shade300,
-          width: isRecommended ? 2 : 1,
-        ),
-        boxShadow: [
-          if (isRecommended)
-            BoxShadow(
-              color: Color(0xFFFFB129).withOpacity(0.2),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-        ],
-      ),
-      child: Column(
+  Widget _buildFeature(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12), // Kompakter
+      child: Row(
         children: [
-          if (isRecommended)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Color(0xFFFFB129),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-              ),
-              child: Text(
-                '⭐ EMPFOHLEN',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
-              ),
+          Container(
+            width: 40, // Kleiner
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A2028),
+              borderRadius: BorderRadius.circular(10),
             ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-                SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.priceString,
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFFFB129),
-                          ),
-                        ),
-                        if (product.subscriptionPeriod != null)
-                          Text(
-                            'pro ${product.subscriptionPeriod}',
-                            style: TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () => _buy(package),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFFB129),
-                        foregroundColor: Colors.black,
-                        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Kaufen',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            child: Icon(icon, color: const Color(0xFFFFB129), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPackageCard(PaywallItem item) {
+    final t = AppLocalizations.of(context);
+    final bool isHighlight = item.isBestValue;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2028),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHighlight ? const Color(0xFFFFB129) : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _onItemTapped(item),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16), // Kompakteres Padding
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (item.subtitle.isNotEmpty)
+                            Text(
+                              item.subtitle,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 13,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          item.price,
+                          style: const TextStyle(
+                            color: Color(0xFFFFB129),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB129),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            t.tr('paywall.buy_button'),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (isHighlight)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFB129),
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(14),
+                        bottomLeft: Radius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      t.tr('paywall.best_value'),
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

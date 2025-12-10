@@ -421,7 +421,7 @@ class _CostsChartsTabState extends State<CostsChartsTab> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            cat.name,
+                            cat.getLocalizedName(t),
                             style: const TextStyle(color: Colors.white),
                           ),
                         ],

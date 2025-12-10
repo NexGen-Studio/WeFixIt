@@ -786,7 +786,7 @@ class _CostsStatisticsTabState extends State<CostsStatisticsTab> {
                       Expanded(
                         flex: 3,
                         child: Text(
-                          category.name,
+                          category.getLocalizedName(t),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,

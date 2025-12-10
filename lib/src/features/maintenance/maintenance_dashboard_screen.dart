@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,8 @@ import '../../services/costs_service.dart';
 import '../../services/admob_service.dart';
 import '../../services/maintenance_counter_service.dart';
 import '../../services/purchase_service.dart';
+import '../../services/maintenance_export_service.dart';
+import '../../services/supabase_service.dart';
 import 'extended_create_reminder_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,6 +33,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   List<MaintenanceReminder> _reminders = [];
   bool _loading = true;
   bool _isPro = false;
+  bool _adJustDismissed = false;
 
   @override
   void initState() {
@@ -91,11 +95,11 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
       (_reminders
             .where((r) {
               if (r.isCompleted) return false;
-              if (r.dueDate == null) return true; // mileage-based zählt als anstehend
-              // Anstehend = nur zukünftige Termine (noch nicht überfällig)
+              if (r.dueDate == null) return false;
               final now = DateTime.now();
               final due = r.dueDate!.toLocal();
-              return due.isAfter(now);
+              // Anstehend = noch nicht überfällig
+              return due.isAfter(now) || due.isAtSameMomentAs(now);
             })
             .toList()
           ..sort((a, b) {
@@ -106,7 +110,6 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
             if (bd == null) return -1;
             return ad.compareTo(bd);
           }))
-          .take(3)
           .toList();
 
   List<MaintenanceReminder> get _overdueReminders =>
@@ -143,6 +146,614 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     return grouped;
   }
 
+  // Alle verfügbaren Kategorien
+  final List<MaintenanceCategory> _allCategories = MaintenanceCategory.values;
+
+  void _showLockedFeatureDialog() {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF1A2028),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lock, color: Color(0xFFFFB129)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('dialog.category_locked_title'),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    const Icon(Icons.lock_outline, color: Colors.white54),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('maintenance.lock_message'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('dialog.unlock_with'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 16),
+                _buildUnlockOption(Icons.check_circle, t.tr('subscription.pro_monthly'), t.tr('subscription.pro_monthly_price')),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white60)),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push('/paywall');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB129),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(t.tr('common.go_to_paywall')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnlockOption(IconData icon, String title, String price) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFFFFB129), size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Text(
+          price,
+          style: const TextStyle(
+            color: Color(0xFFFFB129), 
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Zeigt den Export-Dialog an
+  Future<void> _showExportDialog() async {
+    final t = AppLocalizations.of(context);
+    
+    // Prüfe ob Wartungen vorhanden sind
+    if (_reminders.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.tr('maintenance.no_upcoming')),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Pro Status abrufen
+    // Nur Pro-User dürfen Wartungen exportieren (Lifetime NUR für Kosten)
+    final isPro = await _purchaseService.isPro();
+    
+    String exportFormat = 'pdf';
+    DateTime? startDate;
+    DateTime? endDate;
+    
+    // Alle Kategorien ausgewählt (nur verfügbare wenn Free)
+    final Set<MaintenanceCategory> selectedCategories = {};
+    if (isPro) {
+      selectedCategories.addAll(_allCategories);
+    } else {
+      // Free User: Nur 4 Basis-Kategorien
+      selectedCategories.addAll(MaintenanceCategoryExtension.freeCategories);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF151C23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateSheet) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            height: MediaQuery.of(context).size.height * 0.85,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.tr('maintenance.export_dialog_title'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Format Auswahl
+                Text(
+                  t.tr('maintenance.export_format'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: Text(t.tr('maintenance.export_pdf_document')),
+                        selected: exportFormat == 'pdf',
+                        onSelected: (selected) => setStateSheet(() => exportFormat = 'pdf'),
+                        selectedColor: const Color(0xFFFFB129),
+                        labelStyle: TextStyle(
+                          color: exportFormat == 'pdf' ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        backgroundColor: const Color(0xFF1A2028),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: Text(t.tr('maintenance.export_csv_table')),
+                        selected: exportFormat == 'csv',
+                        onSelected: (selected) => setStateSheet(() => exportFormat = 'csv'),
+                        selectedColor: const Color(0xFFFFB129),
+                        labelStyle: TextStyle(
+                          color: exportFormat == 'csv' ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        backgroundColor: const Color(0xFF1A2028),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 24),
+
+                // Zeitraum-Filter
+                Text(
+                  t.tr('maintenance.export_timeframe'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFFFFB129),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (date != null) {
+                            setStateSheet(() => startDate = date);
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today, size: 18),
+                        label: Text(
+                          startDate != null
+                              ? DateFormat('dd.MM.yyyy').format(startDate!)
+                              : t.tr('export.from'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A2028),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFFFFB129),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (date != null) {
+                            setStateSheet(() => endDate = DateTime(date.year, date.month, date.day, 23, 59, 59));
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today, size: 18),
+                        label: Text(
+                          endDate != null
+                              ? DateFormat('dd.MM.yyyy').format(endDate!)
+                              : t.tr('export.to'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1A2028),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+                
+                // Kategorien Auswahl
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      t.tr('export.categories'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setStateSheet(() {
+                          if (isPro) {
+                            if (selectedCategories.length == _allCategories.length) {
+                              selectedCategories.clear();
+                            } else {
+                              selectedCategories.addAll(_allCategories);
+                            }
+                          } else {
+                            // Free User: Toggle nur verfügbare 4 Kategorien
+                            if (selectedCategories.length == MaintenanceCategoryExtension.freeCategories.length) {
+                              selectedCategories.clear();
+                            } else {
+                              selectedCategories.addAll(MaintenanceCategoryExtension.freeCategories);
+                            }
+                          }
+                        });
+                      },
+                      child: Text(
+                        selectedCategories.isNotEmpty ? t.tr('maintenance.export_none_selected') : t.tr('maintenance.filter_all'),
+                        style: const TextStyle(color: Color(0xFFFFB129)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2028),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListView.builder(
+                      itemCount: _allCategories.length,
+                      itemBuilder: (context, index) {
+                        final category = _allCategories[index];
+                        final isSelected = selectedCategories.contains(category);
+                        
+                        // Lock-Check: Nur 4 Kategorien sind free
+                        final isLocked = !isPro && !category.isFreeCategory;
+                        
+                        return ListTile(
+                          onTap: () {
+                            if (isLocked) {
+                              // Zeige Paywall-Overlay
+                              _showLockedFeatureDialog();
+                            } else {
+                              setStateSheet(() {
+                                if (isSelected) {
+                                  selectedCategories.remove(category);
+                                } else {
+                                  selectedCategories.add(category);
+                                }
+                              });
+                            }
+                          },
+                          leading: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFFFFB129) : Colors.transparent,
+                              border: Border.all(
+                                color: isSelected ? const Color(0xFFFFB129) : Colors.white54,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: isSelected 
+                                ? const Icon(Icons.check, size: 16, color: Colors.black)
+                                : null,
+                          ),
+                          title: Row(
+                            children: [
+                              Text(
+                                _getCategoryDisplayName(category, t),
+                                style: TextStyle(
+                                  color: isLocked ? Colors.white38 : Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              if (isLocked) ...[
+                                const Spacer(),
+                                const Icon(Icons.lock, size: 16, color: Color(0xFFFFB129)),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                
+                // Upgrade-Hinweis für Free-User
+                if (!isPro) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.lock_outline, size: 14, color: Color(0xFFFFB129)),
+                      const SizedBox(width: 8),
+                      Text(
+                        t.tr('maintenance.export_upgrade_message'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+                
+                const SizedBox(height: 24),
+                
+                // Buttons
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: selectedCategories.isEmpty
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _performExport(
+                              exportFormat,
+                              selectedCategories.toList(),
+                              startDate,
+                              endDate,
+                            );
+                          },
+                    icon: const Icon(Icons.download),
+                    label: Text(t.tr('maintenance.export_download')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFB129),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      disabledBackgroundColor: Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Führt den Export aus
+  Future<void> _performExport(
+    String format,
+    List<MaintenanceCategory> categories,
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    final t = AppLocalizations.of(context);
+    try {
+      // Paywall-Check für PDF-Export: Nur Pro-User
+      if (format == 'pdf') {
+        final isPro = await _purchaseService.isPro();
+        
+        // Free-User dürfen nur 4 Basis-Kategorien exportieren
+        if (!isPro) {
+          final hasLockedCategory = categories.any((cat) => !cat.isFreeCategory);
+          if (hasLockedCategory) {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (context) => Dialog(
+                backgroundColor: const Color(0xFF1A2028),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pro Feature',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          t.tr('maintenance.lock_message'),
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(t.tr('common.cancel'), style: const TextStyle(color: Colors.white60)),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                context.push('/paywall');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFFB129),
+                                foregroundColor: Colors.black,
+                              ),
+                              child: const Text('Upgrade'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+            return;
+          }
+        }
+      }
+      
+      // Filtere Wartungen basierend auf Auswahl und Datum
+      final filteredReminders = _reminders.where((r) {
+        // Kategorie-Filter
+        if (r.category != null && !categories.contains(r.category)) return false;
+        // Datum-Filter
+        final reminderDate = r.dueDate ?? r.createdAt;
+        if (startDate != null && reminderDate.isBefore(startDate)) return false;
+        if (endDate != null && reminderDate.isAfter(endDate)) return false;
+        return true;
+      }).toList();
+
+      if (filteredReminders.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t.tr('maintenance.no_data_in_timeframe')),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Fahrzeugdaten laden
+      VehicleData? vehicleData;
+      try {
+        final vehicleMap = await SupabaseService(Supabase.instance.client).fetchPrimaryVehicle();
+        if (vehicleMap != null) {
+          vehicleData = VehicleData(
+            make: vehicleMap['make'] as String?,
+            model: vehicleMap['model'] as String?,
+            year: vehicleMap['year'] as int?,
+            engineCode: vehicleMap['engine_code'] as String?,
+            vin: vehicleMap['vin'] as String?,
+            displacementCc: vehicleMap['displacement_cc'] as int?,
+            displacementL: (vehicleMap['displacement_l'] as num?)?.toDouble(),
+            mileageKm: vehicleMap['mileage_km'] as int?,
+            powerKw: vehicleMap['power_kw'] as int?,
+          );
+        }
+      } catch (e) {
+        print('Fehler beim Laden der Fahrzeugdaten: $e');
+      }
+
+      final exportService = MaintenanceExportService();
+
+      if (format == 'csv') {
+        await exportService.exportToCsv(
+          filteredReminders,
+          vehicleData: vehicleData,
+        );
+      } else {
+        await exportService.exportToPdf(
+          filteredReminders,
+          vehicleData: vehicleData,
+        );
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export erfolgreich!'),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Gibt den Anzeigenamen für eine Kategorie zurück
+  String _getCategoryDisplayName(MaintenanceCategory category, AppLocalizations t) {
+    switch (category) {
+      case MaintenanceCategory.oilChange:
+        return t.tr('maintenance.category_oil_change');
+      case MaintenanceCategory.tireChange:
+        return t.tr('maintenance.category_tire_change');
+      case MaintenanceCategory.brakes:
+        return t.tr('maintenance.category_brakes');
+      case MaintenanceCategory.tuv:
+        return t.tr('maintenance.category_tuv');
+      case MaintenanceCategory.inspection:
+        return t.tr('maintenance.category_inspection');
+      case MaintenanceCategory.battery:
+        return t.tr('maintenance.category_battery');
+      case MaintenanceCategory.filter:
+        return t.tr('maintenance.category_filter');
+      case MaintenanceCategory.insurance:
+        return t.tr('maintenance.category_insurance');
+      case MaintenanceCategory.tax:
+        return t.tr('maintenance.category_tax');
+      case MaintenanceCategory.other:
+        return t.tr('maintenance.category_other');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -164,6 +775,13 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
             fontSize: 20,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white),
+            onPressed: _showExportDialog,
+            tooltip: 'Export',
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -255,6 +873,8 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                     if (_overdueReminders.isNotEmpty) ...[
                       Row(
                         children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
                           Text(
                             t.maintenance_overdue_badge,
                             style: const TextStyle(
@@ -263,29 +883,31 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                               color: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE53935),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${_overdueReminders.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      ..._overdueReminders.map((r) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ReminderCard(reminder: r, onRefresh: _loadReminders),
-                          )),
+                      // Scrollbarer Container - max 3 Einträge sichtbar
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: _overdueReminders.length > 3 ? 300 : _overdueReminders.length * 100.0,
+                        ),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: _overdueReminders.length > 3 
+                              ? const AlwaysScrollableScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                          itemCount: _overdueReminders.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ReminderCard(
+                                reminder: _overdueReminders[index],
+                                onRefresh: _loadReminders,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                       const SizedBox(height: 24),
                     ],
 
@@ -310,10 +932,28 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                         ),
                       )
                     else
-                      ..._upcomingReminders.map((r) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ReminderCard(reminder: r, onRefresh: _loadReminders),
-                          )),
+                      // Scrollbarer Container - max 3 Einträge sichtbar
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: _upcomingReminders.length > 3 ? 300 : _upcomingReminders.length * 100.0,
+                        ),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: _upcomingReminders.length > 3 
+                              ? const AlwaysScrollableScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                          itemCount: _upcomingReminders.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ReminderCard(
+                                reminder: _upcomingReminders[index],
+                                onRefresh: _loadReminders,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
 
@@ -328,35 +968,53 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Gruppiert nach Monat/Jahr
-                      ..._completedGroupedByMonth.entries.expand((entry) => [
-                        // Monats-Header
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            children: [
-                              const Expanded(child: Divider(color: Color(0xFF22303D), thickness: 1)),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  entry.key,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                      // Scrollbarer Container für erledigte Wartungen - max 3 sichtbar
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: _recentCompleted.length > 3 ? 300 : _recentCompleted.length * 100.0,
+                        ),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: _recentCompleted.length > 3 
+                              ? const AlwaysScrollableScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                          itemCount: _completedGroupedByMonth.length,
+                          itemBuilder: (context, monthIndex) {
+                            final entry = _completedGroupedByMonth.entries.elementAt(monthIndex);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Monats-Header
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      const Expanded(child: Divider(color: Color(0xFF22303D), thickness: 1)),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        child: Text(
+                                          entry.key,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const Expanded(child: Divider(color: Color(0xFF22303D), thickness: 1)),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              const Expanded(child: Divider(color: Color(0xFF22303D), thickness: 1)),
-                            ],
-                          ),
+                                // Wartungen des Monats
+                                ...entry.value.map((r) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _ReminderCard(reminder: r, compact: true, onRefresh: _loadReminders),
+                                )),
+                              ],
+                            );
+                          },
                         ),
-                        // Wartungen des Monats
-                        ...entry.value.map((r) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _ReminderCard(reminder: r, compact: true, onRefresh: _loadReminders),
-                        )),
-                      ]),
+                      ),
                     ],
 
                     const SizedBox(height: 80),
@@ -443,59 +1101,49 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
 
   /// Watch ad and proceed to maintenance creation
   Future<void> _watchAdAndProceed() async {
-    final t = AppLocalizations.of(context);
+    print('\n🟢 [UI] ========== _watchAdAndProceed STARTED ==========');
     
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Center(
-        child: Card(
-          color: const Color(0xFF1A1F26),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(color: Color(0xFFFFB129)),
-                const SizedBox(height: 16),
-                Text(
-                  t.tr('maintenance.ad_loading'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    // CRITICAL: Save router BEFORE showing ad
+    // The widget may be disposed during the AdActivity
+    final router = GoRouter.of(context);
 
-    // Show rewarded ad
-    final success = await _adMobService.showRewardedAd();
-    
-    // Close loading dialog
-    if (mounted) Navigator.pop(context);
+    // Prepare ad (wait if needed) - NO LOADING DIALOG!
+    print('🟢 [UI] Calling prepareRewardedAd()...');
+    final ready = await _adMobService.prepareRewardedAd();
+    print('✅ [UI] prepareRewardedAd() returned: $ready');
 
-    if (success) {
-      // User watched ad, reset counter
-      await _counterService.resetCount();
-      // Proceed to maintenance creation
-      if (mounted) {
-        await context.push('/maintenance/create');
-        await _counterService.incrementCount();
-        _loadReminders();
+    if (ready) {
+      print('🟢 [UI] Ad is ready, calling showRewardedAd()...');
+      final success = await _adMobService.showRewardedAd();
+      print('✅ [UI] showRewardedAd() RETURNED with success: $success');
+      
+      if (success) {
+        print('🟢 [UI] User earned reward, resetting counter...');
+        // User watched ad, reset counter
+        await _counterService.resetCount();
+        print('✅ [UI] Counter reset');
+        
+        // Navigate using saved GoRouter
+        print('🟢 [UI] Navigating to /maintenance/create with saved router...');
+        try {
+          await router.push('/maintenance/create');
+          print('✅ [UI] Navigation completed!');
+          
+          print('🟢 [UI] Incrementing counter...');
+          await _counterService.incrementCount();
+          print('🟢 [UI] Reloading reminders...');
+          _loadReminders();
+          print('✅ [UI] All done!');
+        } catch (e) {
+          print('❌ [UI] Navigation error: $e');
+        }
+      } else {
+        print('⚠️ [UI] Ad did not succeed (user cancelled or error)');
       }
     } else {
-      // Ad failed to show
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(t.tr('maintenance.ad_failed')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      print('❌ [UI] Ad NOT ready!');
     }
+    print('🟢 [UI] ========== _watchAdAndProceed FINISHED ==========\n');
   }
 }
 
@@ -571,12 +1219,14 @@ class _QuickActionCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
+          height: 130, // Feste Höhe für gleichmäßige Cards
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             border: Border.all(color: const Color(0xFF22303D)),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
@@ -590,6 +1240,8 @@ class _QuickActionCard extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -917,7 +1569,7 @@ class _ReminderCard extends StatelessWidget {
                     _buildDetailRow(
                       icon: Icons.repeat,
                       label: t.maintenance_repeat_title,
-                      value: _getRecurrenceLabel(reminder),
+                      value: _getRecurrenceLabel(reminder, t),
                     ),
                   
                   // Erinnerung
@@ -1254,38 +1906,38 @@ class _ReminderCard extends StatelessWidget {
     );
   }
   
-  String _getRecurrenceLabel(MaintenanceReminder reminder) {
+  String _getRecurrenceLabel(MaintenanceReminder reminder, AppLocalizations t) {
     if (reminder.recurrenceRule != null) {
       final rule = reminder.recurrenceRule!;
       final type = rule['type'];
       final interval = rule['interval'] ?? 1;
       
       if (type == 'daily') {
-        return interval == 1 ? 'Jeden Tag' : 'Alle $interval Tage';
+        return interval == 1 ? t.tr('repeat.every_day') : t.tr('recurrence.every_x_days').replaceAll('{count}', '$interval');
       } else if (type == 'weekly') {
-        return interval == 1 ? 'Jede Woche' : 'Alle $interval Wochen';
+        return interval == 1 ? t.tr('repeat.every_week') : t.tr('recurrence.every_x_weeks_on').replaceAll('{count}', '$interval').replaceAll(' am {days}', '');
       } else if (type == 'monthly') {
-        return interval == 1 ? 'Jeden Monat' : 'Alle $interval Monate';
+        return interval == 1 ? t.tr('repeat.every_month') : t.tr('recurrence.every_x_months_on_day').replaceAll('{count}', '$interval').replaceAll(' am {day}.', '');
       } else if (type == 'yearly') {
-        return interval == 1 ? 'Jedes Jahr' : 'Alle $interval Jahre';
+        return interval == 1 ? t.tr('repeat.every_year') : t.tr('recurrence.every_x_years_on').replaceAll('{count}', '$interval').replaceAll(' {day}.', '').replaceAll(' {month}', '');
       }
     }
     final days = reminder.recurrenceIntervalDays!;
-    if (days == 1) return 'Jeden Tag';
-    if (days == 7) return 'Jede Woche';
-    if (days == 30) return 'Jeden Monat';
-    if (days == 365) return 'Jedes Jahr';
-    return 'Alle $days Tage';
+    if (days == 1) return t.tr('repeat.every_day');
+    if (days == 7) return t.tr('repeat.every_week');
+    if (days == 30) return t.tr('repeat.every_month');
+    if (days == 365) return t.tr('repeat.every_year');
+    return t.tr('recurrence.every_x_days').replaceAll('{count}', '$days');
   }
   
   String _getNotificationLabel(MaintenanceReminder reminder, AppLocalizations t) {
     final minutes = reminder.notifyOffsetMinutes;
     if (minutes < 60) {
-      return '$minutes Min. vorher';
+      return t.tr('reminder.minutes_before').replaceAll('{count}', '$minutes');
     } else if (minutes < 1440) {
-      return '${minutes ~/ 60} Std. vorher';
+      return t.tr('reminder.hours_before').replaceAll('{count}', '${minutes ~/ 60}');
     } else {
-      return '${minutes ~/ 1440} Tag(e) vorher';
+      return t.tr('reminder.days_before').replaceAll('{count}', '${minutes ~/ 1440}');
     }
   }
   

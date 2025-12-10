@@ -174,6 +174,9 @@ class MaintenanceService {
     }
 
     final categoryStr = category?.toJsonValue();
+    
+    // Auto-Datum: Wenn kein Fälligkeitsdatum angegeben und Typ 'date', nutze Erstellungsdatum
+    final finalDueDate = dueDate ?? (reminderType == ReminderType.date ? DateTime.now() : null);
 
     final data = {
       'user_id': user.id,
@@ -182,7 +185,7 @@ class MaintenanceService {
       if (description != null) 'description': description,
       if (categoryStr != null) 'category': categoryStr,
       'reminder_type': reminderType == ReminderType.date ? 'date' : 'mileage',
-      if (dueDate != null) 'due_date': dueDate.toIso8601String(),
+      if (finalDueDate != null) 'due_date': finalDueDate.toIso8601String(),
       if (dueMileage != null) 'due_mileage': dueMileage,
       if (mileageAtMaintenance != null) 'mileage_at_maintenance': mileageAtMaintenance,
       if (workshopName != null) 'workshop_name': workshopName,
@@ -212,7 +215,7 @@ class MaintenanceService {
     final reminder = MaintenanceReminder.fromJson(res);
     
     // Plane Benachrichtigung
-    if (notificationEnabled && dueDate != null) {
+    if (notificationEnabled && finalDueDate != null) {
       await MaintenanceNotificationService.scheduleMaintenanceReminder(
         reminder,
         offsetMinutes: notifyOffsetMinutes,
@@ -236,7 +239,7 @@ class MaintenanceService {
             categoryId: costCategory.id,
             title: title,
             amount: cost,
-            date: dueDate ?? DateTime.now(),
+            date: finalDueDate ?? DateTime.now(),
             mileage: mileageAtMaintenance,
           );
         }
