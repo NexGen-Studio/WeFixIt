@@ -22,6 +22,16 @@ interface ChatRequest {
   language?: string; // 'de', 'en', 'fr', 'es'
   userId?: string;
   conversationHistory?: Array<{role: string, content: string}>;
+  vehicleContext?: {
+    make?: string;
+    model?: string;
+    year?: number;
+    engine?: string;
+    mileage?: number;
+    vin?: string;
+    power_kw?: number;
+    displacement_cc?: number;
+  };
 }
 
 Deno.serve(async (req) => {
@@ -32,7 +42,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { message, language = 'de', userId, conversationHistory = [] }: ChatRequest = await req.json();
+    const { message, language = 'de', userId, conversationHistory = [], vehicleContext }: ChatRequest = await req.json();
 
     if (!message) {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -42,6 +52,76 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Chat request: "${message}" (lang: ${language})`);
+
+    // 0. Pre-Check: Ist die Frage KFZ-bezogen?
+    const topicCheckResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Du bist ein Themen-Klassifizierer. Prüfe ob die folgende Frage mit Fahrzeugen, Autos, KFZ, Reparaturen, Wartung oder Automobilthemen zu tun hat.
+            
+Antworte NUR mit "YES" oder "NO".
+
+YES = Frage ist KFZ-bezogen (z.B. Ölwechsel, Fehlercodes, Reparaturen, Fahrzeugmodelle, Wartung, Diagnose, Reifen, Bremsen, etc.)
+NO = Frage ist NICHT KFZ-bezogen (z.B. Wetter, Kochen, Fußboden, allgemeine Wissensfragen, etc.)`
+          },
+          { role: 'user', content: message }
+        ],
+        temperature: 0,
+        max_tokens: 5
+      })
+    });
+
+    if (!topicCheckResponse.ok) {
+      console.error('Topic check failed, proceeding anyway');
+    } else {
+      const topicCheckData = await topicCheckResponse.json();
+      const isCarRelated = topicCheckData.choices[0]?.message?.content?.trim().toUpperCase() === 'YES';
+      
+      console.log(`🔍 Topic check: ${isCarRelated ? 'YES (KFZ-bezogen)' : 'NO (off-topic)'}`);
+      
+      if (!isCarRelated) {
+        // Freundliche Ablehnung
+        const offTopicResponses = {
+          de: `Es scheint, dass du nach Informationen zum ${message.includes('Wetter') ? 'Wetter' : message.includes('Fußboden') || message.includes('reinig') ? 'Reinigen' : message.includes('Vorhang') ? 'Aufhängen eines Vorhangs' : 'etwas anderem'} suchst. Leider kann ich dir dabei nicht direkt helfen, da ich auf KFZ-Themen spezialisiert bin. 😊
+
+Wenn du Fragen rund ums Auto, Reparaturen, Wartung oder Diagnose hast, stehe ich dir jedoch gerne zur Verfügung! 🚗🔧
+
+Falls du dennoch Unterstützung beim ${message.includes('Wetter') ? 'Wetter' : message.includes('Fußboden') || message.includes('reinig') ? 'Reinigen' : message.includes('Vorhang') ? 'Aufhängen' : 'Thema'} benötigst, empfehle ich dir, einen Experten zu Rate zu ziehen oder eine Anleitung online zu suchen. 🏠`,
+          en: `It seems like you're asking about ${message.toLowerCase().includes('weather') ? 'the weather' : message.toLowerCase().includes('floor') || message.toLowerCase().includes('clean') ? 'cleaning' : 'something else'}. Unfortunately, I can't directly help with that, as I'm specialized in automotive topics. 😊
+
+If you have questions about cars, repairs, maintenance, or diagnostics, I'm happy to assist! 🚗🔧
+
+If you still need help with ${message.toLowerCase().includes('weather') ? 'weather' : message.toLowerCase().includes('floor') || message.toLowerCase().includes('clean') ? 'cleaning' : 'this topic'}, I recommend consulting an expert or finding a guide online. 🏠`,
+          fr: `Il semble que tu cherches des informations sur ${message.toLowerCase().includes('météo') ? 'la météo' : message.toLowerCase().includes('sol') || message.toLowerCase().includes('nettoy') ? 'le nettoyage' : 'autre chose'}. Malheureusement, je ne peux pas t'aider directement, car je suis spécialisé dans les thèmes automobiles. 😊
+
+Si tu as des questions sur les voitures, les réparations, l'entretien ou le diagnostic, je suis là pour t'aider! 🚗🔧`,
+          es: `Parece que buscas información sobre ${message.toLowerCase().includes('tiempo') ? 'el tiempo' : message.toLowerCase().includes('suelo') || message.toLowerCase().includes('limpi') ? 'la limpieza' : 'otra cosa'}. Lamentablemente, no puedo ayudarte directamente, ya que estoy especializado en temas automotrices. 😊
+
+Si tienes preguntas sobre autos, reparaciones, mantenimiento o diagnósticos, ¡estoy aquí para ayudarte! 🚗🔧`
+        };
+        
+        const offTopicReply = offTopicResponses[language as keyof typeof offTopicResponses] || offTopicResponses.de;
+        
+        return new Response(JSON.stringify({ 
+          success: true,
+          reply: offTopicReply,
+          sources: 0,
+          errorCodes: 0,
+          knowledgeSource: 'off-topic',
+          isOffTopic: true 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
 
     // 1. User-Message in Embedding umwandeln
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
@@ -149,7 +229,22 @@ Deno.serve(async (req) => {
       // Context ist bereits gefüllt
     }
 
-    // 6. System-Prompt für Toni (Hybrid-Modus!)
+    // 6. Fahrzeugkontext (falls vorhanden)
+    let vehicleInfo = '';
+    if (vehicleContext && (vehicleContext.make || vehicleContext.model)) {
+      vehicleInfo = `\n\n=== FAHRZEUG DES NUTZERS ===\n`;
+      if (vehicleContext.make) vehicleInfo += `Marke: ${vehicleContext.make}\n`;
+      if (vehicleContext.model) vehicleInfo += `Modell: ${vehicleContext.model}\n`;
+      if (vehicleContext.year) vehicleInfo += `Baujahr: ${vehicleContext.year}\n`;
+      if (vehicleContext.engine) vehicleInfo += `Motorcode: ${vehicleContext.engine}\n`;
+      if (vehicleContext.displacement_cc) vehicleInfo += `Hubraum: ${vehicleContext.displacement_cc} ccm\n`;
+      if (vehicleContext.power_kw) vehicleInfo += `Leistung: ${vehicleContext.power_kw} kW (${Math.round(vehicleContext.power_kw * 1.36)} PS)\n`;
+      if (vehicleContext.mileage) vehicleInfo += `Kilometerstand: ${vehicleContext.mileage} km\n`;
+      if (vehicleContext.vin) vehicleInfo += `FIN/VIN: ${vehicleContext.vin}\n`;
+      vehicleInfo += '\n⚠️ WICHTIG: Berücksichtige IMMER diese Fahrzeugdaten bei deinen Antworten!\nGib spezifische Ratschläge die zu diesem Fahrzeug passen (z.B. passende Ölsorte, typische Probleme dieses Modells, spezifische Wartungsintervalle).';
+    }
+
+    // 7. System-Prompt für Toni (Hybrid-Modus!)
     const systemPrompt = `Du bist Toni, der freundliche KFZ-Assistent von WeFixIt! 🚗
 
 DEINE PERSÖNLICHKEIT:
@@ -177,14 +272,28 @@ DEINE AUFGABEN:
 - **WICHTIG:** Empfehle NICHT die Werkstatt, sondern die **Diagnose-Funktion in der WeFixIt-App**!
 - Sage z.B.: "Nutze die Diagnose-Funktion in der App, um professionelle Fehleranalyse zu erhalten"
 
+🔧 GENAUIGKEIT & DETAILS:
+- **Positionsangaben:** Erkläre IMMER wo Teile zu finden sind (z.B. "unter der Motorhaube links", "hinter dem Stoßfänger rechts", "unter dem Fahrzeug mittig")
+- **Werkzeug:** Nenne benötigtes Werkzeug konkret (z.B. "17mm Ringschlüssel", "Torx T30")
+- **Zeitaufwand:** Gib realistische Zeitschätzung (z.B. "30-45 Minuten")
+- **Schwierigkeit:** Bewerte Schwierigkeitsgrad (Einfach / Mittel / Schwierig)
+
+💰 KOSTEN & ERSPARNIS:
+- **Materialkosten:** Gib IMMER eine realistische Preisspanne an (z.B. "50-100 Euro")
+- **Werkstattkosten:** Schätze die Werkstattkosten inklusive Arbeitszeit (z.B. "Werkstatt: 200-300 Euro")
+- **ERSPARNIS:** Berechne und zeige EXPLIZIT die Ersparnis bei DIY!
+  Beispiel: "💰 Ersparnis gegenüber Werkstatt: ca. 150-200 Euro (Material + eigene Arbeitszeit)"
+- Format: "**Kosten:** ca. X-Y Euro (Material) | Werkstatt: Z Euro | **Ersparnis: ~A Euro**"
+
 FORMAT:
 - Antworte auf ${language === 'de' ? 'Deutsch' : language === 'fr' ? 'Französisch' : language === 'es' ? 'Spanisch' : 'Englisch'}
 - Strukturiere mit Überschriften (###) und Listen (-)
 - Bei Fehlercodes: Ursachen, Symptome, Lösungen
-- Bei Reparaturen: Schritt-für-Schritt + Schwierigkeitsgrad + Kosten
+- Bei Reparaturen: Schritt-für-Schritt + Position + Werkzeug + Zeit + Kosten + Ersparnis
 
 === KONTEXT AUS UNSERER DATENBANK ===
 ${contextText}
+${vehicleInfo}
 
 AKTUELLE WISSENSQUELLE: ${knowledgeSource}
 ${knowledgeSource === 'general' ? '⚠️ Keine DB-Einträge gefunden - Nutze allgemeines Automotive-Wissen!' : ''}

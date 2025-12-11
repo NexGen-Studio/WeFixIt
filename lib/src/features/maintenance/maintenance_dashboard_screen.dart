@@ -1107,7 +1107,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     // The widget may be disposed during the AdActivity
     final router = GoRouter.of(context);
 
-    // Prepare ad (wait if needed) - NO LOADING DIALOG!
+    // Prepare ad (wait if needed) - NO LOADING DIALOG
     print('🟢 [UI] Calling prepareRewardedAd()...');
     final ready = await _adMobService.prepareRewardedAd();
     print('✅ [UI] prepareRewardedAd() returned: $ready');
@@ -1142,6 +1142,15 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
       }
     } else {
       print('❌ [UI] Ad NOT ready!');
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Werbung konnte nicht geladen werden. Bitte versuche es später erneut.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
     print('🟢 [UI] ========== _watchAdAndProceed FINISHED ==========\n');
   }
@@ -1237,15 +1246,18 @@ class _QuickActionCard extends StatelessWidget {
                 child: Icon(icon, color: color, size: 28),
               ),
               const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              Flexible(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.visible,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1.2,
+                  ),
                 ),
               ),
             ],

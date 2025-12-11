@@ -464,7 +464,7 @@ class _CostFormScreenState extends State<CostFormScreen> {
   Widget _buildPriceRow(String label, String price) {
     return Row(
       children: [
-        const Icon(Icons.check_circle, color: Color(0xFFFFB129), size: 18),
+        const Icon(Icons.star, color: Color(0xFFFFB129), size: 18),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

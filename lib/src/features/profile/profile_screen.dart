@@ -1036,6 +1036,7 @@ class _VehicleFormState extends State<_VehicleForm> {
   final _mileage = TextEditingController();
   final _power = TextEditingController();
   bool _powerIsKw = true; // toggle kW/PS, stored as kW
+  bool _shareWithAI = true; // KI-Datenfreigabe
   bool _loading = true;
   String? _vehicleId;
 
@@ -1062,6 +1063,7 @@ class _VehicleFormState extends State<_VehicleForm> {
       final ps = kw == 0 ? 0 : (kw * 1.36).round();
       _power.text = ps == 0 ? '' : ps.toString();
       _powerIsKw = false; // Zeige PS an
+      _shareWithAI = (v?['share_vehicle_data_with_ai'] as bool?) ?? true;
       _loading = false;
     });
   }
@@ -1094,6 +1096,7 @@ class _VehicleFormState extends State<_VehicleForm> {
       'displacement_cc': int.tryParse(_displCc.text.trim()),
       'power_kw': powerKw,
       'mileage_km': int.tryParse(_mileage.text.trim()),
+      'share_vehicle_data_with_ai': _shareWithAI,
     };
 
     final saved = await svc.savePrimaryVehicle(payload);
@@ -1210,6 +1213,48 @@ class _VehicleFormState extends State<_VehicleForm> {
                     if (km == null || km < 0) return 'km ≥ 0';
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+                // KI-Datenfreigabe Switch
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Fahrzeugdaten mit KI teilen',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Ermöglicht Toni, deine Fahrzeugdaten für genauere Antworten zu nutzen',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Switch(
+                        value: _shareWithAI,
+                        onChanged: (val) => setState(() => _shareWithAI = val),
+                        activeColor: const Color(0xFFFFB129),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

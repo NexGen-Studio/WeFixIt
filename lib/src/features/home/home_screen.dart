@@ -675,13 +675,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         ),
                         child: Row(
                           children: [
-                            Flexible(
+                            SizedBox(
+                              width: 60,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                 Container(
-                                  padding: const EdgeInsets.all(6), // reduced from 8
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: _categoryColor(reminder.category).withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(8),
@@ -689,16 +690,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                   child: Icon(
                                     _categoryIcon(reminder.category),
                                     color: _categoryColor(reminder.category),
-                                    size: 18, // reduced from 20
+                                    size: 18,
                                   ),
                                 ),
                                 if (reminder.category != null) ...[
-                                  const SizedBox(height: 2), // reduced from 4
+                                  const SizedBox(height: 2),
                                   Text(
                                     _categoryLabel(t, reminder.category),
-                                    style: const TextStyle(fontSize: 10, color: Colors.white70), // reduced from 11
+                                    style: const TextStyle(fontSize: 9, color: Colors.white70),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                   ),
                                 ],
                               ],
@@ -710,7 +712,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(reminder.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                  Text(
+                                    reminder.title, 
+                                    style: const TextStyle(
+                                      color: Colors.white, 
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                   // Nur anzeigen wenn Datum ODER KM gesetzt ist
                                   if (reminder.dueDate != null || reminder.dueMileage != null) ...[
                                     const SizedBox(height: 4),

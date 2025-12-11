@@ -50,9 +50,10 @@ interface KnowledgeArticle {
 }
 
 Deno.serve(async (req) => {
-  try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  let currentItem: HarvestQueueItem | null = null;
 
+  try {
     // 1. Hole nächstes Thema aus der Queue
     const { data: queueItems, error: queueError } = await supabase
       .from('knowledge_harvest_queue')
@@ -71,19 +72,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const item: HarvestQueueItem = queueItems[0];
+    currentItem = queueItems[0];
 
     // 2. Status auf "processing" setzen
+    console.log(`📋 Starting: ${currentItem.topic} (attempt ${(currentItem.attempts || 0) + 1})`);
+    
     await supabase
       .from('knowledge_harvest_queue')
       .update({ 
         status: 'processing',
         last_attempt_at: new Date().toISOString(),
-        attempts: item.attempts ? item.attempts + 1 : 1
+        attempts: currentItem.attempts ? currentItem.attempts + 1 : 1
       })
-      .eq('id', item.id);
+      .eq('id', currentItem.id);
 
-    console.log(`Processing: ${item.topic} (${item.search_language})`);
+    console.log(`⚙️ Processing: ${currentItem.topic} (${currentItem.search_language})`);
 
     // 3. Web-Search via Perplexity.ai (native Web-Recherche!)
     const searchResponse = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -106,7 +109,7 @@ IMPORTANT:
 - Focus on practical, actionable information`
         }, {
           role: 'user',
-          content: `Research comprehensive information about: "${item.topic}"
+          content: `Research comprehensive information about: "${currentItem.topic}"
           
 Erstelle einen strukturierten Artikel und antworte EXAKT in folgendem JSON-Format:
 
@@ -179,7 +182,7 @@ Output ONLY valid JSON, no additional text.`
     const translations: any = {};
 
     for (const lang of targetLanguages) {
-      if (lang === item.search_language) {
+      if (lang === currentItem.search_language) {
         // Original-Sprache: direkt übernehmen
         translations[lang] = {
           title: originalContent.title,
@@ -255,23 +258,23 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
     const { data: existingArticle } = await supabase
       .from('automotive_knowledge')
       .select('id, topic')
-      .eq('topic', item.topic)
+      .eq('topic', currentItem.topic)
       .single();
 
     if (existingArticle) {
-      console.log(`⚠️ Artikel bereits vorhanden: ${item.topic} (ID: ${existingArticle.id})`);
+      console.log(`⚠️ Artikel bereits vorhanden: ${currentItem.topic} (ID: ${existingArticle.id})`);
       
       // Queue-Item trotzdem auf completed setzen
       await supabase
         .from('knowledge_harvest_queue')
         .update({ status: 'completed' })
-        .eq('id', item.id);
+        .eq('id', currentItem.id);
       
       return new Response(JSON.stringify({ 
         success: true,
         skipped: true,
         reason: 'Article already exists',
-        topic: item.topic
+        topic: currentItem.topic
       }), {
         headers: { 'Content-Type': 'application/json' },
         status: 200
@@ -279,17 +282,17 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
     }
 
     // 7. NULL-SCHUTZ: Validiere alle Felder, setze Fallbacks
-    const safeTitle = (translations.de?.title || translations.en?.title || item.topic).substring(0, 200);
+    const safeTitle = (translations.de?.title || translations.en?.title || currentItem.topic).substring(0, 200);
     const safeContent = translations.de?.content || translations.en?.content || 'No content available';
     
     if (!safeTitle || safeTitle === 'undefined') {
-      throw new Error(`Invalid title for topic: ${item.topic}`);
+      throw new Error(`Invalid title for topic: ${currentItem.topic}`);
     }
 
     // 8. In Datenbank speichern
     const article: KnowledgeArticle = {
-      topic: item.topic,
-      category: item.category,
+      topic: currentItem.topic,
+      category: currentItem.category,
       subcategory: originalContent.subcategory || null,
       
       // Titel mit Fallback (niemals NULL!)
@@ -317,7 +320,7 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
       
       // Metadaten
       keywords: Array.isArray(originalContent.keywords) ? originalContent.keywords : [],
-      original_language: item.search_language,
+      original_language: currentItem.search_language,
       source_urls: sources.length > 0 ? sources : null, // Perplexity Citations!
       quality_score: 0.85,
     };
@@ -346,13 +349,13 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
     await supabase
       .from('knowledge_harvest_queue')
       .update({ status: 'completed' })
-      .eq('id', item.id);
+      .eq('id', currentItem.id);
 
-    console.log(`✅ Successfully harvested: ${item.topic}`);
+    console.log(`✅ Successfully harvested: ${currentItem.topic}`);
 
     return new Response(JSON.stringify({ 
       success: true,
-      topic: item.topic,
+      topic: currentItem.topic,
       translations: Object.keys(translations),
       embeddings: Object.keys(embeddings)
     }), {
@@ -362,21 +365,30 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
 
   } catch (error) {
     console.error('❌ Harvester error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     
     // Queue-Item mit Retry-Logik behandeln
     try {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      const { data: queueItems } = await supabase
+      const { data: queueItems, error: selectError } = await supabase
         .from('knowledge_harvest_queue')
         .select('*')
         .eq('status', 'processing')
         .order('last_attempt_at', { ascending: false })
         .limit(1);
       
+      if (selectError) {
+        console.error('❌ Failed to select processing item:', selectError);
+        throw selectError;
+      }
+      
       if (queueItems && queueItems.length > 0) {
         const item = queueItems[0];
         const attempts = item.attempts || 0;
         const maxRetries = 3;
+        
+        console.log(`📊 Processing failed item: ${item.topic}, attempts: ${attempts}/${maxRetries}`);
         
         // Bestimme Error-Code
         let errorCode = '500';
@@ -406,7 +418,7 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
           console.log(`❌ Max retries erreicht für: ${item.topic}`);
           
           // In failed_topics speichern
-          await supabase
+          const { error: insertError } = await supabase
             .from('failed_topics')
             .insert({
               topic: item.topic,
@@ -416,14 +428,26 @@ Antworte im JSON-Format mit: {"title": "...", "content": "..."}`
               status: 'failed'
             });
           
+          if (insertError) {
+            console.error('❌ Failed to insert into failed_topics:', insertError);
+          } else {
+            console.log(`✅ Saved to failed_topics: ${item.topic}`);
+          }
+          
           // Queue-Item als "failed" markieren
-          await supabase
+          const { error: updateError } = await supabase
             .from('knowledge_harvest_queue')
             .update({ 
               status: 'failed',
               error_message: `Failed after ${attempts} attempts: ${errorMessage}`
             })
             .eq('id', item.id);
+          
+          if (updateError) {
+            console.error('❌ Failed to update queue status to failed:', updateError);
+          } else {
+            console.log(`✅ Queue item marked as failed: ${item.id}`);
+          }
         }
       }
     } catch (updateError) {

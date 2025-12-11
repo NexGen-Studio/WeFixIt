@@ -1,11 +1,37 @@
-$functionUrl = "https://zbrlhswafnlpfwqikapu.supabase.co/functions/v1/auto-knowledge-harvester"
-$authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+# SICHER: Lade Keys aus .env oder env.json
+$envFilePath = ".\.env"
+$envJsonPath = ".\env.json"
+
+if (Test-Path $envJsonPath) {
+    # Lade aus env.json
+    $envData = Get-Content $envJsonPath | ConvertFrom-Json
+    $supabaseUrl = $envData.SUPABASE_URL
+    $authToken = $envData.SUPABASE_ANON_KEY
+    Write-Host "✅ Keys aus env.json geladen" -ForegroundColor Green
+} elseif (Test-Path $envFilePath) {
+    # Lade aus .env
+    Get-Content $envFilePath | ForEach-Object {
+        if ($_ -match '^SUPABASE_URL=(.+)$') {
+            $supabaseUrl = $matches[1]
+        }
+        if ($_ -match '^SUPABASE_ANON_KEY=(.+)$') {
+            $authToken = $matches[1]
+        }
+    }
+    Write-Host "✅ Keys aus .env geladen" -ForegroundColor Green
+} else {
+    Write-Host "❌ FEHLER: Keine .env oder env.json gefunden!" -ForegroundColor Red
+    Write-Host "Erstelle eine dieser Dateien mit SUPABASE_URL und SUPABASE_ANON_KEY" -ForegroundColor Yellow
+    exit 1
+}
+
+$functionUrl = "$supabaseUrl/functions/v1/auto-knowledge-harvester"
 
 # Wie oft soll der Harvester laufen?
 $iterations = 30
 
 # Pause zwischen den Läufen (Sekunden)
-$delaySeconds = 30
+$delaySeconds = 60
 
 # Success und Error Count
 $successCount = 0

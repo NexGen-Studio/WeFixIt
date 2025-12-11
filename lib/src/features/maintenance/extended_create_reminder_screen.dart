@@ -2658,7 +2658,6 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ),
-                    const Icon(Icons.lock_outline, color: Colors.white54),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -2674,7 +2673,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Color(0xFFFFB129), size: 20),
+                    const Icon(Icons.star, color: Color(0xFFFFB129), size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(

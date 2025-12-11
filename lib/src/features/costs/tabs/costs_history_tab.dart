@@ -89,8 +89,7 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ),
-                    const Icon(Icons.lock_outline, color: Colors.white54),
-                  ],
+                      ],
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -103,9 +102,9 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 16),
-                _buildCostsUnlockOption(Icons.check_circle, t.tr('subscription.lifetime_unlock'), t.tr('subscription.lifetime_price')),
+                _buildCostsUnlockOption(Icons.star, t.tr('subscription.lifetime_unlock'), t.tr('subscription.lifetime_price')),
                 const SizedBox(height: 8),
-                _buildCostsUnlockOption(Icons.check_circle, t.tr('subscription.pro_monthly'), t.tr('subscription.pro_monthly_price')),
+                _buildCostsUnlockOption(Icons.star, t.tr('subscription.pro_monthly'), t.tr('subscription.pro_monthly_price')),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -156,6 +155,280 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showCostOptionsDialog(VehicleCost cost, CostCategory category, AppLocalizations t) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF151C23),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                cost.title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Details
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Color(0xFF2196F3)),
+                title: Text(
+                  t.tr('maintenance.details'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showCostDetailsDialog(cost, category, t);
+                },
+              ),
+
+              // Bearbeiten
+              ListTile(
+                leading: const Icon(Icons.edit, color: Color(0xFFFF9800)),
+                title: Text(
+                  t.tr('maintenance.edit'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await context.push('/costs/edit/${cost.id}');
+                  loadData();
+                },
+              ),
+
+              // Löschen
+              ListTile(
+                leading: const Icon(Icons.delete, color: Color(0xFFF44336)),
+                title: Text(
+                  t.tr('costs.delete'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: const Color(0xFF151C23),
+                      title: Text(
+                        t.tr('costs.delete_confirm_title'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      content: Text(
+                        t.tr('costs.delete_confirm_message'),
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(t.tr('common.cancel')),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: Text(t.tr('common.delete')),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    await _costsService.deleteCost(cost.id);
+                    loadData();
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCostDetailsDialog(VehicleCost cost, CostCategory category, AppLocalizations t) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF151C23),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Details',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Kategorie
+                _buildDetailRow(
+                  icon: CostCategory.getIconData(category.iconName),
+                  label: t.tr('costs.category_field'),
+                  value: category.name,
+                  iconColor: CostCategory.hexToColor(category.colorHex),
+                ),
+
+                // Titel
+                _buildDetailRow(
+                  icon: Icons.title,
+                  label: t.tr('costs.title_field'),
+                  value: cost.title,
+                ),
+
+                // Datum
+                _buildDetailRow(
+                  icon: Icons.calendar_today,
+                  label: t.tr('costs.date'),
+                  value: DateFormat('dd.MM.yyyy HH:mm').format(cost.date),
+                ),
+
+                // Kilometerstand
+                if (cost.mileage != null)
+                  _buildDetailRow(
+                    icon: Icons.speed,
+                    label: t.tr('costs.mileage'),
+                    value: '${cost.mileage} km',
+                  ),
+
+                // Kosten
+                _buildDetailRow(
+                  icon: Icons.euro,
+                  label: t.tr('costs.amount'),
+                  value: '${cost.amount.toStringAsFixed(2)} ${cost.currency}',
+                  iconColor: const Color(0xFF4CAF50),
+                ),
+
+                // Notizen
+                if (cost.notes != null && cost.notes!.isNotEmpty)
+                  _buildDetailRow(
+                    icon: Icons.notes,
+                    label: t.tr('costs.notes'),
+                    value: cost.notes!,
+                  ),
+
+                // Fotos
+                if (cost.photos.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    t.tr('maintenance.photos_title'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: cost.photos.map((photoUrl) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          photoUrl,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? iconColor,
+  }) {
+    final color = iconColor ?? Colors.white70;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -900,43 +1173,9 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
         loadData();
       },
       child: GestureDetector(
-        onTap: () async {
-          // Öffne Cost-Form zum Bearbeiten
-          await context.push('/costs/edit/${cost.id}');
-          loadData();
-        },
-        onLongPress: () async {
-          // Long-Press: Löschen-Dialog
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: const Color(0xFF151C23),
-              title: Text(
-                t.tr('costs.delete_confirm_title'),
-                style: const TextStyle(color: Colors.white),
-              ),
-              content: Text(
-                t.tr('costs.delete_confirm_message'),
-                style: const TextStyle(color: Colors.white70),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(t.tr('common.cancel')),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: Text(t.tr('common.delete')),
-                ),
-              ],
-            ),
-          );
-          
-          if (confirm == true) {
-            await _costsService.deleteCost(cost.id);
-            loadData();
-          }
+        onTap: () {
+          // Normaler Klick: Options-Dialog
+          _showCostOptionsDialog(cost, category, t);
         },
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -989,16 +1228,6 @@ class _CostsHistoryTabState extends State<CostsHistoryTab> {
                             fontSize: 13,
                           ),
                         ),
-                        if (cost.mileage != null) ...[
-                          const Text(' • ', style: TextStyle(color: Colors.white70)),
-                          Text(
-                            '${cost.mileage} km',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
                         if (cost.photos.isNotEmpty) ...[
                           const Text(' • ', style: TextStyle(color: Colors.white70)),
                           const Icon(

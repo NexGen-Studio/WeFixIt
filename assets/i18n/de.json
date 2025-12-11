@@ -17,8 +17,14 @@
   "chatbot.input_hint": "Frage zur KFZ-Diagnose oder Wartung...",
   "chatbot.ask": "Fragen",
   "chatbot.no_messages": "Noch keine Nachrichten",
-  "chatbot.no_credits_title": "Keine Credits verfügbar",
-  "chatbot.no_credits_message": "Du hast keine Credits mehr und dein wöchentliches Gratis-Kontingent ist aufgebraucht. Kaufe Credits oder upgrade auf Pro für unbegrenzte KI-Anfragen.",
+  "chatbot.no_credits_title": "Keine Credits mehr!",
+  "chatbot.no_credits_message": "Du hast keine Credits mehr.\n\nMit Credits kannst du Toni Fragen stellen und erhältst detaillierte Antworten zu allen KFZ-Themen.",
+  "chatbot.watch_ad": "Werbung ansehen",
+  "chatbot.buy_credits": "Credits kaufen",
+  "chatbot.buy_premium": "Premium kaufen",
+  "chatbot.free": "Kostenlos",
+  "chatbot.credits_price": "0,99 €",
+  "chatbot.premium_price": "4,99 €/Monat",
   "chatbot.go_to_paywall": "Zur Paywall",
   "chatbot.simulated_response": "Das ist eine simulierte Antwort von Toni. Die echte KI-Anbindung folgt bald! (Credits wurden abgezogen)",
 
@@ -226,6 +232,7 @@
   
   "maintenance.mark_complete": "Als erledigt markieren",
   "maintenance.mark_incomplete": "Wieder als anstehend markieren",
+  "maintenance.details": "Details",
   "maintenance.edit": "Bearbeiten",
   "maintenance.delete": "Löschen",
   "maintenance.delete_maintenance": "Wartung löschen",
@@ -391,6 +398,7 @@
   "costs.export_csv_button": "Als CSV exportieren",
   "costs.export_success": "✅ Export erfolgreich!",
   "costs.export_error": "❌ Fehler beim Exportieren",
+  "costs.delete": "Eintrag löschen",
   "costs.delete_confirm_title": "Eintrag löschen?",
   "costs.delete_confirm_message": "Dieser Eintrag wird unwiderruflich gelöscht.",
   

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../i18n/app_localizations.dart';
 import '../../models/chat_message.dart';
 import '../../services/credit_service.dart';
@@ -24,11 +25,188 @@ class _AskToniScreenState extends State<AskToniScreen> {
   final AskToniService _askToniService = AskToniService();
   RewardedAd? _rewardedAd;
   bool _isLoadingAd = false;
+  
+  // Chat History
+  List<Map<String, dynamic>> _chatHistory = [];
+  String? _currentChatId;
+  bool _showHistoryDropdown = false;
 
   @override
   void initState() {
     super.initState();
     _loadRewardedAd();
+    _loadChatHistory();
+  }
+  
+  Future<void> _loadChatHistory() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      
+      final response = await Supabase.instance.client
+        .from('chat_history')
+        .select('id, title, created_at, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', ascending: false)
+        .limit(15);
+      
+      if (mounted) {
+        setState(() {
+          _chatHistory = List<Map<String, dynamic>>.from(response);
+        });
+      }
+    } catch (e) {
+      print('⚠️ Fehler beim Laden der Chat-History: $e');
+    }
+  }
+  
+  Future<void> _loadChat(String chatId) async {
+    try {
+      final response = await Supabase.instance.client
+        .from('chat_history')
+        .select('messages')
+        .eq('id', chatId)
+        .single();
+      
+      final messages = response['messages'] as List;
+      
+      if (mounted) {
+        setState(() {
+          _currentChatId = chatId;
+          _messages.clear();
+          
+          for (var i = 0; i < messages.length; i++) {
+            final msg = messages[i] as Map<String, dynamic>;
+            _messages.add(ChatMessage(
+              id: '$chatId-$i',
+              text: msg['content'] as String,
+              isUser: msg['role'] == 'user',
+              timestamp: DateTime.now(),
+            ));
+          }
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      print('⚠️ Fehler beim Laden des Chats: $e');
+    }
+  }
+  
+  Future<void> _saveChat() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null || _messages.isEmpty) return;
+      
+      // Konvertiere Messages zu JSON
+      final messagesJson = _messages.map((m) => {
+        'role': m.isUser ? 'user' : 'assistant',
+        'content': m.text,
+      }).toList();
+      
+      if (_currentChatId != null) {
+        // Update existierenden Chat
+        await Supabase.instance.client
+          .from('chat_history')
+          .update({
+            'messages': messagesJson,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', _currentChatId!);
+      } else {
+        // Erstelle neuen Chat mit Titel
+        final title = await _generateChatTitle(_messages[0].text);
+        
+        final response = await Supabase.instance.client
+          .from('chat_history')
+          .insert({
+            'user_id': userId,
+            'title': title,
+            'messages': messagesJson,
+          })
+          .select('id')
+          .single();
+        
+        _currentChatId = response['id'] as String;
+      }
+      
+      await _loadChatHistory();
+    } catch (e) {
+      print('⚠️ Fehler beim Speichern des Chats: $e');
+    }
+  }
+  
+  Future<String> _generateChatTitle(String firstMessage) async {
+    // Lade Fahrzeugdaten für Titel
+    String vehiclePrefix = '';
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final vehicleData = await Supabase.instance.client
+          .from('vehicles')
+          .select('make, model')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (vehicleData != null) {
+          // Bevorzuge Modell, falls nicht vorhanden dann Marke
+          if (vehicleData['model'] != null && (vehicleData['model'] as String).isNotEmpty) {
+            vehiclePrefix = '${vehicleData['model']} ';
+          } else if (vehicleData['make'] != null && (vehicleData['make'] as String).isNotEmpty) {
+            vehiclePrefix = '${vehicleData['make']} ';
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ Fehler beim Laden der Fahrzeugdaten für Titel: $e');
+    }
+    
+    // Titel mit Fahrzeug-Präfix (max 50 Zeichen)
+    final maxLength = 50 - vehiclePrefix.length;
+    final cleanMessage = firstMessage.length > maxLength 
+      ? '${firstMessage.substring(0, maxLength - 3)}...'
+      : firstMessage;
+    
+    return '$vehiclePrefix$cleanMessage';
+  }
+  
+  void _startNewChat() {
+    setState(() {
+      _currentChatId = null;
+      _messages.clear();
+      _textController.clear();
+    });
+  }
+  
+  Future<void> _deleteChat(String chatId) async {
+    try {
+      await Supabase.instance.client
+        .from('chat_history')
+        .delete()
+        .eq('id', chatId);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        // Wenn der gelöschte Chat der aktive war, zurücksetzen
+        if (_currentChatId == chatId) {
+          _currentChatId = null;
+          _messages.clear();
+          _textController.clear();
+        }
+      });
+      
+      await _loadChatHistory();
+    } catch (e) {
+      print('⚠️ Fehler beim Löschen des Chats: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fehler beim Löschen des Chats'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -64,7 +242,17 @@ class _AskToniScreenState extends State<AskToniScreen> {
     );
   }
 
-  void _showRewardedAd() {
+  Future<void> _showRewardedAd() async {
+    // Prepare and show ad without loading dialog
+    if (_rewardedAd == null) {
+      _loadRewardedAd();
+      // Wait max 5 seconds for ad to load
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (_rewardedAd != null) break;
+      }
+    }
+
     if (_rewardedAd != null) {
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) async {
@@ -80,6 +268,16 @@ class _AskToniScreenState extends State<AskToniScreen> {
           }
         },
       );
+    } else {
+      // Ad konnte nicht geladen werden
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Werbung konnte nicht geladen werden. Bitte versuche es später erneut.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -123,11 +321,47 @@ class _AskToniScreenState extends State<AskToniScreen> {
     });
     _scrollToBottom();
 
-    // 3. Echte AI Antwort von Toni holen
+    // 3. Fahrzeugdaten vom User laden (aus vehicles Tabelle)
+    Map<String, dynamic>? vehicleContext;
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final vehicleData = await Supabase.instance.client
+          .from('vehicles')
+          .select('make, model, year, engine_code, vin, mileage_km, power_kw, displacement_cc, share_vehicle_data_with_ai')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        // Prüfe ob User Datenfreigabe aktiviert hat
+        final shareWithAI = (vehicleData?['share_vehicle_data_with_ai'] as bool?) ?? true;
+        
+        if (vehicleData != null && shareWithAI) {
+          vehicleContext = {
+            if (vehicleData['make'] != null) 'make': vehicleData['make'],
+            if (vehicleData['model'] != null) 'model': vehicleData['model'],
+            if (vehicleData['year'] != null) 'year': vehicleData['year'],
+            if (vehicleData['engine_code'] != null) 'engine': vehicleData['engine_code'],
+            if (vehicleData['vin'] != null) 'vin': vehicleData['vin'],
+            if (vehicleData['mileage_km'] != null) 'mileage': vehicleData['mileage_km'],
+            if (vehicleData['power_kw'] != null) 'power_kw': vehicleData['power_kw'],
+            if (vehicleData['displacement_cc'] != null) 'displacement_cc': vehicleData['displacement_cc'],
+          };
+          print('🚗 Fahrzeugdaten geladen: ${vehicleData['make']} ${vehicleData['model']} (${vehicleData['year']})');
+        } else {
+          print('ℹ️ Keine Fahrzeugdaten gefunden für User');
+        }
+      }
+    } catch (e) {
+      print('⚠️ Fehler beim Laden der Fahrzeugdaten: $e');
+      // Weiter ohne Fahrzeugdaten
+    }
+
+    // 4. Echte AI Antwort von Toni holen
     try {
       final response = await _askToniService.sendMessage(
         message: text,
         language: 'de',
+        vehicleContext: vehicleContext,
       );
 
       if (mounted) {
@@ -144,6 +378,9 @@ class _AskToniScreenState extends State<AskToniScreen> {
           ));
         });
         _scrollToBottom();
+        
+        // Speichere Chat in History
+        _saveChat();
       }
     } catch (e) {
       if (mounted) {
@@ -162,180 +399,348 @@ class _AskToniScreenState extends State<AskToniScreen> {
   }
 
   void _showNoCreditsDialog() {
+    final t = AppLocalizations.of(context);
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF1A2028),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Container(
-          width: MediaQuery.of(context).size.width * 0.85,
+          width: double.infinity,
           padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1F26),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header mit Schloss-Icons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8AD20),
-                      borderRadius: BorderRadius.circular(8),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header mit Schloss-Icon
+                Row(
+                  children: [
+                    const Icon(Icons.lock, color: Color(0xFFF8AD20)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('chatbot.no_credits_title'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
                     ),
-                    child: const Icon(Icons.lock, color: Colors.black, size: 20),
-                  ),
-                  const Text(
-                    'Keine Credits mehr!',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.lock, color: Colors.white54, size: 20),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Beschreibung
-              const Text(
-                'Du hast keine Credits mehr.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Freischalten mit:',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('chatbot.no_credits_message'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
                 ),
-              ),
-              const SizedBox(height: 20),
-              // Werbung ansehen Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
+                const SizedBox(height: 24),
+                Text(
+                  t.tr('dialog.unlock_with'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Option: Werbung ansehen
+                _buildUnlockOptionWithButton(
+                  Icons.tv,
+                  t.tr('chatbot.watch_ad'),
+                  '1x Credits',
+                  () {
                     Navigator.pop(ctx);
                     _showRewardedAd();
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF8AD20),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.tv, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Werbung ansehen',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // Credits kaufen Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    // TODO: Navigate to credits purchase
-                    context.push('/paywall'); // Temporary
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2196F3),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.shopping_cart, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Credits kaufen',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Premium kaufen Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
+                const SizedBox(height: 8),
+                // Option: Credits kaufen
+                _buildUnlockOption(
+                  Icons.shopping_cart,
+                  t.tr('chatbot.buy_credits'),
+                  t.tr('chatbot.credits_price'),
+                  () {
                     Navigator.pop(ctx);
                     context.push('/paywall');
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF388E3C),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: 8),
+                // Option: Premium kaufen
+                _buildUnlockOption(
+                  Icons.star,
+                  t.tr('chatbot.buy_premium'),
+                  t.tr('chatbot.premium_price'),
+                  () {
+                    Navigator.pop(ctx);
+                    context.push('/paywall');
+                  },
+                ),
+                const SizedBox(height: 24),
+                // Buttons unten
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        t.tr('common.cancel'),
+                        style: const TextStyle(color: Colors.white60),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        context.push('/paywall');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF8AD20),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(t.tr('chatbot.go_to_paywall')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnlockOptionWithButton(IconData icon, String title, String buttonText, VoidCallback onTap) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFFF8AD20), size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF8AD20),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              buttonText,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlockOption(IconData icon, String title, String price, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFFF8AD20), size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+            Text(
+              price,
+              style: const TextStyle(
+                color: Color(0xFFF8AD20),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // ChatGPT-Style Sidebar mit Chat-Historie
+  Widget _buildChatHistorySidebar(BuildContext context, AppLocalizations t) {
+    return Drawer(
+      backgroundColor: const Color(0xFF0B1117),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  const Icon(Icons.chat_bubble_outline, color: Color(0xFFFFB129), size: 24),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Ask Toni!',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
                     ),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.star, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Premium kaufen',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Neuer Chat Button (ohne Hintergrund, links)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _startNewChat();
+                },
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.edit_square,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Neuer Chat',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Divider(color: Color(0xFF2A2A2A), height: 1),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Chat-Liste
+            if (_chatHistory.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      'Keine Chat-Historie',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Abbrechen Button
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text(
-                  'Abbrechen',
-                  style: TextStyle(color: Colors.white54),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: _chatHistory.length,
+                  itemBuilder: (context, index) {
+                    final chat = _chatHistory[index];
+                    final isActive = chat['id'] == _currentChatId;
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        leading: Icon(
+                          Icons.chat_bubble_outline,
+                          color: Colors.white54,
+                          size: 18,
+                        ),
+                        title: Text(
+                          chat['title'] as String,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _loadChat(chat['id'] as String);
+                        },
+                        onLongPress: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              backgroundColor: const Color(0xFF1A1A1A),
+                              title: const Text(
+                                'Chat löschen?',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              content: Text(
+                                'Möchtest du "${chat['title']}" wirklich löschen?',
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                                  child: const Text(
+                                    'Abbrechen',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                                  child: const Text(
+                                    'Löschen',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          
+                          if (confirmed == true) {
+                            // Schließe Sidebar
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                            // Lösche Chat
+                            await _deleteChat(chat['id'] as String);
+                          }
+                        },
+                      ),
+                    );
+                  },
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -346,32 +751,62 @@ class _AskToniScreenState extends State<AskToniScreen> {
     final t = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF0B1117),
+      drawer: _buildChatHistorySidebar(context, t),
       body: Column(
           children: [
-            // Header
+            // Header mit Hamburger-Menü
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Row(
                 children: [
-                  const Text(
-                    'Ask Toni!',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
+                  // Hamburger-Menü links (feste Breite)
+                  Builder(
+                    builder: (context) => IconButton(
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      tooltip: 'Chat-Verlauf',
+                      padding: EdgeInsets.zero,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    t.chatbot_subtitle,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500,
+                  
+                  // Zentrierter Text (expanded nimmt verfügbaren Platz)
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Ask Toni!',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          t.chatbot_subtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  
+                  // Neuer Chat Button rechts (feste Breite, nur wenn Chat aktiv)
+                  if (_messages.isNotEmpty)
+                    IconButton(
+                      onPressed: _startNewChat,
+                      icon: const Icon(Icons.edit_square, color: Color(0xFFFFB129)),
+                      tooltip: 'Neuer Chat',
+                      padding: EdgeInsets.zero,
+                    )
+                  else
+                    // Platzhalter wenn kein Button (symmetrisch)
+                    const SizedBox(width: 48),
                 ],
               ),
             ),
@@ -573,7 +1008,7 @@ class _AskToniScreenState extends State<AskToniScreen> {
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(
-                        minHeight: 48, // Niedriger wenn leer
+                        minHeight: 40, // Dünner wenn leer
                         maxHeight: 120, // Max Höhe
                       ),
                       decoration: BoxDecoration(

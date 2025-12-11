@@ -9,10 +9,12 @@ class AskToniService {
   /// [message] - Die Nachricht des Users
   /// [language] - Sprache (de, en, fr, es)
   /// [conversationHistory] - Optional: Bisherige Konversation für Kontext
+  /// [vehicleContext] - Optional: Fahrzeugdaten des Users (Marke, Modell, Baujahr, etc.)
   Future<AskToniResponse> sendMessage({
     required String message,
     String language = 'de',
     List<Map<String, String>>? conversationHistory,
+    Map<String, dynamic>? vehicleContext,
   }) async {
     try {
       final response = await _supabase.functions.invoke(
@@ -22,6 +24,8 @@ class AskToniService {
           'language': language,
           if (conversationHistory != null)
             'conversationHistory': conversationHistory,
+          if (vehicleContext != null)
+            'vehicleContext': vehicleContext,
         },
       );
 
@@ -31,8 +35,14 @@ class AskToniService {
 
       final data = response.data as Map<String, dynamic>;
 
+      // Handle both 'reply' (normal) and 'response' (off-topic) field names
+      final replyText = (data['reply'] ?? data['response']) as String?;
+      if (replyText == null) {
+        throw Exception('Keine Antwort von Toni erhalten (reply/response ist null)');
+      }
+
       return AskToniResponse(
-        reply: data['reply'] as String,
+        reply: replyText,
         sources: data['sources'] as int? ?? 0,
         errorCodes: data['errorCodes'] as int? ?? 0,
         knowledgeSource: data['knowledgeSource'] as String? ?? 'general',
