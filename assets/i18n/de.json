@@ -573,6 +573,11 @@
   "maintenance.ad_failed": "Werbung konnte nicht geladen werden. Bitte versuche es später erneut.",
   "maintenance.remaining_free": "{count} kostenlose Wartungen übrig",
 
+  "costs.ad_gate_title": "Gratis-Limit erreicht 🎬",
+  "costs.ad_gate_message": "Du hast 3 kostenlose Kosteneinträge erstellt. Schau dir ein kurzes Video an, um 3 weitere zu erstellen, oder werde Pro-Mitglied für unbegrenzte Kosten.",
+  "costs.watch_video": "Video ansehen",
+  "costs.become_pro": "Pro werden",
+
   "maintenance.export_dialog_title": "Exportieren",
   "maintenance.export_format": "Format",
   "maintenance.export_pdf_document": "PDF Dokument",

@@ -44,7 +44,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   
   Future<void> _initializeServices() async {
     await _adMobService.initialize();
-    await _adMobService.loadRewardedAd(); // Preload ad
+    await _adMobService.loadRewardedAd();
     _isPro = await _purchaseService.isPro();
     if (mounted) setState(() {});
   }
@@ -1103,11 +1103,8 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   Future<void> _watchAdAndProceed() async {
     print('\n🟢 [UI] ========== _watchAdAndProceed STARTED ==========');
     
-    // CRITICAL: Save router BEFORE showing ad
-    // The widget may be disposed during the AdActivity
     final router = GoRouter.of(context);
 
-    // Prepare ad (wait if needed) - NO LOADING DIALOG
     print('🟢 [UI] Calling prepareRewardedAd()...');
     final ready = await _adMobService.prepareRewardedAd();
     print('✅ [UI] prepareRewardedAd() returned: $ready');
@@ -1119,11 +1116,9 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
       
       if (success) {
         print('🟢 [UI] User earned reward, resetting counter...');
-        // User watched ad, reset counter
         await _counterService.resetCount();
         print('✅ [UI] Counter reset');
         
-        // Navigate using saved GoRouter
         print('🟢 [UI] Navigating to /maintenance/create with saved router...');
         try {
           await router.push('/maintenance/create');
@@ -1142,7 +1137,6 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
       }
     } else {
       print('❌ [UI] Ad NOT ready!');
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

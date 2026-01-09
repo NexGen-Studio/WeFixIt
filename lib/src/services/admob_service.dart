@@ -10,10 +10,8 @@ class AdMobService {
   bool _isInitialized = false;
   RewardedAd? _rewardedAd;
   bool _isRewardedAdReady = false;
-  BannerAd? _bannerAd;
-  bool _isBannerAdReady = false;
+  bool _isLoadingAd = false;
 
-  // Completer for tracking ad dismissal
   Completer<bool>? _adCompleter;
   bool _rewardEarned = false;
 
@@ -24,21 +22,9 @@ class AdMobService {
     _isInitialized = true;
   }
 
-  /// Get Banner Ad Unit ID
-  String get _bannerAdUnitId {
-    if (Platform.isAndroid) {
-      // TODO: Load from environment
-      return 'ca-app-pub-3940256099942544/6300978111'; // Test ID
-    } else if (Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/2934735716'; // Test ID
-    }
-    return '';
-  }
-
   /// Get Rewarded Ad Unit ID
   String get _rewardedAdUnitId {
     if (Platform.isAndroid) {
-      // TODO: Load from environment
       return 'ca-app-pub-3940256099942544/5224354917'; // Test ID
     } else if (Platform.isIOS) {
       return 'ca-app-pub-3940256099942544/1712485313'; // Test ID
@@ -49,6 +35,21 @@ class AdMobService {
   /// Load Rewarded Ad
   Future<void> loadRewardedAd() async {
     if (!_isInitialized) await initialize();
+    
+    // Prevent multiple concurrent load requests
+    if (_isLoadingAd) {
+      print('⚠️ [AdMob] Already loading ad, skipping duplicate request');
+      return;
+    }
+    
+    // If ad is already ready, don't load again
+    if (_isRewardedAdReady && _rewardedAd != null) {
+      print('✅ [AdMob] Ad already loaded and ready');
+      return;
+    }
+
+    _isLoadingAd = true;
+    print('🔵 [AdMob] Starting ad load...');
 
     await RewardedAd.load(
       adUnitId: _rewardedAdUnitId,
@@ -57,16 +58,16 @@ class AdMobService {
         onAdLoaded: (ad) {
           print('🔵 [AdMob] Ad loaded');
           
-          // CRITICAL: Store the ad but don't set callbacks yet!
-          // Callbacks will be set in showRewardedAd() to avoid overwriting active callbacks
           _rewardedAd = ad;
           _isRewardedAdReady = true;
+          _isLoadingAd = false;
           
           print('✅ [AdMob] Rewarded Ad loaded (callbacks will be set when shown)');
         },
         onAdFailedToLoad: (error) {
           print('❌ Rewarded Ad failed to load: $error');
           _isRewardedAdReady = false;
+          _isLoadingAd = false;
         },
       ),
     );
@@ -93,10 +94,8 @@ class AdMobService {
   Future<bool> showRewardedAd() async {
     print('🔵 [AdMob] showRewardedAd() CALLED');
     
-    // Ensure ready (fast check)
     if (!_isRewardedAdReady || _rewardedAd == null) {
       print('⚠️ [AdMob] Ad not ready, preparing...');
-      // Try to prepare one last time if not called before
       final ready = await prepareRewardedAd();
       if (!ready) {
         print('❌ [AdMob] Rewarded Ad still not ready');
@@ -105,12 +104,10 @@ class AdMobService {
       print('✅ [AdMob] Ad prepared successfully');
     }
 
-    // Create completer and reset reward flag
     _adCompleter = Completer<bool>();
     _rewardEarned = false;
     print('🔵 [AdMob] Completer created, setting up callbacks NOW...');
 
-    // Set up callbacks RIGHT BEFORE showing the ad
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
         print('🎬 [AdMob] *** AD SHOWED - FULLSCREEN NOW ***');
@@ -123,7 +120,6 @@ class AdMobService {
         _isRewardedAdReady = false;
         print('✅ [AdMob] Ad disposed, state reset');
         
-        // Complete the completer if it exists
         if (_adCompleter != null && !_adCompleter!.isCompleted) {
           print('🔵 [AdMob] Completing completer with result: $_rewardEarned');
           _adCompleter!.complete(_rewardEarned);
@@ -134,7 +130,6 @@ class AdMobService {
           print('⚠️ [AdMob] No completer to complete!');
         }
         
-        // Preload next ad
         print('🔵 [AdMob] Preloading next ad...');
         loadRewardedAd();
       },
@@ -144,7 +139,6 @@ class AdMobService {
         _rewardedAd = null;
         _isRewardedAdReady = false;
         
-        // Complete with failure
         if (_adCompleter != null && !_adCompleter!.isCompleted) {
           print('🔵 [AdMob] Completing completer with FAILURE');
           _adCompleter!.complete(false);
@@ -156,7 +150,6 @@ class AdMobService {
     print('✅ [AdMob] Callbacks set!');
 
     print('🔵 [AdMob] Calling _rewardedAd!.show()...');
-    // Show ad with reward callback
     await _rewardedAd!.show(
       onUserEarnedReward: (ad, reward) {
         print('💰 [AdMob] *** USER EARNED REWARD: ${reward.amount} ${reward.type} ***');
@@ -165,7 +158,6 @@ class AdMobService {
     );
     print('🔵 [AdMob] _rewardedAd!.show() returned, waiting for completer...');
     
-    // Wait until the ad is dismissed or failed
     final result = await _adCompleter!.future;
     print('✅ [AdMob] showRewardedAd() RETURNING: $result');
     return result;
@@ -174,44 +166,10 @@ class AdMobService {
   /// Check if rewarded ad is ready
   bool get isRewardedAdReady => _isRewardedAdReady;
 
-  /// Load Banner Ad
-  BannerAd? createBannerAd() {
-    if (!_isInitialized) {
-      print('⚠️ AdMob not initialized');
-      return null;
-    }
-
-    _bannerAd = BannerAd(
-      adUnitId: _bannerAdUnitId,
-      size: AdSize.banner, // 320x50
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print('✅ Banner Ad loaded');
-          _isBannerAdReady = true;
-        },
-        onAdFailedToLoad: (ad, error) {
-          print('❌ Banner Ad failed to load: $error');
-          ad.dispose();
-          _isBannerAdReady = false;
-        },
-      ),
-    );
-
-    _bannerAd!.load();
-    return _bannerAd;
-  }
-
-  /// Check if banner ad is ready
-  bool get isBannerAdReady => _isBannerAdReady;
-
   /// Dispose
   void dispose() {
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _isRewardedAdReady = false;
-    _bannerAd?.dispose();
-    _bannerAd = null;
-    _isBannerAdReady = false;
   }
 }

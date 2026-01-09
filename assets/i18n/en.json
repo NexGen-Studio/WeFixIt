@@ -565,6 +565,11 @@
   "maintenance.ad_failed": "Failed to load ad. Please try again later.",
   "maintenance.remaining_free": "{count} free maintenances remaining",
 
+  "costs.ad_gate_title": "Free Limit Reached 🎬",
+  "costs.ad_gate_message": "You've created 3 free cost entries. Watch a short video to unlock 3 more, or become a Pro member for unlimited costs.",
+  "costs.watch_video": "Watch Video",
+  "costs.become_pro": "Become Pro",
+
   "maintenance.export_dialog_title": "Export",
   "maintenance.export_format": "Format",
   "maintenance.export_pdf_document": "PDF Document",

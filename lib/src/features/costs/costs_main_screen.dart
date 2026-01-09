@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../i18n/app_localizations.dart';
+import '../../services/admob_service.dart';
+import '../../services/costs_counter_service.dart';
+import '../../services/purchase_service.dart';
 import 'tabs/costs_history_tab.dart';
 import 'tabs/costs_statistics_tab.dart';
 import 'tabs/costs_charts_tab.dart';
@@ -18,10 +21,14 @@ class _CostsMainScreenState extends State<CostsMainScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
+  final _adMobService = AdMobService();
+  final _counterService = CostsCounterService();
+  final _purchaseService = PurchaseService();
   bool _showFab = true;
   int _refreshTrigger = 0;
   Timer? _hideTimer;
   Timer? _scrollTimer;
+  bool _isPro = false;
 
   // Shared Timeframe State
   late DateTime _startDate;
@@ -32,6 +39,7 @@ class _CostsMainScreenState extends State<CostsMainScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _scrollController.addListener(_onScroll);
+    _initializeServices();
     
     // Initialize Timeframe: Current Month
     final now = DateTime.now();
@@ -40,6 +48,13 @@ class _CostsMainScreenState extends State<CostsMainScreen>
 
     // FAB nach 2 Sekunden initial ausblenden
     _startHideTimer();
+  }
+
+  Future<void> _initializeServices() async {
+    await _adMobService.initialize();
+    await _adMobService.loadRewardedAd();
+    _isPro = await _purchaseService.isPro();
+    if (mounted) setState(() {});
   }
 
   void _onDateRangeChanged(DateTime start, DateTime end) {
@@ -108,10 +123,7 @@ class _CostsMainScreenState extends State<CostsMainScreen>
           // Neuen Eintrag erstellen
           IconButton(
             icon: const Icon(Icons.add, color: Color(0xFFFFB129), size: 28),
-            onPressed: () async {
-              await context.push('/costs/add');
-              setState(() => _refreshTrigger++);
-            },
+            onPressed: _handleNewCost,
           ),
           // Kategorien verwalten
           IconButton(
@@ -167,10 +179,7 @@ class _CostsMainScreenState extends State<CostsMainScreen>
           duration: const Duration(milliseconds: 300),
           opacity: _showFab ? 1.0 : 0.0,
           child: FloatingActionButton.extended(
-            onPressed: () async {
-              await context.push('/costs/add');
-              setState(() => _refreshTrigger++);
-            },
+            onPressed: _handleNewCost,
             backgroundColor: const Color(0xFFFFB129),
             icon: const Icon(Icons.add, color: Colors.black),
             label: Text(
@@ -184,5 +193,128 @@ class _CostsMainScreenState extends State<CostsMainScreen>
         ),
       ),
     );
+  }
+
+  /// Handle new cost creation with ad gate
+  Future<void> _handleNewCost() async {
+    // Pro users bypass ad gate
+    if (_isPro) {
+      await context.push('/costs/add');
+      setState(() => _refreshTrigger++);
+      return;
+    }
+
+    // Check if user needs to watch ad
+    final needsAd = await _counterService.needsToWatchAd();
+    
+    if (needsAd) {
+      // Show ad gate dialog
+      _showAdGateDialog();
+    } else {
+      // User has free slots, proceed
+      await context.push('/costs/add');
+      await _counterService.incrementCount();
+      setState(() => _refreshTrigger++);
+    }
+  }
+
+  /// Show ad gate dialog
+  void _showAdGateDialog() {
+    final t = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F26),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          t.tr('costs.ad_gate_title'),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          t.tr('costs.ad_gate_message'),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              t.common_cancel,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/paywall');
+            },
+            child: Text(
+              t.tr('costs.become_pro'),
+              style: const TextStyle(color: Color(0xFFFFB129)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _watchAdAndProceed();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFB129),
+              foregroundColor: Colors.black,
+            ),
+            child: Text(t.tr('costs.watch_video')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Watch ad and proceed to cost creation
+  Future<void> _watchAdAndProceed() async {
+    print('\n🟢 [UI-Costs] ========== _watchAdAndProceed STARTED ==========');
+    
+    final router = GoRouter.of(context);
+
+    print('🟢 [UI-Costs] Calling prepareRewardedAd()...');
+    final ready = await _adMobService.prepareRewardedAd();
+    print('✅ [UI-Costs] prepareRewardedAd() returned: $ready');
+
+    if (ready) {
+      print('🟢 [UI-Costs] Ad is ready, calling showRewardedAd()...');
+      final success = await _adMobService.showRewardedAd();
+      print('✅ [UI-Costs] showRewardedAd() RETURNED with success: $success');
+      
+      if (success) {
+        print('🟢 [UI-Costs] User earned reward, resetting counter...');
+        await _counterService.resetCount();
+        print('✅ [UI-Costs] Counter reset');
+        
+        print('🟢 [UI-Costs] Navigating to /costs/add with saved router...');
+        try {
+          await router.push('/costs/add');
+          print('✅ [UI-Costs] Navigation completed!');
+          
+          print('🟢 [UI-Costs] Incrementing counter...');
+          await _counterService.incrementCount();
+          setState(() => _refreshTrigger++);
+          print('✅ [UI-Costs] All done!');
+        } catch (e) {
+          print('❌ [UI-Costs] Navigation error: $e');
+        }
+      } else {
+        print('⚠️ [UI-Costs] Ad did not succeed (user cancelled or error)');
+      }
+    } else {
+      print('❌ [UI-Costs] Ad NOT ready!');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Werbung konnte nicht geladen werden. Bitte versuche es später erneut.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+    print('🟢 [UI-Costs] ========== _watchAdAndProceed FINISHED ==========\n');
   }
 }

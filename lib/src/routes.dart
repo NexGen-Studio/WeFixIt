@@ -13,7 +13,6 @@ import 'features/costs/costs_main_screen.dart';
 import 'features/costs/cost_form_screen.dart';
 import 'features/costs/category_manager_screen.dart';
 import 'features/costs/achievements_screen.dart';
-import 'widgets/ad_banner.dart';
 import 'features/home/home_screen.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/reset_password_screen.dart';
@@ -220,14 +219,7 @@ class _RootScaffoldState extends State<_RootScaffold> {
       extendBody: true,
       backgroundColor: const Color(0xFF0F141A),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(child: widget.child),
-            // AdBanner ausblenden bei Ask Toni
-            if (!location.startsWith('/asktoni'))
-              const AdBannerWidget(),
-          ],
-        ),
+        child: widget.child,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

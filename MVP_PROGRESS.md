@@ -124,13 +124,19 @@ Dieses Dokument spiegelt den Umsetzungsstand der Anforderungen aus `wefixit_prom
   - Fahrzeuge: Felder für Hubraum (cc/l) und Kilometerstand ergänzt (Schema vorhanden), UI und Save-Funktionalität implementiert.
 
 - **[AI Backend Edge Functions / Systemprompt]**
-  - Status: TEILWEISE ERLEDIGT ✅
-  - Chatbot-UI (Ask Toni!) vollständig implementiert
+  - Status: WEITGEHEND ERLEDIGT ✅ (Harvester + Vektor-DB live, Ask Toni produktiv)
+  - Chatbot-UI (Ask Toni!) vollständig implementiert, inkl. Sidebar mit Chat-Verlauf:
+    - Neue Chats anlegen
+    - Alte Chats einsehen
+    - Chats per Long-Press/Löschen-Action entfernen
   - Credit-Gating: Pro-User Bypass + Gratis-Quota/Credits-Check vor jeder Nachricht
   - Chat-Verlauf mit Nachrichten-Bubbles (User/Bot)
   - Suggestion-Cards für schnelle Fragen
-  - Stub-Antworten (2s Delay simuliert AI-Verarbeitung)
-  - **TODO:** Echte AI Edge Function mit OpenAI/Anthropic Integration
+  - Auto Knowledge Harvester als Supabase Edge Function:
+    - `knowledge_harvest_queue` + `automotive_knowledge` + `failed_topics`
+    - Cron-Harvester (alle 10 Minuten) + Cleanup-Job (bereinigt hängende Items)
+    - Perplexity/OpenAI-Pipeline für Websuche, Aufbereitung, Übersetzung und Embeddings
+  - **TODO:** Systemprompt/Antwort-Qualität weiter feinjustieren (z.B. mehr Domänenwissen, bessere Erklärtexte)
 
 - **[OBD & Media Stubs]**
   - Status: AUSSTEHEND (UI-Hooks vorhanden; echte OBD-Funktionen folgen als Stubs mit klaren Schnittstellen)

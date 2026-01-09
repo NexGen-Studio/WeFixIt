@@ -243,7 +243,6 @@ class _AskToniScreenState extends State<AskToniScreen> {
   }
 
   Future<void> _showRewardedAd() async {
-    // Prepare and show ad without loading dialog
     if (_rewardedAd == null) {
       _loadRewardedAd();
       // Wait max 5 seconds for ad to load
@@ -256,7 +255,6 @@ class _AskToniScreenState extends State<AskToniScreen> {
     if (_rewardedAd != null) {
       _rewardedAd!.show(
         onUserEarnedReward: (ad, reward) async {
-          // User hat Werbung geschaut, gebe 1 Credit
           await _creditService.addFreeCredits(1, 'watched_ad');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -269,7 +267,6 @@ class _AskToniScreenState extends State<AskToniScreen> {
         },
       );
     } else {
-      // Ad konnte nicht geladen werden
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
