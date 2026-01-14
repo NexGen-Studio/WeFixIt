@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PurchaseService {
   static final PurchaseService _instance = PurchaseService._internal();
@@ -10,9 +11,16 @@ class PurchaseService {
 
   bool _isInitialized = false;
   
+  // Cache Keys für Offline-Unterstützung
+  static const String _cacheKeyIsPro = 'cache_is_pro';
+  static const String _cacheKeyCostsUnlock = 'cache_costs_unlock';
+  static const String _cacheKeyMaintenanceUnlock = 'cache_maintenance_unlock';
+  static const String _cacheKeyLastSync = 'cache_last_sync';
+  
   // Entitlements
   static const String entitlementPro = 'pro';
   static const String entitlementCostsLifetime = 'costs_lifetime'; // ID aus MVP_PROGRESS
+  static const String entitlementMaintenanceLifetime = 'maintenance_lifetime'; // Lifetime Unlock für Wartungen
 
   // Offering Identifiers
   static const String offeringDefault = 'default';
@@ -75,7 +83,8 @@ class PurchaseService {
     try {
       final customerInfo = await Purchases.purchasePackage(package);
       return _checkEntitlement(customerInfo, entitlementPro) || 
-             _checkEntitlement(customerInfo, entitlementCostsLifetime);
+             _checkEntitlement(customerInfo, entitlementCostsLifetime) ||
+             _checkEntitlement(customerInfo, entitlementMaintenanceLifetime);
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       if (errorCode != PurchasesErrorCode.purchaseCancelledError) {
@@ -85,14 +94,44 @@ class PurchaseService {
     }
   }
 
-  /// Status prüfen
+  /// Status prüfen mit Offline-Cache
   Future<bool> isProUser() async {
-    if (!_isInitialized) return false;
+    // ZUERST: Supabase is_pro prüfen (Debug/Test Override)
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final response = await Supabase.instance.client
+            .from('profiles')
+            .select('is_pro')
+            .eq('id', userId)
+            .maybeSingle();
+        
+        if (response != null && response['is_pro'] == true) {
+          print('✅ Pro status override from Supabase: TRUE');
+          await _cacheProStatus(true); // Cache für Offline
+          return true;
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error checking Supabase is_pro (offline?): $e');
+      // Bei Fehler (offline): Aus Cache laden
+      return await _getCachedProStatus();
+    }
+
+    // DANN: RevenueCat prüfen (Standard)
+    if (!_isInitialized) {
+      // Offline? Aus Cache laden
+      return await _getCachedProStatus();
+    }
+    
     try {
       final customerInfo = await Purchases.getCustomerInfo();
-      return _checkEntitlement(customerInfo, entitlementPro);
+      final isPro = _checkEntitlement(customerInfo, entitlementPro);
+      await _cacheProStatus(isPro); // Cache aktualisieren
+      return isPro;
     } catch (e) {
-      return false;
+      print('⚠️ RevenueCat offline: Loading from cache');
+      return await _getCachedProStatus();
     }
   }
   
@@ -101,15 +140,75 @@ class PurchaseService {
     return await isProUser();
   }
   
-  /// Kosten-Modul Freischaltung prüfen (Lifetime oder Pro)
+  /// Kosten-Modul Freischaltung prüfen (Lifetime oder Pro) mit Offline-Cache
   Future<bool> hasCostsUnlock() async {
-    if (!_isInitialized) return false;
+    // ZUERST: Supabase is_pro prüfen (Debug/Test Override)
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final response = await Supabase.instance.client
+            .from('profiles')
+            .select('is_pro')
+            .eq('id', userId)
+            .maybeSingle();
+        
+        if (response != null && response['is_pro'] == true) {
+          await _cacheCostsUnlock(true);
+          return true; // Pro = alle Features freigeschaltet
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error checking Supabase is_pro (offline?): $e');
+      return await _getCachedCostsUnlock();
+    }
+
+    // DANN: RevenueCat prüfen
+    if (!_isInitialized) return await _getCachedCostsUnlock();
     try {
       final customerInfo = await Purchases.getCustomerInfo();
-      return _checkEntitlement(customerInfo, entitlementPro) || 
-             _checkEntitlement(customerInfo, entitlementCostsLifetime);
+      final hasUnlock = _checkEntitlement(customerInfo, entitlementPro) || 
+                        _checkEntitlement(customerInfo, entitlementCostsLifetime);
+      await _cacheCostsUnlock(hasUnlock);
+      return hasUnlock;
     } catch (e) {
-      return false;
+      print('⚠️ RevenueCat offline: Loading costs unlock from cache');
+      return await _getCachedCostsUnlock();
+    }
+  }
+  
+  /// Wartungs-Modul Freischaltung prüfen (Lifetime oder Pro) mit Offline-Cache
+  Future<bool> hasMaintenanceUnlock() async {
+    // ZUERST: Supabase is_pro prüfen (Debug/Test Override)
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final response = await Supabase.instance.client
+            .from('profiles')
+            .select('is_pro')
+            .eq('id', userId)
+            .maybeSingle();
+        
+        if (response != null && response['is_pro'] == true) {
+          await _cacheMaintenanceUnlock(true);
+          return true; // Pro = alle Features freigeschaltet
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error checking Supabase is_pro (offline?): $e');
+      return await _getCachedMaintenanceUnlock();
+    }
+
+    // DANN: RevenueCat prüfen
+    if (!_isInitialized) return await _getCachedMaintenanceUnlock();
+    try {
+      final customerInfo = await Purchases.getCustomerInfo();
+      final hasUnlock = _checkEntitlement(customerInfo, entitlementPro) || 
+                        _checkEntitlement(customerInfo, entitlementMaintenanceLifetime);
+      await _cacheMaintenanceUnlock(hasUnlock);
+      return hasUnlock;
+    } catch (e) {
+      print('⚠️ RevenueCat offline: Loading maintenance unlock from cache');
+      return await _getCachedMaintenanceUnlock();
     }
   }
 
@@ -124,6 +223,67 @@ class PurchaseService {
       await Purchases.restorePurchases();
     } catch (e) {
       print('Error restoring purchases: $e');
+    }
+  }
+  
+  // ========== OFFLINE CACHE HELPERS ==========
+  
+  Future<void> _cacheProStatus(bool isPro) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_cacheKeyIsPro, isPro);
+      await prefs.setInt(_cacheKeyLastSync, DateTime.now().millisecondsSinceEpoch);
+      print('💾 Cached Pro status: $isPro');
+    } catch (e) {
+      print('⚠️ Failed to cache Pro status: $e');
+    }
+  }
+  
+  Future<bool> _getCachedProStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getBool(_cacheKeyIsPro) ?? false;
+      print('📦 Loaded Pro status from cache: $cached');
+      return cached;
+    } catch (e) {
+      print('⚠️ Failed to load cached Pro status: $e');
+      return false;
+    }
+  }
+  
+  Future<void> _cacheCostsUnlock(bool hasUnlock) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_cacheKeyCostsUnlock, hasUnlock);
+    } catch (e) {
+      print('⚠️ Failed to cache costs unlock: $e');
+    }
+  }
+  
+  Future<bool> _getCachedCostsUnlock() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_cacheKeyCostsUnlock) ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  Future<void> _cacheMaintenanceUnlock(bool hasUnlock) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_cacheKeyMaintenanceUnlock, hasUnlock);
+    } catch (e) {
+      print('⚠️ Failed to cache maintenance unlock: $e');
+    }
+  }
+  
+  Future<bool> _getCachedMaintenanceUnlock() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_cacheKeyMaintenanceUnlock) ?? false;
+    } catch (e) {
+      return false;
     }
   }
 }

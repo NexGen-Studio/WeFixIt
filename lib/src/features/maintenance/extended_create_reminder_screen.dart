@@ -77,13 +77,29 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
   final FocusNode _dateFocusNode = FocusNode();
   final TextEditingController _customCategoryCtrl = TextEditingController();
   bool _showCustomCategoryInput = false; // Toggle für Sonstiges-Inputfeld
+  
+  // Pro-Status für Lock-Icons
+  bool _isPro = false;
+  bool _hasMaintenanceUnlock = false;
 
   @override
   void initState() {
     super.initState();
     _initLocalData();
+    _loadProStatus();
     if (widget.existing != null) {
       _loadExisting();
+    }
+  }
+  
+  Future<void> _loadProStatus() async {
+    final isPro = await PurchaseService().isPro();
+    final hasUnlock = await PurchaseService().hasMaintenanceUnlock();
+    if (mounted) {
+      setState(() {
+        _isPro = isPro;
+        _hasMaintenanceUnlock = hasUnlock;
+      });
     }
   }
 
@@ -2453,17 +2469,16 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
         .where((cat) => cat != MaintenanceCategory.insurance && cat != MaintenanceCategory.tax)
         .toList();
     
-    // Custom-Categories VOR "Sonstiges" einfügen
     final allTiles = <Widget>[];
     
     for (var cat in categories) {
-      // Wenn wir bei "other" sind, füge Custom-Categories DAVOR ein
+      // Custom-Kategorie "Sonstiges" anders behandeln
       if (cat == MaintenanceCategory.other) {
+        // Custom Labels anzeigen
         allTiles.addAll(_customCategories.map((label) {
-          final isSelected = _customSelectedLabel == label;
-          final icon = _customCategoryIcons[label] ?? Icons.help_outline;
+          final isSelected = _category == MaintenanceCategory.other && _customSelectedLabel == label;
           return _CategoryIconTile(
-            icon: icon,
+            icon: Icons.category_outlined,
             label: label,
             color: const Color(0xFF90A4AE),
             selected: isSelected,
@@ -2479,7 +2494,8 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
       
       // Normale Kategorie hinzufügen
       final isSelected = _category == cat && (cat != MaintenanceCategory.other || _customSelectedLabel == null);
-      final isLocked = !cat.isFreeCategory; // Nicht in freien 4 Kategorien
+      // isLocked NUR wenn nicht-freie Kategorie UND User nicht Pro ist
+      final isLocked = !cat.isFreeCategory && !_isPro && !_hasMaintenanceUnlock;
       final icon = _getCategoryIcon(cat);
       final color = _getCategoryColor(cat);
       allTiles.add(_CategoryIconTile(
@@ -2612,7 +2628,8 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     
     // Paywall-Check: Nur 4 Kategorien für Free-User
     final isPro = await PurchaseService().isPro();
-    if (!isPro && !cat.isFreeCategory) {
+    final hasMaintenanceUnlock = await PurchaseService().hasMaintenanceUnlock();
+    if (!isPro && !hasMaintenanceUnlock && !cat.isFreeCategory) {
       _showCategoryLockedDialog();
       return;
     }
@@ -2691,6 +2708,27 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.lock_open, color: Color(0xFFFFB129), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.tr('maintenance.lifetime_unlock'),
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                    Text(
+                      t.tr('paywall.one_time'),
+                      style: TextStyle(
+                        color: Color(0xFFFFB129),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -2709,7 +2747,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
                         backgroundColor: const Color(0xFFFFB129),
                         foregroundColor: Colors.black,
                       ),
-                      child: Text(t.tr('common.go_to_paywall')),
+                      child: Text(t.tr('paywall.upgrade_now')),
                     ),
                   ],
                 ),

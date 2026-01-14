@@ -43,6 +43,11 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Bluetooth Permission für OBD2-Diagnose -->
+		<key>NSBluetoothAlwaysUsageDescription</key>
+		<string>WeFixIt benötigt Bluetooth-Zugriff, um eine Verbindung zu deinem OBD2-Adapter herzustellen und Fehlerdiagnosen durchzuführen.</string>
+		<key>NSBluetoothPeripheralUsageDescription</key>
+		<string>WeFixIt benötigt Bluetooth-Zugriff, um Fahrzeugdaten von deinem OBD2-Adapter auszulesen.</string>
 		<!-- URL Scheme für Supabase Passwort-Reset: wefixit://reset-password -->
 		<key>CFBundleURLTypes</key>
 		<array>

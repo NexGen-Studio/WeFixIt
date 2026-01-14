@@ -1,10 +1,131 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import '../../services/obd2_service.dart';
+import '../../models/obd_error_code.dart';
+import '../../state/error_codes_provider.dart';
+import 'obd2_scan_dialog.dart';
 
-class DiagnoseScreen extends StatelessWidget {
+class DiagnoseScreen extends ConsumerStatefulWidget {
   const DiagnoseScreen({super.key});
+
+  @override
+  ConsumerState<DiagnoseScreen> createState() => _DiagnoseScreenState();
+}
+
+class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
+  final _obd2Service = Obd2Service();
+  bool _isScanning = false;
+
+  /// KI-Diagnose starten
+  Future<void> _startAiDiagnosis() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      _showLoginRequired(context);
+      return;
+    }
+    
+    // Prüfe ob Codes vorhanden sind
+    final codes = ref.read(errorCodesProvider);
+    if (codes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte lese zuerst Fehlercodes aus'),
+          backgroundColor: Color(0xFFFFB129),
+        ),
+      );
+      return;
+    }
+    
+    // Navigiere zur KI-Diagnose Auswahl (Screen 1)
+    context.push('/diagnose/ai-select');
+  }
+
+  /// Demo-Modus: Öffne Demo-Diagnose Screen mit allen Funktionen
+  Future<void> _startDemoMode() async {
+    // Navigiere zum Demo-Diagnose Screen (identisch zum echten mit 3 Buttons)
+    context.push('/diagnose/demo');
+  }
+
+  /// Fehlercodes auslesen - Öffne Scan-Screen
+  Future<void> _readErrorCodes() async {
+    setState(() => _isScanning = true);
+    
+    try {
+      // Zeige OBD2-Scan-Dialog
+      final device = await showDialog<BluetoothDevice>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Obd2ScanDialog(obd2Service: _obd2Service),
+      );
+      
+      if (device == null) {
+        setState(() => _isScanning = false);
+        return;
+      }
+      
+      // Verbinde mit Gerät
+      final success = await _obd2Service.connect(device);
+      
+      if (!mounted) return;
+      
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verbindung fehlgeschlagen'),
+            backgroundColor: Color(0xFFE53935),
+          ),
+        );
+        setState(() => _isScanning = false);
+        return;
+      }
+      
+      // Navigiere zum Scan-Screen (der wird die Codes auslesen und anzeigen)
+      if (!mounted) return;
+      await context.push('/diagnose/error-codes');
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler: $e'),
+            backgroundColor: const Color(0xFFE53935),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isScanning = false);
+      }
+    }
+  }
+
+  /// Fehlercodes löschen - Navigiere zum Delete Screen
+  Future<void> _clearErrorCodes() async {
+    final codes = ref.read(errorCodesProvider);
+    
+    if (codes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Keine Fehlercodes vorhanden. Bitte lese zuerst Codes aus.'),
+          backgroundColor: Color(0xFFFFB129),
+        ),
+      );
+      return;
+    }
+    
+    // Navigiere zum Delete Screen
+    context.push('/diagnose/delete-codes');
+  }
+
+  @override
+  void dispose() {
+    _obd2Service.dispose();
+    super.dispose();
+  }
 
   static void _showLoginRequired(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -44,144 +165,184 @@ class DiagnoseScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1117),
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.tr('diagnose.title'),
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      t.tr('diagnose.subtitle'),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Text(
+                t.tr('diagnose.title'),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
-            ),
-
-            // Action Cards
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildActionCard(
-                    context: context,
-                    icon: Icons.search,
-                    iconColor: const Color(0xFFE53935),
-                    iconBg: const Color(0xFFFFEBEE),
-                    title: t.tr('diagnose.read_dtc'),
-                    badge: t.diagnose_always_free,
-                    badgeColor: const Color(0xFF4CAF50),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildActionCard(
-                    context: context,
-                    icon: Icons.delete_sweep_outlined,
-                    iconColor: const Color(0xFFFFB129),
-                    iconBg: const Color(0xFFFFB129).withOpacity(0.15),
-                    title: t.tr('diagnose.clear_dtc'),
-                    badge: t.diagnose_always_free,
-                    badgeColor: const Color(0xFF4CAF50),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildActionCard(
-                    context: context,
-                    icon: Icons.psychology_outlined,
-                    iconColor: const Color(0xFFF57C00),
-                    iconBg: const Color(0xFFFFF3E0),
-                    title: t.tr('diagnose.ai_diagnose'),
-                    badge: t.diagnose_may_use_credits,
-                    badgeColor: const Color(0xFFF57C00),
-                    onTap: () {
-                      final isLoggedIn = Supabase.instance.client.auth.currentSession != null;
-                      if (!isLoggedIn) {
-                        _showLoginRequired(context);
-                      } else {
-                        // TODO: Start AI Diagnosis
-                      }
-                    },
-                  ),
-                ]),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 28)),
-
-            // Info Section
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.diagnose_how_it_works,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoCard(
-                      icon: Icons.cable,
-                      title: t.diagnose_connect_adapter,
-                      description: t.diagnose_connect_adapter_desc,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoCard(
-                      icon: Icons.bluetooth,
-                      title: t.diagnose_activate_bluetooth,
-                      description: t.diagnose_activate_bluetooth_desc,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoCard(
-                      icon: Icons.play_arrow,
-                      title: t.diagnose_start_diagnosis,
-                      description: t.diagnose_start_diagnosis_desc,
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              Text(
+                t.tr('diagnose.subtitle'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
+              
+              const SizedBox(height: 32),
+              
+              // Button 1: Fehlercodes auslesen
+              _buildMainActionButton(
+                icon: Icons.search,
+                iconColor: const Color(0xFFE53935),
+                iconBg: const Color(0xFFFFEBEE),
+                title: 'Fehlercodes\nauslesen',
+                badge: 'Kostenlos',
+                badgeColor: const Color(0xFF4CAF50),
+                onTap: _isScanning ? null : _readErrorCodes,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Button 2: Fehlercodes löschen
+              _buildMainActionButton(
+                icon: Icons.delete_outline,
+                iconColor: const Color(0xFFFFB129),
+                iconBg: const Color(0xFFFFF8E1),
+                title: 'Fehlercodes\nlöschen',
+                badge: 'Kostenlos',
+                badgeColor: const Color(0xFF4CAF50),
+                onTap: _clearErrorCodes,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Button 3: KI-Diagnose starten
+              _buildMainActionButton(
+                icon: Icons.psychology_outlined,
+                iconColor: const Color(0xFFFFB129),
+                iconBg: const Color(0xFFFFF8E1),
+                title: 'KI-Diagnose\nstarten',
+                badge: 'Credits',
+                badgeColor: const Color(0xFFFFB129),
+                onTap: _startAiDiagnosis,
+              ),
+              
+              const SizedBox(height: 40),
+              
+              // Info Section - Wie funktioniert's?
+              Text(
+                t.diagnose_how_it_works,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildInfoCard(
+                icon: Icons.cable,
+                title: t.diagnose_connect_adapter,
+                description: t.diagnose_connect_adapter_desc,
+              ),
+              const SizedBox(height: 12),
+              _buildInfoCard(
+                icon: Icons.bluetooth,
+                title: t.diagnose_activate_bluetooth,
+                description: t.diagnose_activate_bluetooth_desc,
+              ),
+              const SizedBox(height: 12),
+              _buildInfoCard(
+                icon: Icons.play_arrow,
+                title: t.diagnose_start_diagnosis,
+                description: t.diagnose_start_diagnosis_desc,
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Demo-Modus Button (unten)
+              Material(
+                color: const Color(0xFF151C23),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  onTap: _startDemoMode,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: const Color(0xFFFFB129).withOpacity(0.3),
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB129).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.science_outlined,
+                            color: Color(0xFFFFB129),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '🧪 Demo-Modus (ohne Adapter)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Teste mit Beispiel-Fehlercodes',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          color: Color(0xFFFFB129),
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildActionCard({
-    required BuildContext context,
+  Widget _buildMainActionButton({
     required IconData icon,
     required Color iconColor,
     required Color iconBg,
     required String title,
     required String badge,
     required Color badgeColor,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Material(
       color: const Color(0xFF151C23),
@@ -190,7 +351,7 @@ class DiagnoseScreen extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             border: Border.all(color: Colors.white12, width: 1),
             borderRadius: BorderRadius.circular(16),
@@ -198,43 +359,48 @@ class DiagnoseScreen extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: iconBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 24),
+                child: Icon(icon, color: iconColor, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
-                    letterSpacing: -0.2,
+                    height: 1.2,
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: badgeColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: badgeColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  badge,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: badgeColor,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: badgeColor.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: badgeColor,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 18),
+                ],
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
             ],
           ),
         ),
@@ -295,5 +461,6 @@ class DiagnoseScreen extends StatelessWidget {
       ),
     );
   }
+
 }
 

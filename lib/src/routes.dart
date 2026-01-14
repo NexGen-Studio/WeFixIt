@@ -2,7 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'features/diagnose/diagnose_screen.dart';
+import 'features/diagnose/demo_diagnose_screen.dart';
+import 'features/diagnose/error_codes_list_screen.dart';
+import 'features/diagnose/delete_error_codes_screen.dart';
+import 'features/diagnose/ai_diagnosis_select_screen.dart';
+import 'features/diagnose/ai_diagnosis_detail_screen.dart';
+import 'features/diagnose/ai_diagnosis_cause_detail_screen.dart';
+import 'features/diagnose/ai_diagnosis_results_screen.dart';
 import 'features/ask_toni/ask_toni_screen.dart';
+import 'models/obd_error_code.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/maintenance/create_reminder_screen.dart';
@@ -19,6 +27,7 @@ import 'features/auth/reset_password_screen.dart';
 import 'features/paywall/paywall_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'i18n/app_localizations.dart';
+import 'widgets/connection_monitor.dart';
 import '../splash_screen.dart';
 
 // Globaler Init-Status für Supabase
@@ -123,6 +132,63 @@ GoRouter createRouter() {
             pageBuilder: (context, state) => const NoTransitionPage(
               child: DiagnoseScreen(),
             ),
+            routes: [
+              GoRoute(
+                path: 'demo',
+                builder: (context, state) {
+                  return const DemoDiagnoseScreen();
+                },
+              ),
+              GoRoute(
+                path: 'error-codes',
+                builder: (context, state) {
+                  // extra kann 'demo' oder Obd2Service sein
+                  return ErrorCodesListScreen(extra: state.extra);
+                },
+              ),
+              GoRoute(
+                path: 'delete-codes',
+                builder: (context, state) {
+                  return const DeleteErrorCodesScreen();
+                },
+              ),
+              GoRoute(
+                path: 'ai-select',
+                builder: (context, state) {
+                  final isDemo = (state.extra as bool?) ?? false;
+                  return AiDiagnosisSelectScreen(isDemo: isDemo);
+                },
+              ),
+              GoRoute(
+                path: 'ai-detail',
+                builder: (context, state) {
+                  final extra = state.extra as Map<String, dynamic>;
+                  return AiDiagnosisDetailScreen(
+                    code: extra['code'] as RawObdCode,
+                    description: extra['description'] as ObdErrorCode?,
+                    isDemo: extra['isDemo'] as bool? ?? false,
+                    simulateError: extra['simulateError'] as bool? ?? false,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'ai-cause-detail',
+                builder: (context, state) {
+                  final extra = state.extra as Map<String, dynamic>;
+                  return AiDiagnosisCauseDetailScreen(
+                    code: extra['code'] as RawObdCode,
+                    cause: extra['cause'],
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'ai-results',
+                builder: (context, state) {
+                  final codes = state.extra as List<RawObdCode>;
+                  return AiDiagnosisResultsScreen(errorCodes: codes);
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/asktoni',
@@ -215,12 +281,13 @@ class _RootScaffoldState extends State<_RootScaffold> {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _indexFromLocation(location);
-    return Scaffold(
-      extendBody: true,
-      backgroundColor: const Color(0xFF0F141A),
-      body: SafeArea(
-        child: widget.child,
-      ),
+    return ConnectionMonitor(
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: const Color(0xFF0F141A),
+        body: SafeArea(
+          child: widget.child,
+        ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1A2028),
@@ -256,6 +323,7 @@ class _RootScaffoldState extends State<_RootScaffold> {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -106,10 +106,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
     _lifetimeItems = [
       PaywallItem(
-        id: 'lifetime',
-        title: 'Lifetime Unlock',
+        id: 'costs_lifetime',
+        title: t.tr('costs.lifetime_unlock'),
         subtitle: t.tr('paywall.one_time'),
-        price: '19,99 €',
+        price: '2,99 €',
+        isLifetime: true,
+        isCredit: false,
+      ),
+      PaywallItem(
+        id: 'maintenance_lifetime',
+        title: t.tr('maintenance.lifetime_unlock'),
+        subtitle: t.tr('paywall.one_time'),
+        price: '2,99 €',
         isLifetime: true,
         isCredit: false,
         isBestValue: true,

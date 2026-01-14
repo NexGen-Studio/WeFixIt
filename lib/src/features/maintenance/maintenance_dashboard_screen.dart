@@ -33,6 +33,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   List<MaintenanceReminder> _reminders = [];
   bool _loading = true;
   bool _isPro = false;
+  bool _hasMaintenanceUnlock = false;
   bool _adJustDismissed = false;
 
   @override
@@ -46,6 +47,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     await _adMobService.initialize();
     await _adMobService.loadRewardedAd();
     _isPro = await _purchaseService.isPro();
+    _hasMaintenanceUnlock = await _purchaseService.hasMaintenanceUnlock();
     if (mounted) setState(() {});
   }
 
@@ -259,8 +261,10 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     }
 
     // Pro Status abrufen
-    // Nur Pro-User dürfen Wartungen exportieren (Lifetime NUR für Kosten)
+    // Pro-User ODER Lifetime-User dürfen alle Wartungen exportieren
     final isPro = await _purchaseService.isPro();
+    final hasMaintenanceUnlock = await _purchaseService.hasMaintenanceUnlock();
+    final hasFullAccess = isPro || hasMaintenanceUnlock;
     
     String exportFormat = 'pdf';
     DateTime? startDate;
@@ -268,10 +272,10 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
     
     // Alle Kategorien ausgewählt (nur verfügbare wenn Free)
     final Set<MaintenanceCategory> selectedCategories = {};
-    if (isPro) {
+    if (hasFullAccess) {
       selectedCategories.addAll(_allCategories);
     } else {
-      // Free User: Nur 4 Basis-Kategorien
+      // Free User: Nur 3 Basis-Kategorien
       selectedCategories.addAll(MaintenanceCategoryExtension.freeCategories);
     }
 
@@ -588,12 +592,13 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
   ) async {
     final t = AppLocalizations.of(context);
     try {
-      // Paywall-Check für PDF-Export: Nur Pro-User
+      // Paywall-Check für PDF-Export: Nur Pro-User oder Lifetime-User
       if (format == 'pdf') {
         final isPro = await _purchaseService.isPro();
+        final hasMaintenanceUnlock = await _purchaseService.hasMaintenanceUnlock();
         
-        // Free-User dürfen nur 4 Basis-Kategorien exportieren
-        if (!isPro) {
+        // Free-User dürfen nur 3 Basis-Kategorien exportieren
+        if (!isPro && !hasMaintenanceUnlock) {
           final hasLockedCategory = categories.any((cat) => !cat.isFreeCategory);
           if (hasLockedCategory) {
             if (!mounted) return;
@@ -971,7 +976,7 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
                       // Scrollbarer Container für erledigte Wartungen - max 3 sichtbar
                       ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxHeight: _recentCompleted.length > 3 ? 300 : _recentCompleted.length * 100.0,
+                          maxHeight: _recentCompleted.length > 3 ? 350 : double.infinity,
                         ),
                         child: ListView.builder(
                           shrinkWrap: true,
@@ -1027,8 +1032,8 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
 
   /// Handle new maintenance creation with ad gate
   Future<void> _handleNewMaintenance() async {
-    // Pro users bypass ad gate
-    if (_isPro) {
+    // Pro users OR Lifetime Maintenance users bypass ad gate
+    if (_isPro || _hasMaintenanceUnlock) {
       await context.push('/maintenance/create');
       _loadReminders();
       return;
@@ -1073,26 +1078,34 @@ class _MaintenanceDashboardScreenState extends State<MaintenanceDashboardScreen>
               style: const TextStyle(color: Colors.white70),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.push('/paywall');
-            },
-            child: Text(
-              t.tr('maintenance.become_pro'),
-              style: const TextStyle(color: Color(0xFFFFB129)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await _watchAdAndProceed();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFB129),
-              foregroundColor: Colors.black,
-            ),
-            child: Text(t.tr('maintenance.watch_video')),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.push('/paywall');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFB129),
+                  foregroundColor: Colors.black,
+                ),
+                child: Text(t.tr('maintenance.lifetime_unlock')),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _watchAdAndProceed();
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFFB129)),
+                  foregroundColor: const Color(0xFFFFB129),
+                ),
+                child: Text(t.tr('maintenance.watch_video')),
+              ),
+            ],
           ),
         ],
       ),

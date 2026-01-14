@@ -662,7 +662,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                       onTap: () => context.go('/maintenance'),
                       child: Container(
                         margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: const Color(0xFF151C23),
                           borderRadius: BorderRadius.circular(12),
@@ -676,35 +676,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         child: Row(
                           children: [
                             SizedBox(
-                              width: 60,
+                              width: 50,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: _categoryColor(reminder.category).withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(8),
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: _categoryColor(reminder.category).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      _categoryIcon(reminder.category),
+                                      color: _categoryColor(reminder.category),
+                                      size: 18,
+                                    ),
                                   ),
-                                  child: Icon(
-                                    _categoryIcon(reminder.category),
-                                    color: _categoryColor(reminder.category),
-                                    size: 18,
-                                  ),
-                                ),
-                                if (reminder.category != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _categoryLabel(t, reminder.category),
-                                    style: const TextStyle(fontSize: 9, color: Colors.white70),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  if (reminder.category != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _categoryLabel(t, reminder.category),
+                                      style: const TextStyle(fontSize: 9, color: Colors.white70),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -735,6 +735,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 16),
                           ],
                         ),

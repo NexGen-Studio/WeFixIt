@@ -130,11 +130,6 @@ class _CostsMainScreenState extends State<CostsMainScreen>
             icon: const Icon(Icons.list_alt, color: Color(0xFFFFB129)),
             onPressed: () => context.push('/costs/categories'),
           ),
-          // Achievements anzeigen
-          IconButton(
-            icon: const Icon(Icons.emoji_events, color: Color(0xFFFFB129)),
-            onPressed: () => context.push('/costs/achievements'),
-          ),
         ],
         bottom: TabBar(
           controller: _tabController,

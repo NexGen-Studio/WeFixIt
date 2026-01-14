@@ -7,7 +7,6 @@ import 'package:purchases_flutter/purchases_flutter.dart'; // Import purchases_f
 import '../../i18n/app_localizations.dart';
 import '../../services/costs_service.dart';
 import '../../services/category_service.dart';
-import '../../services/achievements_service.dart';
 import '../../services/purchase_service.dart';
 import '../../models/vehicle_cost.dart';
 import '../../models/cost_category.dart';
@@ -255,18 +254,6 @@ class _CostFormScreenState extends State<CostFormScreen> {
         await _costsService.updateCost(widget.costId!, cost);
       } else {
         await _costsService.createCost(cost);
-        
-        try {
-          // Achievement-Check nach Erstellen
-          final achievementsService = AchievementsService(_costsService);
-          final newAchievements = await achievementsService.checkAchievements();
-          
-          if (newAchievements.isNotEmpty && mounted) {
-            await _showAchievementDialog(newAchievements.first);
-          }
-        } catch (e) {
-          print('Error checking achievements: $e');
-        }
       }
 
       if (mounted) {
@@ -290,39 +277,6 @@ class _CostFormScreenState extends State<CostFormScreen> {
     }
   }
 
-  Future<void> _showAchievementDialog(dynamic achievement) async {
-    final t = AppLocalizations.of(context);
-    
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF151C23),
-        title: Row(
-          children: [
-            Icon(achievement.icon, color: achievement.color, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                t.tr(achievement.titleKey),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          t.tr(achievement.descriptionKey),
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t.tr('common.ok')),
-          ),
-        ],
-      ),
-    );
-  }
-
   bool _isFuelCategory() {
     return _selectedCategory?.name == 'Treibstoff';
   }
@@ -338,7 +292,10 @@ class _CostFormScreenState extends State<CostFormScreen> {
     // Pro/Lifetime User: Alle Kategorien freigeschaltet
     if (_hasLifetimeUnlock || _isPro) return true;
     
-    // Free User: Nur nicht-gesperrte Kategorien (is_locked = false)
+    // Free User: Custom-Kategorien (userId != null) sind gesperrt
+    if (category.userId != null) return false;
+    
+    // Free User: System-Kategorien nur wenn nicht gesperrt (is_locked = false)
     return !category.isLocked;
   }
   
@@ -615,7 +572,6 @@ class _CostFormScreenState extends State<CostFormScreen> {
               controller: _titleController,
               decoration: _inputDecoration(t.tr('costs.title_hint')),
               style: const TextStyle(color: Colors.white),
-              validator: (value) => value?.isEmpty ?? true ? t.tr('costs.please_enter_title') : null,
             ),
             const SizedBox(height: 20),
 

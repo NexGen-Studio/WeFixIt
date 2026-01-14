@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../i18n/app_localizations.dart';
 import '../../services/category_service.dart';
+import '../../services/purchase_service.dart';
 import '../../models/cost_category.dart';
 
 /// Screen zum Verwalten von Kategorien (Custom)
@@ -14,15 +15,25 @@ class CategoryManagerScreen extends StatefulWidget {
 
 class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
   final CategoryService _categoryService = CategoryService();
+  final PurchaseService _purchaseService = PurchaseService();
   
   List<CostCategory> _systemCategories = [];
   List<CostCategory> _customCategories = [];
   bool _isLoading = true;
+  bool _isPro = false;
 
   @override
   void initState() {
     super.initState();
+    _loadProStatus();
     _loadCategories();
+  }
+
+  Future<void> _loadProStatus() async {
+    final isPro = await _purchaseService.isProUser();
+    if (mounted) {
+      setState(() => _isPro = isPro);
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -59,6 +70,12 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
   }
 
   void _showAddCategoryDialog() async {
+    // Pro-Check: Custom Kategorien nur für Pro-User
+    if (!_isPro) {
+      _showPaywallDialog();
+      return;
+    }
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => _CategoryDialog(
@@ -147,6 +164,70 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
         }
       }
     }
+  }
+
+  Future<void> _showPaywallDialog() async {
+    final t = AppLocalizations.of(context);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151C23),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB129).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock, color: Color(0xFFFFB129), size: 48),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              t.tr('costs.custom_category_locked_title'),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              t.tr('costs.custom_category_locked_message'),
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(t.tr('common.cancel')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.push('/paywall');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFB129),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text(t.tr('paywall.upgrade_now')),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

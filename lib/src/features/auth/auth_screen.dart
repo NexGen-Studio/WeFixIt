@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 import '../../i18n/app_localizations.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -60,6 +62,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
     } on AuthException catch (e) {
       setState(() => _error = e.message);
+    } on SocketException catch (_) {
+      setState(() => _error = 'Keine Internetverbindung. Bitte überprüfe deine Verbindung und versuche es erneut.');
+    } on http.ClientException catch (_) {
+      setState(() => _error = 'Keine Internetverbindung. Bitte überprüfe deine Verbindung und versuche es erneut.');
     } catch (e) {
       setState(() => _error = t.tr('auth.error_generic'));
     } finally {
@@ -205,6 +211,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   );
                                 } on AuthException catch (e) {
                                   setState(() => _error = e.message);
+                                } on SocketException catch (_) {
+                                  setState(() => _error = 'Keine Internetverbindung. Bitte überprüfe deine Verbindung und versuche es erneut.');
+                                } on http.ClientException catch (_) {
+                                  setState(() => _error = 'Keine Internetverbindung. Bitte überprüfe deine Verbindung und versuche es erneut.');
                                 } catch (_) {
                                   setState(() => _error = t.tr('auth.error_generic'));
                                 } finally {

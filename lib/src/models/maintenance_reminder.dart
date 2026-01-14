@@ -64,7 +64,6 @@ extension MaintenanceCategoryExtension on MaintenanceCategory {
     MaintenanceCategory.oilChange,
     MaintenanceCategory.tireChange,
     MaintenanceCategory.tuv,
-    MaintenanceCategory.inspection,
   ];
 
   /// Prüft ob diese Kategorie für Free-User verfügbar ist

@@ -5,6 +5,7 @@ import 'src/routes.dart';
 import 'src/services/maintenance_notification_service.dart';
 import 'src/services/navigation_service.dart';
 import 'src/services/purchase_service.dart';
+import 'src/services/network_service.dart';
 
 // Umschaltbarer Modus für die Launch-Animation:
 // false (Standard): Kein Overlay-Icon – direkt nach der nativen Launch-Animation
@@ -26,6 +27,12 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _iconScaleOut; // Launcher-Icon schrumpft schnell
   late final Animation<double> _contentScaleIn; // Splash-Inhalt zoomt leicht ein
   late final Animation<double> _contentOpacity; // Splash-Inhalt blendet ein
+  
+  // Internet-Check Status
+  bool _isCheckingInternet = true;
+  bool _hasInternet = false;
+  String _statusMessage = 'Prüfe Internetverbindung...';
+  final NetworkService _networkService = NetworkService();
 
   @override
   void initState() {
@@ -96,6 +103,30 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initializeApp() async {
+    // SCHRITT 1: Auf Internet warten (max 7 Sekunden)
+    setState(() {
+      _isCheckingInternet = true;
+      _statusMessage = 'Suche Internetverbindung...';
+    });
+    
+    _hasInternet = await _networkService.waitForConnection(
+      timeout: const Duration(seconds: 7),
+    );
+    
+    if (!_hasInternet) {
+      // Kein Internet nach 7 Sekunden
+      setState(() {
+        _isCheckingInternet = false;
+        _statusMessage = 'Diese App benötigt eine Internetverbindung';
+      });
+      return; // App startet NICHT
+    }
+    
+    // Internet verfügbar! Weiter mit Init
+    setState(() {
+      _statusMessage = 'Verbindung hergestellt...';
+    });
+    
     // Mindestens 1600ms Splash anzeigen (parallel zu Supabase-Init)
     // So bleibt der Content nach seinem Zoom-In noch deutlich sichtbar
     final splashTimer = Future.delayed(const Duration(milliseconds: 1600));
@@ -153,11 +184,18 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       // Nach erfolgreicher Init: Standardmäßig zur Home-Seite
+      setState(() {
+        _isCheckingInternet = false;
+      });
       context.go('/home');
     } catch (e) {
+      print('❌ Fehler beim Initialisieren: $e');
       // Bei Fehler: warte auf Splash-Timer, dann trotzdem weiter
       await splashTimer;
       if (!mounted) return;
+      setState(() {
+        _isCheckingInternet = false;
+      });
       final pendingRoute = NavigationService.consumePendingRoute();
       if (pendingRoute != null) {
         context.go(pendingRoute);
@@ -211,8 +249,97 @@ class _SplashScreenState extends State<SplashScreen>
                 );
               },
             ),
+          
+          // Internet-Status Indicator (unten)
+          Positioned(
+            bottom: 80,
+            left: 0,
+            right: 0,
+            child: _buildInternetStatus(),
+          ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildInternetStatus() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // WiFi-Icon NUR bei fehlendem Internet anzeigen
+        if (_isCheckingInternet && !_hasInternet)
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 1500),
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: 0.3 + (value * 0.7), // Pulsiert zwischen 0.3 und 1.0
+                child: const Icon(
+                  Icons.wifi_find,
+                  color: Color(0xFFFFB129),
+                  size: 48,
+                ),
+              );
+            },
+            onEnd: () {
+              if (_isCheckingInternet && mounted) {
+                setState(() {}); // Trigger rebuild für Loop
+              }
+            },
+          )
+        else if (!_isCheckingInternet && !_hasInternet)
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.wifi_off,
+              size: 40,
+              color: Colors.red,
+            ),
+          ),
+        
+        // Status-Text nur bei fehlendem Internet
+        if (_isCheckingInternet && !_hasInternet || !_isCheckingInternet && !_hasInternet) ...[
+          const SizedBox(height: 16),
+          Text(
+            _statusMessage,
+            style: TextStyle(
+              color: _isCheckingInternet ? Colors.white70 : Colors.red,
+              fontSize: 14,
+              fontWeight: _isCheckingInternet ? FontWeight.normal : FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+        
+        // Retry-Button wenn offline
+        if (!_isCheckingInternet && !_hasInternet) ...[
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                _isCheckingInternet = true;
+                _statusMessage = 'Erneut verbinden...';
+              });
+              _initializeApp();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Erneut versuchen'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFB129),
+              foregroundColor: const Color(0xFF0D1218),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
