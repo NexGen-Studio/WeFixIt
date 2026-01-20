@@ -15,6 +15,10 @@ _$AiDiagnosisImpl _$$AiDiagnosisImplFromJson(Map<String, dynamic> json) =>
           (json['possible_causes'] as List<dynamic>)
               .map((e) => PossibleCause.fromJson(e as Map<String, dynamic>))
               .toList(),
+      symptoms:
+          (json['symptoms'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList(),
       severity: json['severity'] as String?,
       driveSafety: json['drive_safety'] as bool?,
     );
@@ -25,6 +29,7 @@ Map<String, dynamic> _$$AiDiagnosisImplToJson(_$AiDiagnosisImpl instance) =>
       'description': instance.description,
       'detailedDescription': instance.detailedDescription,
       'possible_causes': instance.possibleCauses,
+      'symptoms': instance.symptoms,
       'severity': instance.severity,
       'drive_safety': instance.driveSafety,
     };
@@ -44,6 +49,7 @@ _$PossibleCauseImpl _$$PossibleCauseImplFromJson(Map<String, dynamic> json) =>
       ),
       probability: json['probability'] as String?,
       difficulty: json['difficulty'] as String?,
+      causeKey: json['causeKey'] as String?,
     );
 
 Map<String, dynamic> _$$PossibleCauseImplToJson(_$PossibleCauseImpl instance) =>
@@ -56,6 +62,7 @@ Map<String, dynamic> _$$PossibleCauseImplToJson(_$PossibleCauseImpl instance) =>
       'estimated_cost': instance.estimatedCost,
       'probability': instance.probability,
       'difficulty': instance.difficulty,
+      'causeKey': instance.causeKey,
     };
 
 _$RepairStepImpl _$$RepairStepImplFromJson(Map<String, dynamic> json) =>

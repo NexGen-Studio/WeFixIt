@@ -82,10 +82,11 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
         setState(() => _isScanning = false);
         return;
       }
-      
-      // Navigiere zum Scan-Screen (der wird die Codes auslesen und anzeigen)
+
+      // ✅ WICHTIG: Navigiere zum Error-Codes-Screen der macht das Auslesen selbst
+      // Der Screen zeigt automatisch die Loading-Animation und verarbeitet die Codes
       if (!mounted) return;
-      await context.push('/diagnose/error-codes');
+      await context.push('/diagnose/error-codes', extra: _obd2Service);
       
     } catch (e) {
       if (mounted) {
@@ -121,9 +122,65 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
     context.push('/diagnose/delete-codes');
   }
 
+  /// Live Daten auslesen - Öffne Live Data Screen
+  Future<void> _readLiveData() async {
+    // Prüfe ob Adapter verbunden ist (persistent über Screens)
+    if (!_obd2Service.isConnected) {
+      // Nicht verbunden → zeige Scan-Dialog
+      setState(() => _isScanning = true);
+      
+      try {
+        final device = await showDialog<BluetoothDevice>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Obd2ScanDialog(obd2Service: _obd2Service),
+        );
+        
+        if (device == null) {
+          setState(() => _isScanning = false);
+          return;
+        }
+        
+        // Verbinde mit Gerät
+        final success = await _obd2Service.connect(device);
+        
+        if (!mounted) return;
+        
+        if (!success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verbindung fehlgeschlagen'),
+              backgroundColor: Color(0xFFE53935),
+            ),
+          );
+          setState(() => _isScanning = false);
+          return;
+        }
+
+        setState(() => _isScanning = false);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Fehler: $e'),
+              backgroundColor: const Color(0xFFE53935),
+            ),
+          );
+        }
+        setState(() => _isScanning = false);
+        return;
+      }
+    }
+
+    // ✅ Adapter ist jetzt verbunden → navigiere zu Live Data Screen
+    if (!mounted) return;
+    context.push('/diagnose/live-data', extra: _obd2Service);
+  }
+
   @override
   void dispose() {
-    _obd2Service.dispose();
+    // ❌ NICHT dispose() aufrufen - das würde die Verbindung trennen!
+    // Die Verbindung bleibt bis zum App-Exit oder bis der Adapter entfernt wird
     super.dispose();
   }
 
@@ -214,6 +271,19 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                 badge: 'Kostenlos',
                 badgeColor: const Color(0xFF4CAF50),
                 onTap: _clearErrorCodes,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Button 2.5: Live Daten auslesen
+              _buildMainActionButton(
+                icon: Icons.show_chart,
+                iconColor: const Color(0xFF2196F3),
+                iconBg: const Color(0xFFE3F2FD),
+                title: 'Live Daten\nauslesen',
+                badge: 'Kostenlos',
+                badgeColor: const Color(0xFF4CAF50),
+                onTap: _readLiveData,
               ),
               
               const SizedBox(height: 16),

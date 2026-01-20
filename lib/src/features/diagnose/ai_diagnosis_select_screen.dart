@@ -59,20 +59,21 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
       backgroundColor: const Color(0xFF0B1117),
       appBar: AppBar(
         backgroundColor: const Color(0xFF151C23),
-        title: const Text(
-          '3. KI-Diagnose starten',
-          style: TextStyle(
+        title: Text(
+          t.tr('ai_diagnosis.title'),
+          style: const TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
       ),
       body: codes.isEmpty
-          ? _buildEmptyState()
+          ? _buildEmptyState(context)
           : Column(
               children: [
                 // Header
@@ -85,9 +86,9 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
                       bottom: BorderSide(color: Colors.white12),
                     ),
                   ),
-                  child: const Text(
-                    'Wähle einen Fehlercode für die Analyse',
-                    style: TextStyle(
+                  child: Text(
+                    t.tr('ai_diagnosis.select_code'),
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -111,7 +112,8 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -122,18 +124,18 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
             color: Colors.white24,
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Keine Fehlercodes vorhanden',
-            style: TextStyle(
+          Text(
+            t.tr('ai_diagnosis.no_codes_title'),
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Lese zuerst Fehlercodes aus',
-            style: TextStyle(
+          Text(
+            t.tr('ai_diagnosis.no_codes_subtitle'),
+            style: const TextStyle(
               color: Colors.white54,
               fontSize: 14,
             ),
@@ -145,7 +147,7 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
               backgroundColor: const Color(0xFFFFB129),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             ),
-            child: const Text('Zur Diagnose'),
+            child: Text(t.tr('ai_diagnosis.go_to_diagnose')),
           ),
         ],
       ),
@@ -185,14 +187,14 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
                     color: codeColor,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
+                    letterSpacing: 1,
                   ),
                 ),
               ),
               
               const SizedBox(width: 16),
               
-              // Beschreibung
+              // Kurze, prägnante Beschreibung (max 7 Wörter)
               Expanded(
                 child: isLoading
                     ? const SizedBox(
@@ -204,7 +206,7 @@ class _AiDiagnosisSelectScreenState extends ConsumerState<AiDiagnosisSelectScree
                         ),
                       )
                     : Text(
-                        description?.description ?? 'Keine Beschreibung verfügbar',
+                        _descriptionService.getShortDescription(code.code, description),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,

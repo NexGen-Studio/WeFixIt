@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_config_service.dart';
 
 class PurchaseService {
   static final PurchaseService _instance = PurchaseService._internal();
@@ -28,16 +29,20 @@ class PurchaseService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // RevenueCat Keys aus Environment Variables laden (SICHER!)
-    String apiKey = ''; 
-    if (Platform.isAndroid) {
-      apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_ANDROID', defaultValue: '');
-    } else if (Platform.isIOS) {
-      apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_IOS', defaultValue: '');
+    // RevenueCat Key vom Backend holen (oder Fallback auf Dart-Defines)
+    String apiKey = AppConfigService().revenuecatKey;
+    
+    // Fallback: Aus Dart-Defines laden (für Development/Testing)
+    if (apiKey.isEmpty) {
+      if (Platform.isAndroid) {
+        apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_ANDROID', defaultValue: '');
+      } else if (Platform.isIOS) {
+        apiKey = const String.fromEnvironment('REVENUECAT_PUBLIC_SDK_KEY_IOS', defaultValue: '');
+      }
     }
 
     if (apiKey.isEmpty) {
-      print('⚠️ RevenueCat API Key nicht konfiguriert. Bitte setze REVENUECAT_PUBLIC_SDK_KEY_ANDROID/IOS in den Dart-Defines.');
+      print('⚠️ RevenueCat API Key nicht konfiguriert. Bitte setze REVENUECAT_PUBLIC_SDK_KEY_ANDROID/IOS in den Dart-Defines oder Supabase Secrets.');
       return; // Abbrechen wenn kein Key vorhanden
     }
 

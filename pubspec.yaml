@@ -122,8 +122,9 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/app_icon.png"
-  adaptive_icon_background: "#0D1218"
-  adaptive_icon_foreground: "assets/images/app_icon.png"
+  # Adaptive Icon deaktiviert - nutzt gesamtes Icon ohne Verkleinerung
+  # adaptive_icon_background: "#0D1218"
+  # adaptive_icon_foreground: "assets/images/app_icon.png"
   image_path_ios: "assets/images/app_icon.png"
   remove_alpha_ios: true
   min_sdk_android: 21

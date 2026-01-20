@@ -22,11 +22,16 @@ ObdErrorCode _$ObdErrorCodeFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$ObdErrorCode {
   String get code => throw _privateConstructorUsedError;
-  String? get description => throw _privateConstructorUsedError;
-  String? get descriptionDe => throw _privateConstructorUsedError;
-  String? get descriptionEn => throw _privateConstructorUsedError;
   @JsonKey(name: 'code_type')
   String? get codeType => throw _privateConstructorUsedError;
+  @JsonKey(name: 'title_de')
+  String? get titleDe => throw _privateConstructorUsedError;
+  @JsonKey(name: 'title_en')
+  String? get titleEn => throw _privateConstructorUsedError;
+  @JsonKey(name: 'description_de')
+  String? get descriptionDe => throw _privateConstructorUsedError;
+  @JsonKey(name: 'description_en')
+  String? get descriptionEn => throw _privateConstructorUsedError;
   @JsonKey(name: 'is_generic')
   bool get isGeneric => throw _privateConstructorUsedError;
   List<String>? get symptoms => throw _privateConstructorUsedError;
@@ -38,8 +43,7 @@ mixin _$ObdErrorCode {
   List<String>? get repairSuggestions => throw _privateConstructorUsedError;
   @JsonKey(name: 'affected_components')
   List<String>? get affectedComponents => throw _privateConstructorUsedError;
-  String? get severity =>
-      throw _privateConstructorUsedError; // 'low', 'medium', 'high', 'critical'
+  String? get severity => throw _privateConstructorUsedError;
   @JsonKey(name: 'drive_safety')
   bool get driveSafety => throw _privateConstructorUsedError;
   @JsonKey(name: 'immediate_action_required')
@@ -70,10 +74,11 @@ abstract class $ObdErrorCodeCopyWith<$Res> {
   @useResult
   $Res call({
     String code,
-    String? description,
-    String? descriptionDe,
-    String? descriptionEn,
     @JsonKey(name: 'code_type') String? codeType,
+    @JsonKey(name: 'title_de') String? titleDe,
+    @JsonKey(name: 'title_en') String? titleEn,
+    @JsonKey(name: 'description_de') String? descriptionDe,
+    @JsonKey(name: 'description_en') String? descriptionEn,
     @JsonKey(name: 'is_generic') bool isGeneric,
     List<String>? symptoms,
     @JsonKey(name: 'common_causes') List<String>? commonCauses,
@@ -105,10 +110,11 @@ class _$ObdErrorCodeCopyWithImpl<$Res, $Val extends ObdErrorCode>
   @override
   $Res call({
     Object? code = null,
-    Object? description = freezed,
+    Object? codeType = freezed,
+    Object? titleDe = freezed,
+    Object? titleEn = freezed,
     Object? descriptionDe = freezed,
     Object? descriptionEn = freezed,
-    Object? codeType = freezed,
     Object? isGeneric = null,
     Object? symptoms = freezed,
     Object? commonCauses = freezed,
@@ -129,10 +135,20 @@ class _$ObdErrorCodeCopyWithImpl<$Res, $Val extends ObdErrorCode>
                     ? _value.code
                     : code // ignore: cast_nullable_to_non_nullable
                         as String,
-            description:
-                freezed == description
-                    ? _value.description
-                    : description // ignore: cast_nullable_to_non_nullable
+            codeType:
+                freezed == codeType
+                    ? _value.codeType
+                    : codeType // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            titleDe:
+                freezed == titleDe
+                    ? _value.titleDe
+                    : titleDe // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            titleEn:
+                freezed == titleEn
+                    ? _value.titleEn
+                    : titleEn // ignore: cast_nullable_to_non_nullable
                         as String?,
             descriptionDe:
                 freezed == descriptionDe
@@ -143,11 +159,6 @@ class _$ObdErrorCodeCopyWithImpl<$Res, $Val extends ObdErrorCode>
                 freezed == descriptionEn
                     ? _value.descriptionEn
                     : descriptionEn // ignore: cast_nullable_to_non_nullable
-                        as String?,
-            codeType:
-                freezed == codeType
-                    ? _value.codeType
-                    : codeType // ignore: cast_nullable_to_non_nullable
                         as String?,
             isGeneric:
                 null == isGeneric
@@ -226,10 +237,11 @@ abstract class _$$ObdErrorCodeImplCopyWith<$Res>
   @useResult
   $Res call({
     String code,
-    String? description,
-    String? descriptionDe,
-    String? descriptionEn,
     @JsonKey(name: 'code_type') String? codeType,
+    @JsonKey(name: 'title_de') String? titleDe,
+    @JsonKey(name: 'title_en') String? titleEn,
+    @JsonKey(name: 'description_de') String? descriptionDe,
+    @JsonKey(name: 'description_en') String? descriptionEn,
     @JsonKey(name: 'is_generic') bool isGeneric,
     List<String>? symptoms,
     @JsonKey(name: 'common_causes') List<String>? commonCauses,
@@ -260,10 +272,11 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? code = null,
-    Object? description = freezed,
+    Object? codeType = freezed,
+    Object? titleDe = freezed,
+    Object? titleEn = freezed,
     Object? descriptionDe = freezed,
     Object? descriptionEn = freezed,
-    Object? codeType = freezed,
     Object? isGeneric = null,
     Object? symptoms = freezed,
     Object? commonCauses = freezed,
@@ -284,10 +297,20 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
                 ? _value.code
                 : code // ignore: cast_nullable_to_non_nullable
                     as String,
-        description:
-            freezed == description
-                ? _value.description
-                : description // ignore: cast_nullable_to_non_nullable
+        codeType:
+            freezed == codeType
+                ? _value.codeType
+                : codeType // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        titleDe:
+            freezed == titleDe
+                ? _value.titleDe
+                : titleDe // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        titleEn:
+            freezed == titleEn
+                ? _value.titleEn
+                : titleEn // ignore: cast_nullable_to_non_nullable
                     as String?,
         descriptionDe:
             freezed == descriptionDe
@@ -298,11 +321,6 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
             freezed == descriptionEn
                 ? _value.descriptionEn
                 : descriptionEn // ignore: cast_nullable_to_non_nullable
-                    as String?,
-        codeType:
-            freezed == codeType
-                ? _value.codeType
-                : codeType // ignore: cast_nullable_to_non_nullable
                     as String?,
         isGeneric:
             null == isGeneric
@@ -374,10 +392,11 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
 class _$ObdErrorCodeImpl implements _ObdErrorCode {
   const _$ObdErrorCodeImpl({
     required this.code,
-    this.description,
-    this.descriptionDe,
-    this.descriptionEn,
     @JsonKey(name: 'code_type') this.codeType,
+    @JsonKey(name: 'title_de') this.titleDe,
+    @JsonKey(name: 'title_en') this.titleEn,
+    @JsonKey(name: 'description_de') this.descriptionDe,
+    @JsonKey(name: 'description_en') this.descriptionEn,
     @JsonKey(name: 'is_generic') this.isGeneric = true,
     final List<String>? symptoms,
     @JsonKey(name: 'common_causes') final List<String>? commonCauses,
@@ -405,14 +424,20 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
   @override
   final String code;
   @override
-  final String? description;
-  @override
-  final String? descriptionDe;
-  @override
-  final String? descriptionEn;
-  @override
   @JsonKey(name: 'code_type')
   final String? codeType;
+  @override
+  @JsonKey(name: 'title_de')
+  final String? titleDe;
+  @override
+  @JsonKey(name: 'title_en')
+  final String? titleEn;
+  @override
+  @JsonKey(name: 'description_de')
+  final String? descriptionDe;
+  @override
+  @JsonKey(name: 'description_en')
+  final String? descriptionEn;
   @override
   @JsonKey(name: 'is_generic')
   final bool isGeneric;
@@ -474,7 +499,6 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
 
   @override
   final String? severity;
-  // 'low', 'medium', 'high', 'critical'
   @override
   @JsonKey(name: 'drive_safety')
   final bool driveSafety;
@@ -501,7 +525,7 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
 
   @override
   String toString() {
-    return 'ObdErrorCode(code: $code, description: $description, descriptionDe: $descriptionDe, descriptionEn: $descriptionEn, codeType: $codeType, isGeneric: $isGeneric, symptoms: $symptoms, commonCauses: $commonCauses, diagnosticSteps: $diagnosticSteps, repairSuggestions: $repairSuggestions, affectedComponents: $affectedComponents, severity: $severity, driveSafety: $driveSafety, immediateActionRequired: $immediateActionRequired, relatedCodes: $relatedCodes, typicalCostRange: $typicalCostRange, occurrenceFrequency: $occurrenceFrequency)';
+    return 'ObdErrorCode(code: $code, codeType: $codeType, titleDe: $titleDe, titleEn: $titleEn, descriptionDe: $descriptionDe, descriptionEn: $descriptionEn, isGeneric: $isGeneric, symptoms: $symptoms, commonCauses: $commonCauses, diagnosticSteps: $diagnosticSteps, repairSuggestions: $repairSuggestions, affectedComponents: $affectedComponents, severity: $severity, driveSafety: $driveSafety, immediateActionRequired: $immediateActionRequired, relatedCodes: $relatedCodes, typicalCostRange: $typicalCostRange, occurrenceFrequency: $occurrenceFrequency)';
   }
 
   @override
@@ -510,14 +534,14 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
         (other.runtimeType == runtimeType &&
             other is _$ObdErrorCodeImpl &&
             (identical(other.code, code) || other.code == code) &&
-            (identical(other.description, description) ||
-                other.description == description) &&
+            (identical(other.codeType, codeType) ||
+                other.codeType == codeType) &&
+            (identical(other.titleDe, titleDe) || other.titleDe == titleDe) &&
+            (identical(other.titleEn, titleEn) || other.titleEn == titleEn) &&
             (identical(other.descriptionDe, descriptionDe) ||
                 other.descriptionDe == descriptionDe) &&
             (identical(other.descriptionEn, descriptionEn) ||
                 other.descriptionEn == descriptionEn) &&
-            (identical(other.codeType, codeType) ||
-                other.codeType == codeType) &&
             (identical(other.isGeneric, isGeneric) ||
                 other.isGeneric == isGeneric) &&
             const DeepCollectionEquality().equals(other._symptoms, _symptoms) &&
@@ -561,10 +585,11 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
   int get hashCode => Object.hash(
     runtimeType,
     code,
-    description,
+    codeType,
+    titleDe,
+    titleEn,
     descriptionDe,
     descriptionEn,
-    codeType,
     isGeneric,
     const DeepCollectionEquality().hash(_symptoms),
     const DeepCollectionEquality().hash(_commonCauses),
@@ -596,10 +621,11 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
 abstract class _ObdErrorCode implements ObdErrorCode {
   const factory _ObdErrorCode({
     required final String code,
-    final String? description,
-    final String? descriptionDe,
-    final String? descriptionEn,
     @JsonKey(name: 'code_type') final String? codeType,
+    @JsonKey(name: 'title_de') final String? titleDe,
+    @JsonKey(name: 'title_en') final String? titleEn,
+    @JsonKey(name: 'description_de') final String? descriptionDe,
+    @JsonKey(name: 'description_en') final String? descriptionEn,
     @JsonKey(name: 'is_generic') final bool isGeneric,
     final List<String>? symptoms,
     @JsonKey(name: 'common_causes') final List<String>? commonCauses,
@@ -622,14 +648,20 @@ abstract class _ObdErrorCode implements ObdErrorCode {
   @override
   String get code;
   @override
-  String? get description;
-  @override
-  String? get descriptionDe;
-  @override
-  String? get descriptionEn;
-  @override
   @JsonKey(name: 'code_type')
   String? get codeType;
+  @override
+  @JsonKey(name: 'title_de')
+  String? get titleDe;
+  @override
+  @JsonKey(name: 'title_en')
+  String? get titleEn;
+  @override
+  @JsonKey(name: 'description_de')
+  String? get descriptionDe;
+  @override
+  @JsonKey(name: 'description_en')
+  String? get descriptionEn;
   @override
   @JsonKey(name: 'is_generic')
   bool get isGeneric;
@@ -648,7 +680,7 @@ abstract class _ObdErrorCode implements ObdErrorCode {
   @JsonKey(name: 'affected_components')
   List<String>? get affectedComponents;
   @override
-  String? get severity; // 'low', 'medium', 'high', 'critical'
+  String? get severity;
   @override
   @JsonKey(name: 'drive_safety')
   bool get driveSafety;

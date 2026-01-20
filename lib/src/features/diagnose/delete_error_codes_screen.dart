@@ -168,9 +168,6 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
     }
   }
 
-  void _startAiDiagnosis(RawObdCode code) {
-    context.go('/diagnose/ai-results', extra: [code]);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +181,13 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
         title: const Text(
           '2. Fehlercodes löschen',
           style: TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
       ),
@@ -281,7 +279,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
               code.code,
               style: TextStyle(
                 color: codeColor,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
               ),
@@ -290,7 +288,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
           
           const SizedBox(width: 16),
           
-          // Beschreibung
+          // Kurze, prägnante Beschreibung (max 7 Wörter)
           Expanded(
             child: isLoading
                 ? const SizedBox(
@@ -302,7 +300,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
                     ),
                   )
                 : Text(
-                    description?.description ?? 'Keine Beschreibung verfügbar',
+                    _descriptionService.getShortDescription(code.code, description),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -315,25 +313,12 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
           
           const SizedBox(width: 12),
           
-          // Aktionen
-          Row(
-            children: [
-              // Löschen
-              IconButton(
-                onPressed: () => _deleteCode(code.code),
-                icon: const Icon(Icons.delete_outline),
-                color: const Color(0xFFE53935),
-                iconSize: 22,
-              ),
-              
-              // KI-Diagnose
-              IconButton(
-                onPressed: () => _startAiDiagnosis(code),
-                icon: const Icon(Icons.psychology_outlined),
-                color: const Color(0xFFFFB129),
-                iconSize: 22,
-              ),
-            ],
+          // Nur Löschen-Icon (KI-Diagnose entfernt)
+          IconButton(
+            onPressed: () => _deleteCode(code.code),
+            icon: const Icon(Icons.delete_outline),
+            color: const Color(0xFFE53935),
+            iconSize: 22,
           ),
         ],
       ),

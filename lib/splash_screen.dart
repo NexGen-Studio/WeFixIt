@@ -6,6 +6,7 @@ import 'src/services/maintenance_notification_service.dart';
 import 'src/services/navigation_service.dart';
 import 'src/services/purchase_service.dart';
 import 'src/services/network_service.dart';
+import 'src/services/app_config_service.dart';
 
 // Umschaltbarer Modus für die Launch-Animation:
 // false (Standard): Kein Overlay-Icon – direkt nach der nativen Launch-Animation
@@ -155,6 +156,14 @@ class _SplashScreenState extends State<SplashScreen>
         url: supabaseUrl,
         anonKey: supabaseAnon,
       );
+      
+      // Lade App Config vom Backend (AdMob, RevenueCat Keys)
+      try {
+        await AppConfigService().initialize();
+        print('✅ App Config geladen');
+      } catch (e) {
+        print('⚠️ Fehler beim Laden der App Config: $e');
+      }
       
       // Purchase Service initialisieren (RevenueCat)
       try {

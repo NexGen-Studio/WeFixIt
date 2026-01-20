@@ -5,9 +5,11 @@ import 'features/diagnose/diagnose_screen.dart';
 import 'features/diagnose/demo_diagnose_screen.dart';
 import 'features/diagnose/error_codes_list_screen.dart';
 import 'features/diagnose/delete_error_codes_screen.dart';
+import 'features/diagnose/live_data_screen.dart';
 import 'features/diagnose/ai_diagnosis_select_screen.dart';
 import 'features/diagnose/ai_diagnosis_detail_screen.dart';
 import 'features/diagnose/ai_diagnosis_cause_detail_screen.dart';
+import 'features/diagnose/repair_guide_detail_screen.dart';
 import 'features/diagnose/ai_diagnosis_results_screen.dart';
 import 'features/ask_toni/ask_toni_screen.dart';
 import 'models/obd_error_code.dart';
@@ -153,6 +155,13 @@ GoRouter createRouter() {
                 },
               ),
               GoRoute(
+                path: 'live-data',
+                builder: (context, state) {
+                  // extra kann 'demo' oder Obd2Service sein
+                  return LiveDataScreen(extra: state.extra);
+                },
+              ),
+              GoRoute(
                 path: 'ai-select',
                 builder: (context, state) {
                   final isDemo = (state.extra as bool?) ?? false;
@@ -167,7 +176,6 @@ GoRouter createRouter() {
                     code: extra['code'] as RawObdCode,
                     description: extra['description'] as ObdErrorCode?,
                     isDemo: extra['isDemo'] as bool? ?? false,
-                    simulateError: extra['simulateError'] as bool? ?? false,
                   );
                 },
               ),
@@ -178,6 +186,16 @@ GoRouter createRouter() {
                   return AiDiagnosisCauseDetailScreen(
                     code: extra['code'] as RawObdCode,
                     cause: extra['cause'],
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'repair-guide',
+                builder: (context, state) {
+                  final extra = state.extra as Map<String, dynamic>;
+                  return RepairGuideDetailScreen(
+                    errorCode: extra['errorCode'] as String,
+                    causeKey: extra['causeKey'] as String,
                   );
                 },
               ),

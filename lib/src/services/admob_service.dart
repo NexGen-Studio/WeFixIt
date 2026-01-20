@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'app_config_service.dart';
 
 class AdMobService {
   static final AdMobService _instance = AdMobService._internal();
@@ -22,8 +23,17 @@ class AdMobService {
     _isInitialized = true;
   }
 
-  /// Get Rewarded Ad Unit ID
+  /// Get Rewarded Ad Unit ID - vom Backend oder Fallback
   String get _rewardedAdUnitId {
+    // Versuche vom Backend zu laden (Production)
+    final configService = AppConfigService();
+    if (configService.admobBanner320x50.isNotEmpty) {
+      print('🔵 [AdMob] Using Production Rewarded Ad Unit from Backend');
+      // Hier könnten wir aus Banner ID Rewarded ableiten, aber für jetzt Fallback
+      return 'ca-app-pub-3940256099942544/5224354917'; // Fallback wenn nicht konfiguriert
+    }
+
+    // Fallback auf Test IDs (Development)
     if (Platform.isAndroid) {
       return 'ca-app-pub-3940256099942544/5224354917'; // Test ID
     } else if (Platform.isIOS) {

@@ -1,74 +1,187 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/obd_error_code.dart';
+import 'dart:convert';
 
 class ErrorCodeDescriptionService {
   final _supabase = Supabase.instance.client;
 
-  /// Hole Beschreibung für Fehlercode (DB oder Web-Suche)
+  /// Hole Beschreibung für Fehlercode (3-Szenario-Flow)
   Future<ObdErrorCode?> getDescription(String code) async {
     try {
-      // 1. Versuche aus DB zu laden
+      // 1. Prüfe DB SOFORT (await) - exakte topic query!
       final dbResult = await _supabase
-          .from('obd_error_codes')
-          .select()
-          .eq('code', code)
+          .from('automotive_knowledge')
+          .select('*, repair_guides')
+          .eq('category', 'fehlercode')
+          .eq('topic', '$code OBD2 diagnostic trouble code')
           .maybeSingle();
 
-      if (dbResult != null) {
-        return ObdErrorCode.fromJson(dbResult);
+      // ===== SZENARIO C: Code + Anleitung in DB =====
+      if (dbResult != null && _hasRepairGuides(dbResult)) {
+        print('✅ SZENARIO C: $code komplett in DB (keine API-Calls)');
+        return _mapFromAutomotiveKnowledge(dbResult, code);
       }
 
-      // 2. Falls nicht in DB: Web-Suche
-      print('🔍 Code $code nicht in DB gefunden, starte Web-Suche...');
-      final webResult = await _searchCodeOnWeb(code);
+      // ===== SZENARIO B: Code in DB, ABER KEINE Anleitung =====
+      if (dbResult != null && !_hasRepairGuides(dbResult)) {
+        print('⚡ SZENARIO B: $code in DB ohne Anleitungen');
+        
+        // User sieht sofort DB-Daten
+        // fill-repair-guides wird nach OBD2-Scan in error_codes_list_screen.dart aufgerufen
+        return _mapFromAutomotiveKnowledge(dbResult, code);
+      }
+
+      // ===== SZENARIO A: Code NICHT in DB =====
+      print('🚀 SZENARIO A: $code nicht in DB, starte Quick GPT');
+      final quickResult = await _getQuickGptResponse(code);
       
-      if (webResult != null) {
-        // 3. In DB speichern
-        await _saveToDatabase(webResult);
-        return webResult;
-      }
-
-      return null;
+      // Trigger Background Enrichment (fire & forget)
+      _triggerFullEnrichment(code);
+      
+      return quickResult;
     } catch (e) {
       print('❌ Fehler beim Laden der Beschreibung: $e');
       return null;
     }
   }
 
-  /// Suche Fehlercode im Web (vereinfachte Version)
-  Future<ObdErrorCode?> _searchCodeOnWeb(String code) async {
+  /// Prüfe ob repair_guides vorhanden sind
+  bool _hasRepairGuides(Map<String, dynamic> dbResult) {
+    final guides = dbResult['repair_guides'] as Map<String, dynamic>?;
+    return guides != null && guides.isNotEmpty;
+  }
+
+  /// SZENARIO A: Quick GPT Response (nicht in DB speichern)
+  Future<ObdErrorCode?> _getQuickGptResponse(String code) async {
     try {
-      // Hier würde normalerweise eine richtige API-Anfrage stattfinden
-      // z.B. zu einer OBD2-Datenbank API
-      // Für jetzt: Fallback mit generischer Beschreibung
+      print('📞 Rufe GPT für Quick Response...');
       
-      final codeType = _getCodeType(code);
-      final description = _generateGenericDescription(code, codeType);
+      final response = await _supabase.functions.invoke(
+        'enrich-error-code',
+        body: {
+          'code': code,
+          'phase': 'quick',
+        },
+      );
+
+      if (response.data == null || response.data['success'] != true) {
+        print('❌ GPT Quick Response fehlgeschlagen');
+        return null;
+      }
+
+      final data = response.data['data'];
       
       return ObdErrorCode(
         code: code,
-        description: description,
-        descriptionDe: description,
-        codeType: codeType,
-        isGeneric: true,
-        severity: 'medium',
-        driveSafety: true,
-        immediateActionRequired: false,
+        codeType: _getCodeType(code),
+        titleDe: data['title_de'] as String?,
+        titleEn: data['title_en'] as String?,
+        descriptionDe: data['content_de'] as String?,
+        descriptionEn: data['content_en'] as String?,
+        symptoms: (data['symptoms'] as List<dynamic>?)?.cast<String>(),
+        commonCauses: (data['causes'] as List<dynamic>?)?.cast<String>(),
+        repairSuggestions: (data['repair_steps'] as List<dynamic>?)?.cast<String>(),
+        isGeneric: false,
       );
     } catch (e) {
-      print('❌ Web-Suche fehlgeschlagen: $e');
+      print('❌ Quick GPT fehlgeschlagen: $e');
       return null;
     }
   }
 
-  /// Speichere Fehlercode in Datenbank
-  Future<void> _saveToDatabase(ObdErrorCode code) async {
+  /// SZENARIO A: Trigger Full Enrichment (Perplexity + GPT + DB Save)
+  void _triggerFullEnrichment(String code) async {
+    print('🔄 Background: Starte Full Enrichment für $code');
+    final vehicle = await _getVehicleData();
+    
+    _supabase.functions.invoke(
+      'enrich-error-code',
+      body: {
+        'code': code,
+        'phase': 'enrich',
+        if (vehicle != null) 'vehicle': vehicle,
+      },
+    ).then((response) {
+      if (response.data?['success'] == true) {
+        print('✅ Background: $code enriched');
+      }
+    }).catchError((error) {
+      print('⚠️ Background Enrichment Fehler: $error');
+    });
+  }
+
+  /// Lade Fahrzeugdaten aus Profil (falls User Freigabe erteilt hat)
+  Future<Map<String, dynamic>?> _getVehicleData() async {
     try {
-      await _supabase.from('obd_error_codes').upsert(code.toJson());
-      print('✅ Code ${code.code} in DB gespeichert');
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return null;
+      
+      final vehicleData = await _supabase
+        .from('vehicles')
+        .select('make, model, year, engine_code, series, displacement_cc, power_kw, mileage_km, share_vehicle_data_with_ai')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (vehicleData == null) return null;
+      
+      // Prüfe ob User Datenfreigabe aktiviert hat
+      final shareWithAI = (vehicleData['share_vehicle_data_with_ai'] as bool?) ?? true;
+      
+      if (!shareWithAI) {
+        print('⚠️ User hat Fahrzeugdaten-Freigabe deaktiviert');
+        return null;
+      }
+      
+      // Konvertiere zu Edge Function Format
+      return {
+        'make': vehicleData['make'] as String?,
+        'model': vehicleData['model'] as String?,
+        'series': vehicleData['series'] as String?,
+        'year': vehicleData['year'] as int?,
+        'engine': _formatEngine(vehicleData),
+        'mileage': vehicleData['mileage_km'] as int?,
+      };
     } catch (e) {
-      print('❌ Fehler beim Speichern in DB: $e');
+      print('⚠️ Fehler beim Laden der Fahrzeugdaten: $e');
+      return null;
     }
+  }
+  
+  /// Formatiere Engine-String (z.B. "2.0L Diesel")
+  String? _formatEngine(Map<String, dynamic> vehicle) {
+    final cc = vehicle['displacement_cc'] as int?;
+    final code = vehicle['engine_code'] as String?;
+    
+    if (cc == null && code == null) return null;
+    
+    final liters = cc != null ? (cc / 1000).toStringAsFixed(1) : null;
+    return [if (liters != null) '${liters}L', code].where((e) => e != null).join(' ');
+  }
+
+  /// DEPRECATED: Speicherung erfolgt jetzt durch Phase 2 der Edge Function
+  /// Diese Methode wird nicht mehr verwendet, da die Edge Function
+  /// nach Perplexity-Recherche die vollständigen Daten speichert
+  @Deprecated('Use Edge Function Phase 2 instead')
+  Future<void> _saveToDatabase(ObdErrorCode code) async {
+    // Nicht mehr verwendet - Edge Function übernimmt Speicherung
+  }
+
+  /// Mappe automotive_knowledge Daten auf ObdErrorCode Model
+  ObdErrorCode _mapFromAutomotiveKnowledge(Map<String, dynamic> data, String code) {
+    return ObdErrorCode(
+      code: code,
+      codeType: _getCodeType(code),
+      titleDe: data['title_de'] as String?,
+      titleEn: data['title_en'] as String?,
+      descriptionDe: data['content_de'] as String?,
+      descriptionEn: data['content_en'] as String?,
+      symptoms: (data['symptoms'] as List<dynamic>?)?.cast<String>(),
+      commonCauses: (data['causes'] as List<dynamic>?)?.cast<String>(),
+      diagnosticSteps: (data['diagnostic_steps'] as List<dynamic>?)?.cast<String>(),
+      repairSuggestions: (data['repair_steps'] as List<dynamic>?)?.cast<String>(),
+      typicalCostRange: data['estimated_cost_eur']?.toString(),
+      isGeneric: false,
+    );
   }
 
   String _getCodeType(String code) {
@@ -79,19 +192,46 @@ class ErrorCodeDescriptionService {
     return 'Unknown';
   }
 
-  String _generateGenericDescription(String code, String type) {
-    // Generiere eine einfache Beschreibung basierend auf Code-Typ
-    switch (type) {
+  String _generateGenericTitle(String code, String codeType) {
+    // Kurzer Titel (max 3-4 Wörter) basierend auf Code-Muster
+    // Bekannte Code-Muster
+    if (code.startsWith('P04')) return '$code Katalysator';
+    if (code.startsWith('P01')) return '$code Gemisch';
+    if (code.startsWith('P02')) return '$code Einspritzung';
+    if (code.startsWith('P03')) return '$code Zündung';
+    if (code.startsWith('P00')) return '$code Sensor';
+    if (code.startsWith('C0')) return '$code Fahrwerk';
+    if (code.startsWith('B0')) return '$code Karosserie';
+    if (code.startsWith('U0')) return '$code Netzwerk';
+    
+    // Fallback nach Typ
+    switch (codeType) {
       case 'Powertrain':
-        return 'Antriebsstrang-Fehler: Motor, Getriebe oder Abgas-System';
+        return '$code Motor';
       case 'Chassis':
-        return 'Fahrwerk-Fehler: ABS, ESP oder Lenkung';
+        return '$code Fahrwerk';
       case 'Body':
-        return 'Karosserie-Fehler: Airbag, Klimaanlage oder Komfort-Systeme';
+        return '$code Karosserie';
       case 'Network':
-        return 'Kommunikations-Fehler: CAN-Bus oder Netzwerk';
+        return '$code Netzwerk';
       default:
-        return 'Unbekannter Fehlercode';
+        return '$code Unbekannt';
+    }
+  }
+
+  String _generateGenericDescription(String code, String codeType) {
+    // Längere Beschreibung für Details
+    switch (codeType) {
+      case 'Powertrain':
+        return 'Ein Fehler im Antriebsstrang (Motor, Getriebe) wurde erkannt.';
+      case 'Chassis':
+        return 'Ein Fehler im Fahrwerk (ABS, ESP, Lenkung) wurde erkannt.';
+      case 'Body':
+        return 'Ein Fehler in der Karosserie-Elektronik wurde erkannt.';
+      case 'Network':
+        return 'Ein Fehler im Netzwerk/CAN-Bus wurde erkannt.';
+      default:
+        return 'Ein unbekannter Fehlercode wurde erkannt.';
     }
   }
 
@@ -104,5 +244,27 @@ class ErrorCodeDescriptionService {
     }
     
     return results;
+  }
+
+  /// Hole kurzen Titel für Listen-Anzeige (max 3 Wörter)
+  /// Bevorzugt title aus DB, sonst Fallback-Generierung
+  String getShortDescription(String code, ObdErrorCode? fullDescription) {
+    // 1. Priorität: title aus DB
+    if (fullDescription?.titleDe != null && fullDescription!.titleDe!.isNotEmpty) {
+      return fullDescription.titleDe!;
+    }
+
+    // 2. Fallback: Erste 3 Wörter der Beschreibung
+    if (fullDescription?.descriptionDe != null && fullDescription!.descriptionDe!.isNotEmpty) {
+      final words = fullDescription.descriptionDe!.split(' ');
+      if (words.length <= 3) {
+        return fullDescription.descriptionDe!;
+      }
+      return words.take(3).join(' ');
+    }
+
+    // 3. Letzter Fallback: Generischer Titel basierend auf Code-Typ
+    final codeType = _getCodeType(code);
+    return _generateGenericTitle(code, codeType);
   }
 }

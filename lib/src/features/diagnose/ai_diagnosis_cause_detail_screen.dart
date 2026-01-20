@@ -23,12 +23,13 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF151C23),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
         title: const Text(
           'Reparaturanleitung',
           style: TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -574,31 +575,6 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            // Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Werkstatt finden oder als Wartungserinnerung speichern
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Werkstatt-Funktion folgt bald'),
-                      backgroundColor: Color(0xFFFFB129),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.build_circle),
-                label: const Text('Werkstatt finden'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFB129),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

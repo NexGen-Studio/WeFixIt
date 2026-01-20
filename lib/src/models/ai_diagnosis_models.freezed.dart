@@ -26,6 +26,7 @@ mixin _$AiDiagnosis {
   String get detailedDescription => throw _privateConstructorUsedError;
   @JsonKey(name: 'possible_causes')
   List<PossibleCause> get possibleCauses => throw _privateConstructorUsedError;
+  List<String>? get symptoms => throw _privateConstructorUsedError;
   String? get severity => throw _privateConstructorUsedError;
   @JsonKey(name: 'drive_safety')
   bool? get driveSafety => throw _privateConstructorUsedError;
@@ -52,6 +53,7 @@ abstract class $AiDiagnosisCopyWith<$Res> {
     String description,
     String detailedDescription,
     @JsonKey(name: 'possible_causes') List<PossibleCause> possibleCauses,
+    List<String>? symptoms,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   });
@@ -76,6 +78,7 @@ class _$AiDiagnosisCopyWithImpl<$Res, $Val extends AiDiagnosis>
     Object? description = null,
     Object? detailedDescription = null,
     Object? possibleCauses = null,
+    Object? symptoms = freezed,
     Object? severity = freezed,
     Object? driveSafety = freezed,
   }) {
@@ -101,6 +104,11 @@ class _$AiDiagnosisCopyWithImpl<$Res, $Val extends AiDiagnosis>
                     ? _value.possibleCauses
                     : possibleCauses // ignore: cast_nullable_to_non_nullable
                         as List<PossibleCause>,
+            symptoms:
+                freezed == symptoms
+                    ? _value.symptoms
+                    : symptoms // ignore: cast_nullable_to_non_nullable
+                        as List<String>?,
             severity:
                 freezed == severity
                     ? _value.severity
@@ -131,6 +139,7 @@ abstract class _$$AiDiagnosisImplCopyWith<$Res>
     String description,
     String detailedDescription,
     @JsonKey(name: 'possible_causes') List<PossibleCause> possibleCauses,
+    List<String>? symptoms,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   });
@@ -154,6 +163,7 @@ class __$$AiDiagnosisImplCopyWithImpl<$Res>
     Object? description = null,
     Object? detailedDescription = null,
     Object? possibleCauses = null,
+    Object? symptoms = freezed,
     Object? severity = freezed,
     Object? driveSafety = freezed,
   }) {
@@ -179,6 +189,11 @@ class __$$AiDiagnosisImplCopyWithImpl<$Res>
                 ? _value._possibleCauses
                 : possibleCauses // ignore: cast_nullable_to_non_nullable
                     as List<PossibleCause>,
+        symptoms:
+            freezed == symptoms
+                ? _value._symptoms
+                : symptoms // ignore: cast_nullable_to_non_nullable
+                    as List<String>?,
         severity:
             freezed == severity
                 ? _value.severity
@@ -203,9 +218,11 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     required this.detailedDescription,
     @JsonKey(name: 'possible_causes')
     required final List<PossibleCause> possibleCauses,
+    final List<String>? symptoms,
     this.severity,
     @JsonKey(name: 'drive_safety') this.driveSafety,
-  }) : _possibleCauses = possibleCauses;
+  }) : _possibleCauses = possibleCauses,
+       _symptoms = symptoms;
 
   factory _$AiDiagnosisImpl.fromJson(Map<String, dynamic> json) =>
       _$$AiDiagnosisImplFromJson(json);
@@ -225,6 +242,16 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     return EqualUnmodifiableListView(_possibleCauses);
   }
 
+  final List<String>? _symptoms;
+  @override
+  List<String>? get symptoms {
+    final value = _symptoms;
+    if (value == null) return null;
+    if (_symptoms is EqualUnmodifiableListView) return _symptoms;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final String? severity;
   @override
@@ -233,7 +260,7 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
 
   @override
   String toString() {
-    return 'AiDiagnosis(code: $code, description: $description, detailedDescription: $detailedDescription, possibleCauses: $possibleCauses, severity: $severity, driveSafety: $driveSafety)';
+    return 'AiDiagnosis(code: $code, description: $description, detailedDescription: $detailedDescription, possibleCauses: $possibleCauses, symptoms: $symptoms, severity: $severity, driveSafety: $driveSafety)';
   }
 
   @override
@@ -250,6 +277,7 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
               other._possibleCauses,
               _possibleCauses,
             ) &&
+            const DeepCollectionEquality().equals(other._symptoms, _symptoms) &&
             (identical(other.severity, severity) ||
                 other.severity == severity) &&
             (identical(other.driveSafety, driveSafety) ||
@@ -264,6 +292,7 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     description,
     detailedDescription,
     const DeepCollectionEquality().hash(_possibleCauses),
+    const DeepCollectionEquality().hash(_symptoms),
     severity,
     driveSafety,
   );
@@ -289,6 +318,7 @@ abstract class _AiDiagnosis implements AiDiagnosis {
     required final String detailedDescription,
     @JsonKey(name: 'possible_causes')
     required final List<PossibleCause> possibleCauses,
+    final List<String>? symptoms,
     final String? severity,
     @JsonKey(name: 'drive_safety') final bool? driveSafety,
   }) = _$AiDiagnosisImpl;
@@ -305,6 +335,8 @@ abstract class _AiDiagnosis implements AiDiagnosis {
   @override
   @JsonKey(name: 'possible_causes')
   List<PossibleCause> get possibleCauses;
+  @override
+  List<String>? get symptoms;
   @override
   String? get severity;
   @override
@@ -336,7 +368,8 @@ mixin _$PossibleCause {
   @JsonKey(name: 'probability')
   String? get probability => throw _privateConstructorUsedError; // 'high', 'medium', 'low'
   @JsonKey(name: 'difficulty')
-  String? get difficulty => throw _privateConstructorUsedError;
+  String? get difficulty => throw _privateConstructorUsedError; // 'easy', 'medium', 'hard'
+  String? get causeKey => throw _privateConstructorUsedError;
 
   /// Serializes this PossibleCause to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -364,6 +397,7 @@ abstract class $PossibleCauseCopyWith<$Res> {
     @JsonKey(name: 'estimated_cost') CostEstimate estimatedCost,
     @JsonKey(name: 'probability') String? probability,
     @JsonKey(name: 'difficulty') String? difficulty,
+    String? causeKey,
   });
 
   $CostEstimateCopyWith<$Res> get estimatedCost;
@@ -392,6 +426,7 @@ class _$PossibleCauseCopyWithImpl<$Res, $Val extends PossibleCause>
     Object? estimatedCost = null,
     Object? probability = freezed,
     Object? difficulty = freezed,
+    Object? causeKey = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -435,6 +470,11 @@ class _$PossibleCauseCopyWithImpl<$Res, $Val extends PossibleCause>
                     ? _value.difficulty
                     : difficulty // ignore: cast_nullable_to_non_nullable
                         as String?,
+            causeKey:
+                freezed == causeKey
+                    ? _value.causeKey
+                    : causeKey // ignore: cast_nullable_to_non_nullable
+                        as String?,
           )
           as $Val,
     );
@@ -469,6 +509,7 @@ abstract class _$$PossibleCauseImplCopyWith<$Res>
     @JsonKey(name: 'estimated_cost') CostEstimate estimatedCost,
     @JsonKey(name: 'probability') String? probability,
     @JsonKey(name: 'difficulty') String? difficulty,
+    String? causeKey,
   });
 
   @override
@@ -497,6 +538,7 @@ class __$$PossibleCauseImplCopyWithImpl<$Res>
     Object? estimatedCost = null,
     Object? probability = freezed,
     Object? difficulty = freezed,
+    Object? causeKey = freezed,
   }) {
     return _then(
       _$PossibleCauseImpl(
@@ -540,6 +582,11 @@ class __$$PossibleCauseImplCopyWithImpl<$Res>
                 ? _value.difficulty
                 : difficulty // ignore: cast_nullable_to_non_nullable
                     as String?,
+        causeKey:
+            freezed == causeKey
+                ? _value.causeKey
+                : causeKey // ignore: cast_nullable_to_non_nullable
+                    as String?,
       ),
     );
   }
@@ -557,6 +604,7 @@ class _$PossibleCauseImpl implements _PossibleCause {
     @JsonKey(name: 'estimated_cost') required this.estimatedCost,
     @JsonKey(name: 'probability') this.probability,
     @JsonKey(name: 'difficulty') this.difficulty,
+    this.causeKey,
   }) : _repairSteps = repairSteps;
 
   factory _$PossibleCauseImpl.fromJson(Map<String, dynamic> json) =>
@@ -589,10 +637,13 @@ class _$PossibleCauseImpl implements _PossibleCause {
   @override
   @JsonKey(name: 'difficulty')
   final String? difficulty;
+  // 'easy', 'medium', 'hard'
+  @override
+  final String? causeKey;
 
   @override
   String toString() {
-    return 'PossibleCause(id: $id, title: $title, description: $description, fullDescription: $fullDescription, repairSteps: $repairSteps, estimatedCost: $estimatedCost, probability: $probability, difficulty: $difficulty)';
+    return 'PossibleCause(id: $id, title: $title, description: $description, fullDescription: $fullDescription, repairSteps: $repairSteps, estimatedCost: $estimatedCost, probability: $probability, difficulty: $difficulty, causeKey: $causeKey)';
   }
 
   @override
@@ -615,7 +666,9 @@ class _$PossibleCauseImpl implements _PossibleCause {
             (identical(other.probability, probability) ||
                 other.probability == probability) &&
             (identical(other.difficulty, difficulty) ||
-                other.difficulty == difficulty));
+                other.difficulty == difficulty) &&
+            (identical(other.causeKey, causeKey) ||
+                other.causeKey == causeKey));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -630,6 +683,7 @@ class _$PossibleCauseImpl implements _PossibleCause {
     estimatedCost,
     probability,
     difficulty,
+    causeKey,
   );
 
   /// Create a copy of PossibleCause
@@ -656,6 +710,7 @@ abstract class _PossibleCause implements PossibleCause {
     @JsonKey(name: 'estimated_cost') required final CostEstimate estimatedCost,
     @JsonKey(name: 'probability') final String? probability,
     @JsonKey(name: 'difficulty') final String? difficulty,
+    final String? causeKey,
   }) = _$PossibleCauseImpl;
 
   factory _PossibleCause.fromJson(Map<String, dynamic> json) =
@@ -680,7 +735,9 @@ abstract class _PossibleCause implements PossibleCause {
   String? get probability; // 'high', 'medium', 'low'
   @override
   @JsonKey(name: 'difficulty')
-  String? get difficulty;
+  String? get difficulty; // 'easy', 'medium', 'hard'
+  @override
+  String? get causeKey;
 
   /// Create a copy of PossibleCause
   /// with the given fields replaced by the non-null parameter values.

@@ -134,23 +134,23 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
               const SizedBox(height: 16),
 
               _buildDiagnosisButton(
+                number: '2.5',
+                title: 'Live Daten auslesen',
+                description: 'Echtzeit-Fahrzeugdaten im Demo-Modus',
+                icon: Icons.show_chart,
+                color: const Color(0xFF2196F3),
+                onTap: _readLiveData,
+              ),
+
+              const SizedBox(height: 16),
+
+              _buildDiagnosisButton(
                 number: '3',
                 title: 'KI-Diagnose starten',
                 description: 'Intelligente Fehleranalyse',
                 icon: Icons.psychology,
                 color: const Color(0xFFFFB129),
                 onTap: _startAiDiagnosis,
-              ),
-
-              const SizedBox(height: 16),
-
-              _buildDiagnosisButton(
-                number: '4',
-                title: 'Demo-Fehler testen',
-                description: 'Fehlermeldung simulieren',
-                icon: Icons.bug_report,
-                color: const Color(0xFFE53935),
-                onTap: _simulateError,
               ),
 
               const SizedBox(height: 32),
@@ -331,35 +331,9 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
 
   /// Fehlercodes auslesen - Demo mit realistischen Beispiel-Codes
   Future<void> _readErrorCodes() async {
-    setState(() => _isScanning = true);
-
-    // Simuliere Scan-Verzögerung
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Generiere realistische Demo-Fehlercodes
-    final demoCodes = [
-      RawObdCode(
-        code: 'P0420',
-        readAt: DateTime.now(),
-      ),
-      RawObdCode(
-        code: 'P0171',
-        readAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-      RawObdCode(
-        code: 'C0035',
-        readAt: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-    ];
-
-    // Speichere Codes im Provider (wie im echten Modus)
-    ref.read(errorCodesProvider.notifier).setCodes(demoCodes);
-
-    setState(() => _isScanning = false);
-
+    // ✅ WICHTIG: Navigiere direkt zum Error-Codes-Screen mit 'demo' flag
+    // Der Screen zeigt automatisch die Loading-Animation und verarbeitet die Demo-Codes
     if (!mounted) return;
-
-    // Navigiere zum Error Codes Screen (wie im echten Modus)
     context.push('/diagnose/error-codes', extra: 'demo');
   }
 
@@ -381,6 +355,13 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
     context.push('/diagnose/delete-codes');
   }
 
+  /// Live Daten auslesen - Demo
+  Future<void> _readLiveData() async {
+    // ✅ Navigiere zu Live-Data-Screen im Demo-Modus
+    if (!mounted) return;
+    context.push('/diagnose/live-data', extra: 'demo');
+  }
+
   /// KI-Diagnose starten - Demo
   Future<void> _startAiDiagnosis() async {
     final codes = ref.read(errorCodesProvider);
@@ -397,22 +378,5 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
     
     // Navigiere zur KI-Diagnose Auswahl im Demo-Modus
     context.push('/diagnose/ai-select', extra: true);
-  }
-
-  /// Demo-Fehler simulieren - zeigt exakt gleichen Error Screen wie bei echtem Fehler
-  Future<void> _simulateError() async {
-    // Erstelle einen Demo-Fehlercode
-    final demoErrorCode = RawObdCode(
-      code: 'P0420',
-      readAt: DateTime.now(),
-    );
-
-    // Navigiere direkt zum Detail Screen mit Fehler-Flag
-    context.push('/diagnose/ai-detail', extra: {
-      'code': demoErrorCode,
-      'description': null,
-      'isDemo': true,
-      'simulateError': true, // Flag für Fehler-Simulation
-    });
   }
 }

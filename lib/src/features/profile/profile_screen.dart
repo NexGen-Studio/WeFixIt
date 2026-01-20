@@ -1228,9 +1228,9 @@ class _VehicleFormState extends State<_VehicleForm> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Fahrzeugdaten mit KI teilen',
-                              style: TextStyle(
+                            Text(
+                              t.tr('profile.share_vehicle_data_title'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -1238,7 +1238,7 @@ class _VehicleFormState extends State<_VehicleForm> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Ermöglicht Toni, deine Fahrzeugdaten für genauere Antworten zu nutzen',
+                              t.tr('profile.share_vehicle_data_desc'),
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.6),
                                 fontSize: 12,

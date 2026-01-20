@@ -10,10 +10,11 @@ _$ObdErrorCodeImpl _$$ObdErrorCodeImplFromJson(
   Map<String, dynamic> json,
 ) => _$ObdErrorCodeImpl(
   code: json['code'] as String,
-  description: json['description'] as String?,
-  descriptionDe: json['descriptionDe'] as String?,
-  descriptionEn: json['descriptionEn'] as String?,
   codeType: json['code_type'] as String?,
+  titleDe: json['title_de'] as String?,
+  titleEn: json['title_en'] as String?,
+  descriptionDe: json['description_de'] as String?,
+  descriptionEn: json['description_en'] as String?,
   isGeneric: json['is_generic'] as bool? ?? true,
   symptoms:
       (json['symptoms'] as List<dynamic>?)?.map((e) => e as String).toList(),
@@ -47,10 +48,11 @@ _$ObdErrorCodeImpl _$$ObdErrorCodeImplFromJson(
 Map<String, dynamic> _$$ObdErrorCodeImplToJson(_$ObdErrorCodeImpl instance) =>
     <String, dynamic>{
       'code': instance.code,
-      'description': instance.description,
-      'descriptionDe': instance.descriptionDe,
-      'descriptionEn': instance.descriptionEn,
       'code_type': instance.codeType,
+      'title_de': instance.titleDe,
+      'title_en': instance.titleEn,
+      'description_de': instance.descriptionDe,
+      'description_en': instance.descriptionEn,
       'is_generic': instance.isGeneric,
       'symptoms': instance.symptoms,
       'common_causes': instance.commonCauses,

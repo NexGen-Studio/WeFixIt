@@ -5,6 +5,7 @@ import '../../models/obd_error_code.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/obd2_service.dart';
+import '../../services/error_code_description_service.dart';
 import '../../state/error_codes_provider.dart';
 
 class ErrorCodesListScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,7 @@ class ErrorCodesListScreen extends ConsumerStatefulWidget {
 }
 
 class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
+  final _descriptionService = ErrorCodeDescriptionService();
   List<RawObdCode> _errorCodes = [];
   bool _isScanning = true;
   bool _isDemoMode = false;
@@ -28,6 +30,130 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
   void initState() {
     super.initState();
     _startScan();
+  }
+
+  /// Background-Generierung: Für ALLE ausgelesenen Fehlercodes fehlende Anleitungen generieren
+  void _startBackgroundRepairGuideGeneration(List<RawObdCode> codes) {
+    Future.microtask(() async {
+      try {
+        final supabase = Supabase.instance.client;
+        
+        for (final errorCode in codes) {
+          final code = errorCode.code;
+          print('🔍 Background-Check für $code...');
+          
+          try {
+            // Hole causes + repair_guides aus DB (exakte topic query!)
+            final result = await supabase
+              .from('automotive_knowledge')
+              .select('causes, repair_guides_de, repair_guides_en')
+              .eq('category', 'fehlercode')
+              .eq('topic', '$code OBD2 diagnostic trouble code')
+              .maybeSingle();
+            
+            if (result == null) {
+              print('⚠️ $code nicht in DB gefunden - überspringe');
+              continue;
+            }
+            
+            final causes = (result['causes'] as List?)?.cast<String>() ?? [];
+            final repairGuidesDe = result['repair_guides_de'] as Map<String, dynamic>?;
+            final repairGuidesEn = result['repair_guides_en'] as Map<String, dynamic>?;
+            final existingGuidesDe = repairGuidesDe ?? {};
+            final existingGuidesEn = repairGuidesEn ?? {};
+            
+            // Prüfe ob ALLE Ursachen Anleitungen haben (DE + EN)
+            int missingCount = 0;
+            
+            for (final cause in causes) {
+              final causeKey = cause.toLowerCase()
+                .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                .replaceAll(RegExp(r'^_|_$'), '');
+              
+              if (!existingGuidesDe.containsKey(causeKey) || !existingGuidesEn.containsKey(causeKey)) {
+                missingCount++;
+              }
+            }
+            
+            if (missingCount == 0) {
+              print('✅ $code: Alle ${causes.length} Anleitungen (DE+EN) vorhanden');
+              continue;
+            }
+            
+            print('🚀 $code: Starte fill-repair-guides für $missingCount fehlende Anleitungen...');
+            
+            // Wiederhole fill-repair-guides automatisch bis ALLE Causes fertig sind
+            // (fill-repair-guides verarbeitet max 3 Causes pro Call wegen Timeout)
+            int retryCount = 0;
+            const maxRetries = 5; // Max 5 Versuche (= bis zu 15 Causes)
+            
+            while (retryCount < maxRetries) {
+              try {
+                final response = await supabase.functions.invoke(
+                  'fill-repair-guides',
+                  body: {
+                    'error_codes': [code],
+                    'trigger_source': 'error_codes_list_screen'
+                  },
+                );
+                
+                if (response.data != null && response.data['success'] == true) {
+                  print('✅ $code: fill-repair-guides Call ${retryCount + 1} erfolgreich');
+                  
+                  // Prüfe ob ALLE Causes jetzt fertig sind
+                  await Future.delayed(const Duration(seconds: 5)); // Warte bis DB aktualisiert
+                  
+                  final checkResult = await supabase
+                    .from('automotive_knowledge')
+                    .select('causes, repair_guides_de, repair_guides_en')
+                    .eq('category', 'fehlercode')
+                    .eq('topic', '$code OBD2 diagnostic trouble code')
+                    .maybeSingle();
+                  
+                  if (checkResult != null) {
+                    final checkCauses = (checkResult['causes'] as List?)?.cast<String>() ?? [];
+                    final checkGuidesDe = checkResult['repair_guides_de'] as Map<String, dynamic>?;
+                    final checkGuidesEn = checkResult['repair_guides_en'] as Map<String, dynamic>?;
+                    
+                    int stillMissing = 0;
+                    for (final cause in checkCauses) {
+                      final causeKey = cause.toLowerCase()
+                        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                        .replaceAll(RegExp(r'^_|_$'), '');
+                      if (!(checkGuidesDe?.containsKey(causeKey) == true && 
+                            checkGuidesEn?.containsKey(causeKey) == true)) {
+                        stillMissing++;
+                      }
+                    }
+                    
+                    if (stillMissing == 0) {
+                      print('✅ $code: ALLE ${checkCauses.length} Anleitungen komplett!');
+                      break; // Fertig!
+                    } else {
+                      print('🔄 $code: Noch $stillMissing Anleitungen fehlen, weiter...');
+                      retryCount++;
+                      await Future.delayed(const Duration(seconds: 60)); // Warte 60s zwischen Calls
+                    }
+                  }
+                } else {
+                  print('⚠️ $code: fill-repair-guides Fehler');
+                  break;
+                }
+              } catch (e) {
+                print('❌ $code: Edge Function Fehler: $e');
+                break;
+              }
+            }
+          } catch (e) {
+            print('❌ Background-Check Fehler für $code: $e');
+          }
+        }
+        
+        print('✨ Background-Generierung für alle Codes abgeschlossen');
+      } catch (e) {
+        print('❌ Background-Generierung Fehler: $e');
+      }
+    });
   }
 
   Future<void> _startScan() async {
@@ -69,6 +195,14 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
     
     // Speichere Codes im Provider
     ref.read(errorCodesProvider.notifier).setCodes(testCodes);
+    
+    // ✅ SOFORT nach Auslesen: Background-Generierung starten
+    _startBackgroundRepairGuideGeneration(testCodes);
+    
+    // Wenn KEINE Codes gefunden, zeige Dialog
+    if (testCodes.isEmpty && mounted) {
+      _showNoCodesFoundDialog();
+    }
   }
 
   Future<void> _scanRealMode() async {
@@ -92,13 +226,12 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
       // Speichere Codes im Provider
       ref.read(errorCodesProvider.notifier).setCodes(codes);
       
-      if (codes.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Keine Fehlercodes gefunden'),
-            backgroundColor: Color(0xFF4CAF50),
-          ),
-        );
+      // ✅ SOFORT nach Auslesen: Background-Generierung starten
+      if (codes.isNotEmpty) {
+        _startBackgroundRepairGuideGeneration(codes);
+      } else if (mounted) {
+        // Wenn KEINE Codes gefunden, zeige Dialog
+        _showNoCodesFoundDialog();
       }
     } catch (e) {
       if (!mounted) return;
@@ -114,12 +247,112 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
     }
   }
 
+  void _showNoCodesFoundDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1F26),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success Icon mit Animation
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 800),
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4CAF50).withOpacity(0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF4CAF50),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_outline,
+                        color: Color(0xFF4CAF50),
+                        size: 48,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Keine Fehlercodes gefunden',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Dein Fahrzeug hat derzeit keine gespeicherten Fehlercodes. Das ist eine gute Nachricht!',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Zurück zur Diagnose Screen
+                    context.pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Zurück zur Diagnose',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCodeDetails(RawObdCode code) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _CodeDetailsBottomSheet(code: code),
+      builder: (context) => _CodeDetailsBottomSheet(
+        code: code,
+        descriptionService: _descriptionService,
+      ),
     );
   }
 
@@ -213,30 +446,26 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
   Widget _buildResultsView() {
     return Column(
       children: [
-        // Statistik Header
+        // Vereinfachter Header - nur Anzahl
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: const BoxDecoration(
             color: Color(0xFF151C23),
+            border: Border(
+              bottom: BorderSide(color: Colors.white12, width: 1),
+            ),
           ),
           child: Row(
             children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.error_outline,
-                  label: 'Gefunden',
-                  value: _errorCodes.length.toString(),
-                  color: const Color(0xFFE53935),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.warning_amber,
-                  label: 'Kritisch',
-                  value: _criticalCount.toString(),
-                  color: const Color(0xFFF57C00),
+              Text(
+                _errorCodes.length == 1
+                    ? '1 Fehlercode gefunden'
+                    : '${_errorCodes.length} Fehlercodes gefunden',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -252,6 +481,7 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
               final code = _errorCodes[index];
               return _ErrorCodeCard(
                 code: code,
+                descriptionService: _descriptionService,
                 onTap: () => _showCodeDetails(code),
               );
             },
@@ -262,59 +492,16 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1F26),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ErrorCodeCard extends StatelessWidget {
   final RawObdCode code;
+  final ErrorCodeDescriptionService descriptionService;
   final VoidCallback onTap;
 
-  const _ErrorCodeCard({required this.code, required this.onTap});
+  const _ErrorCodeCard({
+    required this.code,
+    required this.descriptionService,
+    required this.onTap,
+  });
 
   Color _getCodeColor(String code) {
     if (code.startsWith('P')) return const Color(0xFFE53935); // Powertrain - Rot
@@ -369,7 +556,7 @@ class _ErrorCodeCard extends StatelessWidget {
                   code.code,
                   style: TextStyle(
                     color: codeColor,
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1,
                   ),
@@ -377,13 +564,21 @@ class _ErrorCodeCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  _getCodeType(code.code, context),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: FutureBuilder<ObdErrorCode?>(
+                  future: descriptionService.getDescription(code.code),
+                  builder: (context, snapshot) {
+                    final description = snapshot.data;
+                    return Text(
+                      descriptionService.getShortDescription(code.code, description),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ),
               Icon(
@@ -437,10 +632,109 @@ class _ErrorCodeCard extends StatelessWidget {
 }
 
 // Bottom Sheet für Fehlercode-Details
-class _CodeDetailsBottomSheet extends StatelessWidget {
+class _CodeDetailsBottomSheet extends StatefulWidget {
   final RawObdCode code;
+  final ErrorCodeDescriptionService descriptionService;
 
-  const _CodeDetailsBottomSheet({required this.code});
+  const _CodeDetailsBottomSheet({
+    required this.code,
+    required this.descriptionService,
+  });
+
+  @override
+  State<_CodeDetailsBottomSheet> createState() => _CodeDetailsBottomSheetState();
+}
+
+class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
+  String? _shortDescription;
+  bool _isLoading = true;
+  bool _isDeleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDescription();
+  }
+
+  Future<void> _loadDescription() async {
+    final description = await widget.descriptionService.getDescription(widget.code.code);
+    if (mounted) {
+      setState(() {
+        _shortDescription = _extractShortDescription(description?.descriptionDe);
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _extractShortDescription(String? fullDescription) {
+    if (fullDescription == null || fullDescription.isEmpty) {
+      return 'Keine Beschreibung';
+    }
+    
+    // Verwende die vollständige Beschreibung (nicht mehr auf 8 Wörter begrenzt)
+    return fullDescription;
+  }
+
+  Future<void> _deleteCode() async {
+    // Bestätigungs-Dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F26),
+        title: const Text(
+          'Fehlercode löschen?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Möchtest du den Fehlercode ${widget.code.code} wirklich aus dem Steuergerät löschen?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+            ),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+
+    try {
+      // Aus Steuergerät löschen
+      final obd2Service = Obd2Service();
+      await obd2Service.clearSingleErrorCode(widget.code.code);
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehlercode ${widget.code.code} gelöscht'),
+            backgroundColor: const Color(0xFF4CAF50),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler beim Löschen: $e'),
+            backgroundColor: const Color(0xFFE53935),
+          ),
+        );
+      }
+    }
+  }
 
   Color _getCodeColor(String code) {
     if (code.startsWith('P')) return const Color(0xFFE53935);
@@ -452,7 +746,7 @@ class _CodeDetailsBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final codeColor = _getCodeColor(code.code);
+    final codeColor = _getCodeColor(widget.code.code);
 
     return Container(
       decoration: const BoxDecoration(
@@ -486,7 +780,7 @@ class _CodeDetailsBottomSheet extends StatelessWidget {
                 border: Border.all(color: codeColor.withOpacity(0.5), width: 2),
               ),
               child: Text(
-                code.code,
+                widget.code.code,
                 style: TextStyle(
                   color: codeColor,
                   fontSize: 24,
@@ -496,88 +790,79 @@ class _CodeDetailsBottomSheet extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
 
-            // Aktionen
-            _ActionItem(
-              icon: Icons.delete_outline,
-              iconColor: const Color(0xFFE53935),
-              title: 'Fehlercode löschen',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigiere zum Delete Screen
-                context.push('/diagnose/delete-codes');
-              },
+            // Kurzbeschreibung (max 8 Wörter)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white54,
+                      ),
+                    )
+                  : Text(
+                      _shortDescription ?? 'Keine Beschreibung',
+                      textAlign: TextAlign.center,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 32),
 
-            _ActionItem(
-              icon: Icons.psychology_outlined,
-              iconColor: const Color(0xFFFFB129),
-              title: 'KI-Diagnose starten',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigiere zur KI-Diagnose mit diesem Code
-                context.push('/diagnose/ai-results', extra: [code]);
-              },
+            // Löschen Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isDeleting ? null : _deleteCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE53935),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isDeleting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.delete_outline, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Fehlercode löschen',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 32),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionItem extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final VoidCallback onTap;
-
-  const _ActionItem({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

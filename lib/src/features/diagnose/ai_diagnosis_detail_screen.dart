@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/obd_error_code.dart';
 import '../../models/ai_diagnosis_models.dart';
 import '../../services/ai_diagnosis_service.dart';
+import '../../services/error_code_description_service.dart';
 import '../../i18n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,14 +12,12 @@ class AiDiagnosisDetailScreen extends StatefulWidget {
   final RawObdCode code;
   final ObdErrorCode? description;
   final bool isDemo;
-  final bool simulateError;
 
   const AiDiagnosisDetailScreen({
     super.key,
     required this.code,
     this.description,
     this.isDemo = false,
-    this.simulateError = false,
   });
 
   @override
@@ -27,6 +26,7 @@ class AiDiagnosisDetailScreen extends StatefulWidget {
 
 class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
   final _diagnosisService = AiDiagnosisService();
+  final _descriptionService = ErrorCodeDescriptionService();
   bool _isAnalyzing = true;
   AiDiagnosis? _diagnosis;
   String? _error;
@@ -44,12 +44,6 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
     });
 
     try {
-      // Demo-Fehler simulieren (exakt wie echter Fehler)
-      if (widget.simulateError) {
-        await Future.delayed(const Duration(seconds: 2)); // Simuliere Analyse
-        throw Exception('Die KI-Analyse ist momentan nicht verfügbar. Bitte versuche es später erneut.');
-      }
-
       // Im Demo-Modus: Keine User-Prüfung, immer Demo-Daten
       if (widget.isDemo) {
         final diagnosis = await _diagnosisService.analyzeSingleCodeDemo(
@@ -95,10 +89,190 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
   }
 
   void _selectCause(PossibleCause cause) {
-    // Navigiere zu Screen 3 (Ursache-Details)
-    context.push('/diagnose/ai-cause-detail', extra: {
-      'code': widget.code,
-      'cause': cause,
+    // Zeige Bottom Sheet mit Ursachen-Preview
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _buildCausePreviewSheet(cause),
+    );
+  }
+  
+  Widget _buildCausePreviewSheet(PossibleCause cause) {
+    final probabilityColor = _getProbabilityColor(cause.probability);
+    
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: const BoxDecoration(
+        color: Color(0xFF151C23),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Handle Bar
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 20),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Titel
+                  Text(
+                    cause.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      height: 1.3,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Badges
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (cause.difficulty != null)
+                        _buildBadge(
+                          '${AppLocalizations.of(context).tr('ai_diagnosis.difficulty')}: ${_getDifficultyIcon(cause.difficulty!)} ${_getDifficultyLabel(cause.difficulty!)}',
+                          Colors.white54,
+                        ),
+                      _buildBadge(
+                        '${AppLocalizations.of(context).tr('ai_diagnosis.cost')}: ${cause.estimatedCost.minEur.toInt()}-${cause.estimatedCost.maxEur.toInt()}€',
+                        const Color(0xFFFFB129),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Beschreibung
+                  Text(
+                    AppLocalizations.of(context).tr('ai_diagnosis.description'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    cause.description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Hinweis auf detaillierte Anleitung
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB129).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFFB129).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.lightbulb,
+                          color: Color(0xFFFFB129),
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            AppLocalizations.of(context).tr('ai_diagnosis.detailed_guide_hint'),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Bottom Button
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.white12)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(AppLocalizations.of(context).tr('ai_diagnosis.back')),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _navigateToRepairGuide(cause);
+                      },
+                      icon: const Icon(Icons.list_alt),
+                      label: Text(AppLocalizations.of(context).tr('ai_diagnosis.view_guide')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB129),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _navigateToRepairGuide(PossibleCause cause) {
+    // ✅ Nutze den ORIGINAL causeKey aus dem Model (bereits in DB generiert)
+    final causeKey = cause.causeKey ?? cause.id;
+    
+    context.push('/diagnose/repair-guide', extra: {
+      'errorCode': widget.code.code,
+      'causeKey': causeKey,
+      'cause': cause, // ← Weitergabe der PossibleCause für UI-Details
     });
   }
 
@@ -111,12 +285,13 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF151C23),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'KI-Diagnose',
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context).tr('ai_diagnosis.title'),
+          style: const TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -166,18 +341,18 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
             },
           ),
           const SizedBox(height: 24),
-          const Text(
-            'KI analysiert Fehlercode...',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('ai_diagnosis.analyzing'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Dies kann einige Sekunden dauern',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('ai_diagnosis.analyzing_wait'),
+            style: const TextStyle(
               color: Colors.white54,
               fontSize: 14,
             ),
@@ -211,9 +386,9 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'KI-Analyse nicht verfügbar',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).tr('ai_diagnosis.error_title'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -346,9 +521,12 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Kurzbeschreibung
+                // Kurze, prägnante Beschreibung (z.B. "Katalysator - Wirkungsgrad unter Schwellenwert")
                 Text(
-                  _diagnosis!.description,
+                  _descriptionService.getShortDescription(
+                    widget.code.code,
+                    widget.description,
+                  ),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -393,6 +571,86 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                 ),
                 
                 const SizedBox(height: 32),
+                
+                // Symptome Sektion (falls vorhanden)
+                if (_diagnosis!.symptoms != null && _diagnosis!.symptoms!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFFF6B6B),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Symptome',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_diagnosis!.symptoms!.length} mögliche Symptome',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Symptome-Liste
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B6B).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _diagnosis!.symptoms!.asMap().entries.map((entry) {
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: entry.key < _diagnosis!.symptoms!.length - 1 ? 12 : 0,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFF6B6B),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                ],
                 
                 // Mögliche Ursachen Header
                 Row(
@@ -521,19 +779,10 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
               // Badges
               Row(
                 children: [
-                  // Wahrscheinlichkeit
-                  if (cause.probability != null)
-                    _buildBadge(
-                      _getProbabilityLabel(cause.probability!),
-                      probabilityColor,
-                    ),
-                  
-                  const SizedBox(width: 8),
-                  
                   // Schwierigkeit
                   if (cause.difficulty != null)
                     _buildBadge(
-                      '$difficultyIcon ${_getDifficultyLabel(cause.difficulty!)}',
+                      'Schwierigkeit: $difficultyIcon ${_getDifficultyLabel(cause.difficulty!)}',
                       Colors.white54,
                     ),
                   

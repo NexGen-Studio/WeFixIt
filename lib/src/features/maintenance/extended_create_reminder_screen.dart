@@ -966,7 +966,7 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     if (iconsRaw != null && iconsRaw.isNotEmpty) {
       try {
         final map = json.decode(iconsRaw) as Map<String, dynamic>;
-        _customCategoryIcons = map.map((k, v) => MapEntry(k, _iconFromCodePoint(v as int)));
+        _customCategoryIcons = map.map((k, v) => MapEntry(k, iconFromCodePoint(v as int)));
       } catch (_) {}
     }
     
@@ -980,7 +980,10 @@ class _ExtendedCreateReminderScreenState extends State<ExtendedCreateReminderScr
     if (mounted) setState(() {});
   }
 
-  IconData _iconFromCodePoint(int codePoint) {
+  /// Konvertiere Code Point zu IconData
+  /// Hinweis: IconData-Instanzen können nicht const sein wenn sie dynamisch erstellt werden.
+  /// Diese Methode wird nur beim Laden aus SharedPreferences verwendet (nicht zur Build-Zeit)
+  static IconData iconFromCodePoint(int codePoint) {
     return IconData(codePoint, fontFamily: 'MaterialIcons');
   }
 

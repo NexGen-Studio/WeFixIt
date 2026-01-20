@@ -7,17 +7,18 @@ part 'obd_error_code.g.dart';
 class ObdErrorCode with _$ObdErrorCode {
   const factory ObdErrorCode({
     required String code,
-    String? description,
-    String? descriptionDe,
-    String? descriptionEn,
     @JsonKey(name: 'code_type') String? codeType,
+    @JsonKey(name: 'title_de') String? titleDe,
+    @JsonKey(name: 'title_en') String? titleEn,
+    @JsonKey(name: 'description_de') String? descriptionDe,
+    @JsonKey(name: 'description_en') String? descriptionEn,
     @JsonKey(name: 'is_generic') @Default(true) bool isGeneric,
     List<String>? symptoms,
     @JsonKey(name: 'common_causes') List<String>? commonCauses,
     @JsonKey(name: 'diagnostic_steps') List<String>? diagnosticSteps,
     @JsonKey(name: 'repair_suggestions') List<String>? repairSuggestions,
     @JsonKey(name: 'affected_components') List<String>? affectedComponents,
-    String? severity, // 'low', 'medium', 'high', 'critical'
+    String? severity,
     @JsonKey(name: 'drive_safety') @Default(true) bool driveSafety,
     @JsonKey(name: 'immediate_action_required') @Default(false) bool immediateActionRequired,
     @JsonKey(name: 'related_codes') List<String>? relatedCodes,

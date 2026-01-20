@@ -291,7 +291,7 @@ class _AskToniScreenState extends State<AskToniScreen> {
   }
 
   Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || _isTyping) return; // ← Verhindert Doppel-Send!
 
     // 1. Prüfen ob Pro User oder Credits vorhanden
     final isPro = await PurchaseService().isProUser();
@@ -354,10 +354,20 @@ class _AskToniScreenState extends State<AskToniScreen> {
     }
 
     // 4. Echte AI Antwort von Toni holen
+    // Konvertiere bisherige Messages zu conversationHistory
+    final conversationHistory = _messages
+        .where((msg) => msg.text.isNotEmpty)
+        .map((msg) => {
+              'role': msg.isUser ? 'user' : 'assistant',
+              'content': msg.text,
+            })
+        .toList();
+    
     try {
       final response = await _askToniService.sendMessage(
         message: text,
         language: 'de',
+        conversationHistory: conversationHistory,
         vehicleContext: vehicleContext,
       );
 

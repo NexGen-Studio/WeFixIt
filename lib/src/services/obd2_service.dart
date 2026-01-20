@@ -164,6 +164,11 @@ class Obd2Service {
     }
   }
 
+  /// Öffentliche Methode zum Senden von OBD2-Befehlen (für Live-Daten)
+  Future<String?> sendCommand(String command) async {
+    return _sendCommand(command);
+  }
+
   /// Lese alle Fehlercodes (DTC)
   Future<List<RawObdCode>> readErrorCodes() async {
     try {

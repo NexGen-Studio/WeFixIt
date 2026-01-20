@@ -1,19 +1,35 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/obd_error_code.dart';
 import '../models/ai_diagnosis_models.dart';
-import 'error_logging_service.dart';
 
 class AiDiagnosisService {
   final _supabase = Supabase.instance.client;
-  final _errorLogger = ErrorLoggingService();
 
-  /// Analysiere einen einzelnen Fehlercode mit KI (Demo-Modus - nur Demo-Daten)
+  /// Analysiere einen einzelnen Fehlercode mit KI (Demo-Modus - lädt aus DB)
   Future<AiDiagnosis> analyzeSingleCodeDemo(
     String code,
     ObdErrorCode? basicDescription,
   ) async {
-    // Im Demo-Modus: Keine API Calls, nur Demo-Daten
-    await Future.delayed(const Duration(seconds: 2)); // Simuliere Analyse
+    // Demo-Modus: Lade ECHTE Daten aus automotive_knowledge DB
+    await Future.delayed(const Duration(seconds: 1)); // Simuliere Analyse
+    
+    try {
+      // Hole Daten aus DB (inkl. repair_guides_de für detaillierte Anleitungen)
+      final result = await _supabase
+        .from('automotive_knowledge')
+        .select('title_de, title_en, content_de, symptoms, causes, repair_guides_de')
+        .eq('category', 'fehlercode')
+        .ilike('topic', '%$code%')
+        .maybeSingle();
+      
+      if (result != null && result['causes'] != null) {
+        return _mapDbResultToDiagnosis(result, code, basicDescription);
+      }
+    } catch (e) {
+      print('⚠️ Demo-Modus: Fehler beim Laden aus DB: $e');
+    }
+    
+    // Fallback: Hardcodierte Demo-Daten (nur für P0420)
     return _generateDemoAnalysis(code, basicDescription);
   }
 
@@ -52,17 +68,95 @@ class AiDiagnosisService {
 
       // Keine Ergebnisse - Fehler werfen
       throw Exception('Für den Fehlercode $code konnte keine Analyse erstellt werden. Bitte kontaktiere den Support.');
-    } catch (e, stackTrace) {
-      // Logge Fehler in Supabase für Monitoring
-      await _errorLogger.logAiDiagnosisError(
-        errorMessage: e.toString(),
-        errorCode: code,
-        stackTrace: stackTrace.toString(),
-      );
-
-      // Exception weiterwerfen damit UI sie anzeigen kann
+    } catch (e) {
+      // Bei Fehler: Keine Demo-Daten, sondern Exception weiterwerfen
       rethrow;
     }
+  }
+
+  /// Konvertiere DB-Daten zu AiDiagnosis Model (nutzt repair_guides_de!)
+  AiDiagnosis _mapDbResultToDiagnosis(
+    Map<String, dynamic> result,
+    String code,
+    ObdErrorCode? basicDescription,
+  ) {
+    final title = result['title_de'] as String? ?? basicDescription?.titleDe ?? code;
+    final content = result['content_de'] as String? ?? '';
+    final symptoms = (result['symptoms'] as List?)?.cast<String>() ?? [];
+    final causes = (result['causes'] as List?)?.cast<String>() ?? [];
+    final repairGuideDe = result['repair_guides_de'] as Map<String, dynamic>?;
+    
+    // Erstelle PossibleCause für jede cause aus der DB
+    final possibleCauses = <PossibleCause>[];
+    
+    for (var i = 0; i < causes.length; i++) {
+      final causeText = causes[i];
+      
+      // WICHTIG: Erstelle cause_key EINMALIG - dieser Key wird überall verwendet!
+      final causeKey = causeText.toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+      
+      // Hole repair_steps aus repair_guides_de[causeKey]
+      final repairGuide = repairGuideDe?[causeKey] as Map<String, dynamic>?;
+      final steps = (repairGuide?['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      
+      final repairSteps = steps.map((step) {
+        return RepairStep(
+          step: step['step'] as int? ?? 0,
+          title: step['title'] as String? ?? '',
+          description: step['description'] as String? ?? '',
+          tools: (step['tools'] as List?)?.cast<String>(),
+          warning: step['safety_warning'] as String?,
+        );
+      }).toList();
+      
+      // Parse Kosten
+      final costRange = repairGuide?['estimated_cost_eur'] as List?;
+      final minCost = costRange != null && costRange.length >= 2 ? (costRange[0] as num).toDouble() : 100.0;
+      final maxCost = costRange != null && costRange.length >= 2 ? (costRange[1] as num).toDouble() : 500.0;
+      
+      possibleCauses.add(PossibleCause(
+        id: (i + 1).toString(),
+        title: repairGuide?['cause_title'] as String? ?? causeText,
+        description: causeText,
+        fullDescription: content.isNotEmpty ? content : causeText,
+        repairSteps: repairSteps,
+        estimatedCost: CostEstimate(
+          minEur: minCost,
+          maxEur: maxCost,
+          laborHours: (repairGuide?['estimated_time_hours'] as num?)?.toDouble(),
+          note: 'Kosten variieren je nach Fahrzeugmodell',
+        ),
+        probability: 'medium',
+        difficulty: repairGuide?['difficulty_level'] as String? ?? 'medium',
+        causeKey: causeKey, // ✅ Speichere causeKey für spätere Navigation!
+      ));
+    }
+    
+    // Falls keine causes vorhanden, erstelle Fallback
+    if (possibleCauses.isEmpty) {
+      possibleCauses.add(PossibleCause(
+        id: '1',
+        title: 'Weitere Diagnose erforderlich',
+        description: 'Detaillierte Fahrzeuganalyse notwendig',
+        fullDescription: content.isNotEmpty ? content : 'Für diesen Fehlercode sind noch keine detaillierten Ursachen verfügbar.',
+        repairSteps: [],
+        estimatedCost: const CostEstimate(minEur: 100, maxEur: 500),
+        probability: 'medium',
+        difficulty: 'medium',
+      ));
+    }
+    
+    return AiDiagnosis(
+      code: code,
+      description: title,
+      detailedDescription: content.isNotEmpty ? content : 'Fehlercode $code wurde in der Datenbank gefunden.',
+      possibleCauses: possibleCauses,
+      symptoms: symptoms.isNotEmpty ? symptoms : null,
+      severity: 'medium',
+      driveSafety: true,
+    );
   }
 
   /// Konvertiere Edge Function Ergebnis zu AiDiagnosis Model
@@ -112,7 +206,7 @@ class AiDiagnosisService {
 
     return AiDiagnosis(
       code: code,
-      description: result['title'] ?? basicDescription?.description ?? code,
+      description: result['title'] ?? basicDescription?.descriptionDe ?? code,
       detailedDescription: result['detailedAnalysis'] ?? result['description'] ?? '',
       possibleCauses: causes,
       severity: result['severity'],
@@ -163,7 +257,7 @@ class AiDiagnosisService {
     if (code == 'P0420') {
       return AiDiagnosis(
         code: code,
-        description: basicDescription?.description ?? 'Katalysator - Wirkungsgrad unter Schwellenwert',
+        description: basicDescription?.descriptionDe ?? 'Katalysator - Wirkungsgrad unter Schwellenwert',
         detailedDescription: 
           'Der Fehlercode P0420 deutet darauf hin, dass die Effizienz des Katalysators unter dem erforderlichen Schwellenwert liegt. '
           'Dies wird durch die Lambda-Sonden vor und nach dem Katalysator überwacht. Wenn beide Sensoren ähnliche Werte anzeigen, '
@@ -319,33 +413,33 @@ class AiDiagnosisService {
     // Generic Fallback für andere Codes
     return AiDiagnosis(
       code: code,
-      description: basicDescription?.description ?? 'Fehlercode-Beschreibung',
+      description: basicDescription?.descriptionDe ?? 'Fehlercode-Beschreibung',
       detailedDescription: 
-        'Für diesen Fehlercode wird derzeit noch eine detaillierte Analyse erstellt. '
-        'Bitte kontaktiere eine Werkstatt für eine professionelle Diagnose.',
+        'Dieser Fehlercode wurde erkannt. Mit dieser App kannst du die Ursache diagnostizieren '
+        'und eine detaillierte Reparaturanleitung erhalten.',
       possibleCauses: [
         PossibleCause(
           id: '1',
-          title: 'Allgemeine Diagnose erforderlich',
-          description: 'Professionelle Werkstattdiagnose empfohlen',
+          title: 'Weitere Diagnose erforderlich',
+          description: 'Detaillierte Fahrzeuganalyse notwendig',
           fullDescription: 
-            'Dieser Fehlercode erfordert eine detaillierte Fahrzeugdiagnose durch eine Fachwerkstatt. '
-            'Die genaue Ursache kann nur durch spezielle Diagnosegeräte und Tests ermittelt werden.',
+            'Dieser Fehlercode erfordert eine genauere Analyse deines Fahrzeugs. '
+            'Nutze die OBD2-Diagnosefunktion dieser App, um weitere Details zu ermitteln.',
           repairSteps: [
             RepairStep(
               step: 1,
-              title: 'Werkstatt aufsuchen',
-              description: 'Vereinbare einen Termin mit einer qualifizierten Werkstatt für eine Fehlerdiagnose.',
+              title: 'Fehlerspeicher erneut auslesen',
+              description: 'Verbinde den OBD2-Adapter und lese den Fehlerspeicher erneut aus, um aktuelle Daten zu erhalten.',
             ),
             RepairStep(
               step: 2,
-              title: 'Diagnose durchführen lassen',
-              description: 'Die Werkstatt wird mit speziellen Diagnosegeräten die genaue Ursache ermitteln.',
+              title: 'Live-Daten überprüfen',
+              description: 'Nutze die Live-Daten-Funktion der App, um Sensormesswerte in Echtzeit zu überwachen.',
             ),
             RepairStep(
               step: 3,
-              title: 'Reparatur durchführen',
-              description: 'Nach der Diagnose wird die Werkstatt die notwendigen Reparaturen durchführen.',
+              title: 'Visuelle Inspektion',
+              description: 'Führe eine Sichtprüfung der betroffenen Komponenten durch. Achte auf lose Kabel, Korrosion oder Beschädigungen.',
             ),
           ],
           estimatedCost: CostEstimate(

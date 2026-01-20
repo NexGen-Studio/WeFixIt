@@ -11,6 +11,7 @@ class AiDiagnosis with _$AiDiagnosis {
     required String description,
     required String detailedDescription,
     @JsonKey(name: 'possible_causes') required List<PossibleCause> possibleCauses,
+    List<String>? symptoms,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   }) = _AiDiagnosis;
@@ -31,6 +32,7 @@ class PossibleCause with _$PossibleCause {
     @JsonKey(name: 'estimated_cost') required CostEstimate estimatedCost,
     @JsonKey(name: 'probability') String? probability, // 'high', 'medium', 'low'
     @JsonKey(name: 'difficulty') String? difficulty, // 'easy', 'medium', 'hard'
+    String? causeKey, // Eindeutiger Key für repair_guides_de Zuordnung
   }) = _PossibleCause;
 
   factory PossibleCause.fromJson(Map<String, dynamic> json) =>

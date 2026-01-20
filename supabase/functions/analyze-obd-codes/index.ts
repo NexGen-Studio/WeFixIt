@@ -4,7 +4,6 @@ import {
   structureContentWithGPT4, 
   createEmbedding, 
   saveFullKnowledgeToDatabase,
-  mapErrorCodeToDiagnosis,
   mapKnowledgeToDiagnosis
 } from './helper-functions.ts'
 
@@ -99,22 +98,43 @@ serve(async (req) => {
     console.log(`🔍 Analyzing ${errorCodes.length} error codes for user ${user.id}`)
 
     const results: DiagnosisResult[] = []
+    const backgroundTasks: Promise<void>[] = []
 
     // Analyze each error code
     for (const errorCode of errorCodes) {
       console.log(`📊 Processing code: ${errorCode.code}`)
 
-      // 1. Try to find in automotive_knowledge via vector search
-      let diagnosis = await searchKnowledgeBase(supabaseClient, errorCode.code, language)
+      // 1. Try to find in automotive_knowledge
+      const knowledgeResult = await searchKnowledgeBase(supabaseClient, errorCode.code, language)
 
-      if (diagnosis) {
-        console.log(`✅ Found in knowledge base: ${errorCode.code}`)
-        results.push(diagnosis)
+      // SZENARIO C: Alles in DB vorhanden
+      if (knowledgeResult && knowledgeResult.hasGuide === true) {
+        console.log(`✅ SZENARIO C: ${errorCode.code} complete in DB - show immediately`)
+        results.push(knowledgeResult)
         continue
       }
 
-      // 2. Not found - use Perplexity for web research (PRIMARY)
-      console.log(`🌐 Searching web with Perplexity: ${errorCode.code}`)
+      // SZENARIO B: Fehler in DB, aber KEINE Anleitung
+      if (knowledgeResult && knowledgeResult.hasGuide === false) {
+        console.log(`⚠️ SZENARIO B: ${errorCode.code} in DB but no guide - show now, update in background`)
+        results.push(knowledgeResult)
+        
+        // 🔥 Fire & Forget: Perplexity + GPT + Save im Hintergrund
+        backgroundTasks.push(
+          researchWithPerplexityAndStructure(supabaseClient, errorCode.code, language)
+            .then(improvedDiagnosis => {
+              if (improvedDiagnosis) {
+                console.log(`✅ Background: Perplexity research completed for ${errorCode.code}, updating DB`)
+              }
+            })
+            .catch(err => console.warn(`⚠️ Background update failed for ${errorCode.code}:`, err))
+        )
+        continue
+      }
+
+      // SZENARIO A: Fehler NICHT in DB - blockierend abrufen
+      console.log(`🌐 SZENARIO A: ${errorCode.code} not in DB - blocking fetch with Perplexity`)
+      let diagnosis
       try {
         diagnosis = await researchWithPerplexityAndStructure(supabaseClient, errorCode.code, language)
         
@@ -124,19 +144,42 @@ serve(async (req) => {
           continue
         }
       } catch (perplexityError) {
-        console.warn(`⚠️ Perplexity research failed for ${errorCode.code}:`, perplexityError)
+        console.error(`❌ Perplexity research error for ${errorCode.code}:`, perplexityError)
       }
 
       // 3. Fallback - use LLM knowledge (ONLY if web research fails)
-      console.log(`🤖 Fallback to LLM knowledge: ${errorCode.code}`)
-      diagnosis = await generateLLMFallbackDiagnosis(errorCode.code, language)
+      if (!diagnosis) {
+        console.log(`🤖 Final Fallback to LLM knowledge: ${errorCode.code}`)
+        try {
+          diagnosis = await generateLLMFallbackDiagnosis(errorCode.code, language)
 
-      if (diagnosis) {
-        await saveToKnowledgeBase(supabaseClient, errorCode.code, diagnosis, language)
-        results.push(diagnosis)
-      } else {
-        console.error(`❌ Failed to generate diagnosis for: ${errorCode.code}`)
+          if (diagnosis) {
+            console.log(`💾 Saving diagnosis to database and generating repair guides...`)
+            await saveToKnowledgeBase(supabaseClient, errorCode.code, diagnosis, language)
+            
+            // 🔥 Generate repair guides for all causes IMMEDIATELY (blocking)
+            console.log(`🛠️ Generating repair guides for ${(diagnosis as any).causes?.length || 0} causes...`)
+            try {
+              await generateAndSaveRepairGuides(supabaseClient, errorCode.code, (diagnosis as any).causes || [], language)
+              console.log(`✅ Repair guides generated and saved`)
+            } catch (guideError) {
+              console.error(`⚠️ Failed to generate repair guides (non-critical):`, guideError)
+            }
+            
+            results.push(diagnosis)
+          } else {
+            console.error(`❌ Failed to generate diagnosis for: ${errorCode.code}`)
+          }
+        } catch (llmError) {
+          console.error(`❌ LLM Fallback error for ${errorCode.code}:`, llmError)
+        }
       }
+    }
+
+    // 🔄 Warte NICHT auf Background Tasks - gib sofort Response zurück
+    if (backgroundTasks.length > 0) {
+      console.log(`🔥 ${backgroundTasks.length} background tasks started (not waiting)`)
+      Promise.all(backgroundTasks).catch(err => console.error('Background task error:', err))
     }
 
     return new Response(
@@ -160,38 +203,57 @@ serve(async (req) => {
 
 /**
  * Search automotive_knowledge database for error code
+ * Returns 3 Scenarios:
+ * A) null = Fehler nicht in DB → Perplexity + GPT + DB speichern
+ * B) { ...diagnosis, hasGuide: false } = Fehler in DB, aber KEINE Anleitung → User sieht sofort, Background Update
+ * C) { ...diagnosis, hasGuide: true } = Beides vorhanden → User sieht alles sofort
  */
+interface KnowledgeSearchResult extends DiagnosisResult {
+  hasGuide?: boolean
+}
+
 async function searchKnowledgeBase(
   supabase: any,
   errorCode: string,
   language: string
-): Promise<DiagnosisResult | null> {
+): Promise<KnowledgeSearchResult | null> {
   try {
-    // First, try exact match in error_codes table
-    const { data: errorData, error: errorError } = await supabase
-      .from('error_codes')
-      .select('*')
-      .eq('code', errorCode)
-      .single()
-
-    if (errorData && !errorError) {
-      console.log(`✅ Found exact match in error_codes table`)
-      return mapErrorCodeToDiagnosis(errorData, language)
-    }
-
-    // If not found, search in automotive_knowledge via topic/keywords
+    // Search in automotive_knowledge via keywords
+    console.log(`🔍 Searching automotive_knowledge for ${errorCode}...`)
+    
     const { data: knowledgeData, error: knowledgeError } = await supabase
       .from('automotive_knowledge')
       .select('*')
-      .contains('keywords', [errorCode])
+      .eq('category', 'fehlercode')
+      .or(`keywords.cs.{"${errorCode}"},topic.ilike.%${errorCode}%`)
       .limit(1)
 
-    if (knowledgeData && knowledgeData.length > 0 && !knowledgeError) {
-      console.log(`✅ Found in automotive_knowledge via keywords`)
-      return mapKnowledgeToDiagnosis(knowledgeData[0], errorCode, language)
+    if (knowledgeError) {
+      console.warn(`⚠️ Knowledge base search error:`, knowledgeError)
+      return null
     }
 
-    return null
+    // SZENARIO A: Fehler nicht in DB
+    if (!knowledgeData || knowledgeData.length === 0) {
+      console.log(`❌ ${errorCode} not in database - will use Perplexity`)
+      return null
+    }
+
+    const entry = knowledgeData[0]
+    const hasGuide = entry.repair_guides_de && Object.keys(entry.repair_guides_de).length > 0
+
+    // SZENARIO B: Fehler in DB, aber KEINE Anleitung
+    if (!hasGuide) {
+      console.log(`⚠️ ${errorCode} in DB but NO repair guide - User gets quick display, Background update starts`)
+      const diagnosis = mapKnowledgeToDiagnosis(entry, errorCode, language)
+      return { ...diagnosis, hasGuide: false } as KnowledgeSearchResult
+    }
+
+    // SZENARIO C: Fehler + Anleitung in DB
+    console.log(`✅ ${errorCode} found with complete guides in DB`)
+    const diagnosis = mapKnowledgeToDiagnosis(entry, errorCode, language)
+    return { ...diagnosis, hasGuide: true } as KnowledgeSearchResult
+
   } catch (error) {
     console.error('❌ Knowledge base search error:', error)
     return null
@@ -201,6 +263,7 @@ async function searchKnowledgeBase(
 /**
  * Research with Perplexity Web Search (Model: sonar - $1/1M)
  * Then structure with GPT-4, create embedding, and save to DB
+ * Falls Perplexity nicht konfiguriert/fehlschlägt → GPT Fallback
  */
 async function researchWithPerplexityAndStructure(
   supabaseClient: any,
@@ -210,14 +273,16 @@ async function researchWithPerplexityAndStructure(
   const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY')
   
   if (!perplexityApiKey) {
-    throw new Error('No Perplexity API key - skipping web research')
+    console.warn(`⚠️ PERPLEXITY_API_KEY not configured - falling back to LLM`)
+    return await generateLLMFallbackDiagnosis(errorCode, language)
   }
 
-  // STEP 1: Perplexity Web Research (Raw Data)
-  console.log(`  🔍 Step 1: Perplexity web search for ${errorCode}`)
-  
-  const searchPrompt = language === 'de'
-    ? `Recherchiere ausführlich den OBD2-Fehlercode ${errorCode}. Nutze aktuelle Quellen von Reparaturportalen (z.B. repairpal.com, obd-codes.com, motor.de), Herstellerwebseiten und Fachforen.
+  try {
+    // STEP 1: Perplexity Web Research (Raw Data)
+    console.log(`  🔍 Step 1: Perplexity web search for ${errorCode}`)
+    
+    const searchPrompt = language === 'de'
+      ? `Recherchiere ausführlich den OBD2-Fehlercode ${errorCode}. Nutze aktuelle Quellen von Reparaturportalen (z.B. repairpal.com, obd-codes.com, motor.de), Herstellerwebseiten und Fachforen.
 
 Sammle Informationen zu:
 - Beschreibung und technische Bedeutung des Fehlers
@@ -227,7 +292,7 @@ Sammle Informationen zu:
 - Wie man es repariert (Schritt für Schritt)
 - Benötigte Werkzeuge, Schwierigkeitsgrad, geschätzte Kosten und Zeit
 - Kann man mit diesem Fehler noch weiterfahren?`
-    : `Research the OBD2 error code ${errorCode} thoroughly. Use current sources from repair portals (e.g., repairpal.com, obd-codes.com, yourmechanic.com), manufacturer websites, and expert forums.
+      : `Research the OBD2 error code ${errorCode} thoroughly. Use current sources from repair portals (e.g., repairpal.com, obd-codes.com, yourmechanic.com), manufacturer websites, and expert forums.
 
 Gather information about:
 - Description and technical meaning of the error
@@ -238,19 +303,19 @@ Gather information about:
 - Required tools, difficulty level, estimated costs and time
 - Is it safe to drive with this error?`
 
-  const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${perplexityApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'sonar',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an automotive expert. Search the web for accurate, current information about car diagnostics and repairs. Provide detailed, comprehensive information.',
-        },
+    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${perplexityApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an automotive expert. Search the web for accurate, current information about car diagnostics and repairs. Provide detailed, comprehensive information.',
+          },
         {
           role: 'user',
           content: searchPrompt,
@@ -261,64 +326,74 @@ Gather information about:
     }),
   })
 
-  if (!perplexityResponse.ok) {
-    const errorText = await perplexityResponse.text()
-    throw new Error(`Perplexity API error: ${perplexityResponse.statusText} - ${errorText}`)
-  }
+    if (!perplexityResponse.ok) {
+      const errorText = await perplexityResponse.text()
+      const errorMsg = `Perplexity API error: ${perplexityResponse.status} ${perplexityResponse.statusText}`
+      console.error(`❌ ${errorMsg}`)
+      console.log(`⚠️ Falling back to LLM knowledge instead`)
+      return await generateLLMFallbackDiagnosis(errorCode, language)
+    }
 
-  const perplexityData = await perplexityResponse.json()
-  const rawWebContent = perplexityData.choices[0]?.message?.content
+    const perplexityData = await perplexityResponse.json()
+    const rawWebContent = perplexityData.choices[0]?.message?.content
 
-  if (!rawWebContent) {
-    throw new Error('No content from Perplexity')
-  }
+    if (!rawWebContent) {
+      console.warn(`⚠️ No content from Perplexity - falling back to LLM`)
+      return await generateLLMFallbackDiagnosis(errorCode, language)
+    }
 
-  console.log(`  ✅ Step 1 complete: Gathered ${rawWebContent.length} chars of web data`)
+    console.log(`  ✅ Step 1 complete: Gathered ${rawWebContent.length} chars of web data`)
 
-  // STEP 2: GPT-4 Structure the raw data
-  console.log(`  🧠 Step 2: Structuring with GPT-4`)
-  const structuredData = await structureContentWithGPT4(rawWebContent, errorCode, language)
-  
-  if (!structuredData) {
-    throw new Error('Failed to structure content')
-  }
+    // STEP 2: GPT-4 Structure the raw data
+    console.log(`  🧠 Step 2: Structuring with GPT-4`)
+    const structuredData = await structureContentWithGPT4(rawWebContent, errorCode, language)
+    
+    if (!structuredData) {
+      console.warn(`⚠️ Failed to structure content - falling back to LLM`)
+      return await generateLLMFallbackDiagnosis(errorCode, language)
+    }
 
-  console.log(`  ✅ Step 2 complete: Content structured`)
+    console.log(`  ✅ Step 2 complete: Content structured`)
 
-  // STEP 3: Create embedding
-  console.log(`  📊 Step 3: Creating embedding`)
-  const embedding = await createEmbedding(
-    `${structuredData.title} ${structuredData.description} ${structuredData.detailedAnalysis}`,
-    language
-  )
+    // STEP 3: Create embedding
+    console.log(`  📊 Step 3: Creating embedding`)
+    const embedding = await createEmbedding(
+      `${structuredData.title} ${structuredData.description} ${structuredData.detailedAnalysis}`,
+      language
+    )
 
-  if (!embedding) {
-    throw new Error('Failed to create embedding')
-  }
+    if (!embedding) {
+      console.warn(`⚠️ Failed to create embedding - saving without embedding`)
+    }
 
-  console.log(`  ✅ Step 3 complete: Embedding created`)
+    console.log(`  ✅ Step 3 complete: Embedding created`)
 
-  // STEP 4: Save to automotive_knowledge (full)
-  console.log(`  💾 Step 4: Saving to database`)
-  await saveFullKnowledgeToDatabase(supabaseClient, errorCode, structuredData, embedding, language)
-  console.log(`  ✅ Step 4 complete: Saved to database`)
+    // STEP 4: Save to automotive_knowledge (full)
+    console.log(`  💾 Step 4: Saving to database`)
+    await saveFullKnowledgeToDatabase(supabaseClient, errorCode, structuredData, embedding, language)
+    console.log(`  ✅ Step 4 complete: Saved to database`)
 
-  // Return diagnosis result for user
-  return {
-    code: errorCode,
-    title: structuredData.title,
-    description: structuredData.description,
-    detailedAnalysis: structuredData.detailedAnalysis,
-    diagnosticSteps: structuredData.diagnosticSteps,
-    repairSteps: structuredData.repairSteps,
-    severity: structuredData.severity,
-    driveSafety: structuredData.driveSafety,
-    immediateActionRequired: structuredData.immediateActionRequired,
-    requiredTools: structuredData.toolsRequired,
-    estimatedCost: structuredData.estimatedCostEur,
-    estimatedTime: structuredData.repairSteps[0]?.estimatedTime || 'Unbekannt',
-    sourceType: 'web_research',
-    createdAt: new Date().toISOString(),
+    // Return diagnosis result for user
+    return {
+      code: errorCode,
+      title: structuredData.title,
+      description: structuredData.description,
+      detailedAnalysis: structuredData.detailedAnalysis,
+      diagnosticSteps: structuredData.diagnosticSteps,
+      repairSteps: structuredData.repairSteps,
+      severity: structuredData.severity,
+      driveSafety: structuredData.driveSafety,
+      immediateActionRequired: structuredData.immediateActionRequired,
+      requiredTools: structuredData.toolsRequired,
+      estimatedCost: structuredData.estimatedCostEur,
+      estimatedTime: structuredData.repairSteps[0]?.estimatedTime || 'Unbekannt',
+      sourceType: 'web_research',
+      createdAt: new Date().toISOString(),
+    }
+  } catch (error) {
+    console.error(`❌ Error in Perplexity research pipeline for ${errorCode}:`, error)
+    console.log(`⚠️ Final fallback: Using LLM knowledge`)
+    return await generateLLMFallbackDiagnosis(errorCode, language)
   }
 }
 
@@ -338,68 +413,108 @@ async function generateLLMFallbackDiagnosis(
 
   try {
     const prompt = language === 'de'
-      ? `Analysiere den OBD2-Fehlercode ${errorCode} für ein Fahrzeug. Der Code wurde bereits ausgelesen.
+      ? `Du bist ein erfahrener KFZ-Meister mit 30 Jahren Erfahrung. Analysiere den OBD2-Fehlercode ${errorCode} UMFASSEND und DETAILLIERT.
+
+KRITISCH: Generiere MINDESTENS 7-10 VERSCHIEDENE MÖGLICHE URSACHEN, nicht nur 2-3!
+
+Der Code wurde bereits ausgelesen - Die diagnosticSteps sollten NICHT "OBD2-Scanner anschließen" enthalten.
+
+Gib folgende Struktur zurück (als VALIDES JSON):
+
+{
+  "title": "Titel des Fehlers",
+  "description": "Kurze Erklärung in 2-3 Sätzen für Laien",
+  "detailedAnalysis": "AUSFÜHRLICHE technische Analyse (5-8 Absätze!). Erkläre detailliert: Was bedeutet dieser Code? Welche Fahrzeugsysteme sind betroffen? Welche Langzeitfolgen sind möglich? Ist es gefährlich zu fahren?",
+  "symptoms": ["Symptom 1", "Symptom 2", "Symptom 3", "Symptom 4", "Symptom 5"],
+  "causes": [
+    "Ursache 1: Detaillierte Erklärung",
+    "Ursache 2: Detaillierte Erklärung",
+    "Ursache 3: Detaillierte Erklärung",
+    "Ursache 4: Detaillierte Erklärung",
+    "Ursache 5: Detaillierte Erklärung",
+    "Ursache 6: Detaillierte Erklärung",
+    "Ursache 7: Detaillierte Erklärung",
+    "Ursache 8: Detaillierte Erklärung",
+    "Ursache 9: Detaillierte Erklärung",
+    "Ursache 10: Detaillierte Erklärung"
+  ],
+  "diagnosticSteps": [
+    {"stepNumber": 1, "title": "Sichtprüfung durchführen", "description": "Sehr detaillierte Anleitung (3-5 Sätze)", "warnings": ["Sicherheitshinweis"]},
+    {"stepNumber": 2, "title": "Nächster Diagnoseschritt", "description": "Sehr detaillierte Anleitung", "warnings": []},
+    {"stepNumber": 3, "title": "Messung durchführen", "description": "Sehr detaillierte Anleitung", "warnings": []},
+    {"stepNumber": 4, "title": "Test durchführen", "description": "Sehr detaillierte Anleitung", "warnings": []}
+  ],
+  "repairSteps": [
+    {"stepNumber": 1, "title": "Vorbereitung", "description": "Detaillierte Anleitung (3-5 Sätze)", "difficulty": "medium", "requiredTools": ["Werkzeug 1"], "estimatedTime": "15 Min", "warnings": ["Warnung"]},
+    {"stepNumber": 2, "title": "Hauptreparatur", "description": "Detaillierte Anleitung", "difficulty": "medium", "requiredTools": [], "estimatedTime": "30 Min", "warnings": []},
+    {"stepNumber": 3, "title": "Überprüfung", "description": "Detaillierte Anleitung", "difficulty": "easy", "requiredTools": [], "estimatedTime": "10 Min", "warnings": []}
+  ],
+  "toolsRequired": ["Werkzeug 1", "Werkzeug 2", "Werkzeug 3"],
+  "estimatedCostEur": "50-200",
+  "difficultyLevel": "medium",
+  "severity": "medium",
+  "driveSafety": true,
+  "immediateActionRequired": false,
+  "keywords": ["${errorCode}", "OBD2", "Fehlercode"]
+}
 
 WICHTIG: 
-- Die "description" soll eine kurze, einfache Erklärung sein (2-3 Sätze)
-- Die "detailedAnalysis" soll eine ausführliche technische Analyse sein (deutlich länger und detaillierter als description)
-- Die diagnosticSteps sollen NICHT "OBD2-Scanner anschließen" enthalten - der Code wurde bereits ausgelesen!
-- Beginne die Diagnoseschritte direkt mit der eigentlichen Fehlersuche (z.B. Sichtprüfung, Messungen, Tests)
+- MINIMUM 7-10 Ursachen - keine Kompromisse!
+- DetailedAnalysis muss 5-8 Absätze sein (nicht nur 2-3 Sätze!)
+- Jede Ursache hat DETAIL-Erklärung
+- Jeder Schritt hat 3-5 Sätze Beschreibung
+- JSON muss VALIDE sein - keine Syntax-Fehler!`
+      : `You are an expert automotive technician with 30 years of experience. Analyze OBD2 error code ${errorCode} COMPREHENSIVELY and IN DETAIL.
 
-Gib folgende Informationen an:
-1. Titel (kurz und prägnant)
-2. Kurze Beschreibung des Problems (2-3 Sätze)
-3. Ausführliche technische Analyse (mehrere Absätze mit Details zu Ursachen, Auswirkungen, betroffenen Systemen)
-4. Diagnoseschritte zur Fehlereingrenzung - OHNE "Scanner anschließen" (mindestens 4 Schritte)
-5. Reparaturanleitung (mindestens 4 Schritte)
-6. Benötigte Werkzeuge (außer OBD2-Scanner)
-7. Geschätzte Kosten und Dauer
+CRITICAL: Generate MINIMUM 7-10 DIFFERENT POSSIBLE CAUSES, not just 2-3!
 
-Formatiere die Antwort als JSON:
+The code has already been read - diagnosticSteps should NOT include "connect OBD2 scanner".
+
+Return this structure (as VALID JSON):
+
 {
-  "title": "Kurzer prägnanter Titel",
-  "description": "Kurze Erklärung in 2-3 Sätzen für Laien",
-  "detailedAnalysis": "Ausführliche technische Analyse mit Details zu Ursachen, Symptomen, betroffenen Systemen und möglichen Folgeschäden. Mehrere Absätze.",
-  "diagnosticSteps": [{"stepNumber": 1, "title": "Sichtprüfung durchführen", "description": "Detaillierte Anleitung", "warnings": ["Warnung falls nötig"]}],
-  "repairSteps": [{"stepNumber": 1, "title": "Schritt Titel", "description": "Detaillierte Anleitung", "difficulty": "medium", "requiredTools": ["Werkzeug"], "estimatedTime": "30 Min", "warnings": ["Warnung"]}],
+  "title": "Error title",
+  "description": "Brief explanation in 2-3 sentences for laypeople",
+  "detailedAnalysis": "COMPREHENSIVE technical analysis (5-8 paragraphs!). Explain in detail: What does this code mean? Which vehicle systems are affected? What long-term consequences are possible? Is it dangerous to drive?",
+  "symptoms": ["Symptom 1", "Symptom 2", "Symptom 3", "Symptom 4", "Symptom 5"],
+  "causes": [
+    "Cause 1: Detailed explanation",
+    "Cause 2: Detailed explanation",
+    "Cause 3: Detailed explanation",
+    "Cause 4: Detailed explanation",
+    "Cause 5: Detailed explanation",
+    "Cause 6: Detailed explanation",
+    "Cause 7: Detailed explanation",
+    "Cause 8: Detailed explanation",
+    "Cause 9: Detailed explanation",
+    "Cause 10: Detailed explanation"
+  ],
+  "diagnosticSteps": [
+    {"stepNumber": 1, "title": "Perform visual inspection", "description": "Very detailed instructions (3-5 sentences)", "warnings": ["Safety note"]},
+    {"stepNumber": 2, "title": "Next diagnostic step", "description": "Very detailed instructions", "warnings": []},
+    {"stepNumber": 3, "title": "Perform measurement", "description": "Very detailed instructions", "warnings": []},
+    {"stepNumber": 4, "title": "Perform test", "description": "Very detailed instructions", "warnings": []}
+  ],
+  "repairSteps": [
+    {"stepNumber": 1, "title": "Preparation", "description": "Detailed instructions (3-5 sentences)", "difficulty": "medium", "requiredTools": ["Tool 1"], "estimatedTime": "15 min", "warnings": ["Warning"]},
+    {"stepNumber": 2, "title": "Main repair", "description": "Detailed instructions", "difficulty": "medium", "requiredTools": [], "estimatedTime": "30 min", "warnings": []},
+    {"stepNumber": 3, "title": "Verification", "description": "Detailed instructions", "difficulty": "easy", "requiredTools": [], "estimatedTime": "10 min", "warnings": []}
+  ],
+  "toolsRequired": ["Tool 1", "Tool 2", "Tool 3"],
+  "estimatedCostEur": "50-200",
+  "difficultyLevel": "medium",
   "severity": "medium",
   "driveSafety": true,
   "immediateActionRequired": false,
-  "requiredTools": ["Multimeter", "Schraubenschlüssel-Satz"],
-  "estimatedCost": "50-200 €",
-  "estimatedTime": "1-2 Stunden"
-}`
-      : `Analyze the OBD2 error code ${errorCode} for a vehicle. The code has already been read.
+  "keywords": ["${errorCode}", "OBD2", "Error code"]
+}
 
-IMPORTANT: 
-- The "description" should be a brief, simple explanation (2-3 sentences)
-- The "detailedAnalysis" should be a comprehensive technical analysis (much longer and more detailed than description)
-- The diagnosticSteps should NOT include "connect OBD2 scanner" - the code has already been read!
-- Start diagnostic steps directly with actual troubleshooting (e.g., visual inspection, measurements, tests)
-
-Provide:
-1. Title (short and concise)
-2. Brief problem description (2-3 sentences)
-3. Comprehensive technical analysis (multiple paragraphs with details about causes, effects, affected systems)
-4. Diagnostic steps for troubleshooting - WITHOUT "connect scanner" (minimum 4 steps)
-5. Repair instructions (minimum 4 steps)
-6. Required tools (excluding OBD2 scanner)
-7. Estimated costs and duration
-
-Format as JSON:
-{
-  "title": "Brief concise title",
-  "description": "Short explanation in 2-3 sentences for laypeople",
-  "detailedAnalysis": "Comprehensive technical analysis with details about causes, symptoms, affected systems and potential consequential damage. Multiple paragraphs.",
-  "diagnosticSteps": [{"stepNumber": 1, "title": "Perform visual inspection", "description": "Detailed instructions", "warnings": ["Warning if needed"]}],
-  "repairSteps": [{"stepNumber": 1, "title": "Step title", "description": "Detailed instructions", "difficulty": "medium", "requiredTools": ["Tool"], "estimatedTime": "30 min", "warnings": ["Warning"]}],
-  "severity": "medium",
-  "driveSafety": true,
-  "immediateActionRequired": false,
-  "requiredTools": ["Multimeter", "Wrench set"],
-  "estimatedCost": "50-200 €",
-  "estimatedTime": "1-2 hours"
-}`
+IMPORTANT:
+- MINIMUM 7-10 causes - no compromises!
+- DetailedAnalysis must be 5-8 paragraphs (not just 2-3 sentences!)
+- Each cause has DETAILED explanation
+- Each step has 3-5 sentences description
+- JSON must be VALID - no syntax errors!`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -408,12 +523,12 @@ Format as JSON:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
-            content: 'You are an expert automotive diagnostic technician. Provide accurate, detailed, and safe repair information. Always respond with valid JSON only, no additional text.',
+            content: 'You are an expert automotive diagnostic technician with deep knowledge of OBD2 codes. ALWAYS respond with VALID, complete JSON only - no additional text, no markdown, just pure JSON. Generate comprehensive, detailed responses with minimum 7-10 causes.',
           },
           {
             role: 'user',
@@ -421,13 +536,13 @@ Format as JSON:
           },
         ],
         temperature: 0.2,
-        max_tokens: 2000,
+        max_tokens: 4000,
       }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`OpenAI API error: ${response.statusText} - ${errorText}`)
+      throw new Error(`OpenAI API error: ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -544,5 +659,169 @@ function createFallbackDiagnosis(errorCode: string): DiagnosisResult {
     estimatedTime: 'Variabel',
     sourceType: 'ai_generated',
     createdAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * Generate and save repair guides for all causes of an error code
+ */
+async function generateAndSaveRepairGuides(
+  supabase: any,
+  errorCode: string,
+  causes: string[],
+  language: string
+): Promise<void> {
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+  
+  if (!openaiApiKey) {
+    console.warn('⚠️ Cannot generate repair guides - no OpenAI API key')
+    return
+  }
+
+  try {
+    // Generate repair guides for each cause
+    const repairGuidesDe: Record<string, any> = {}
+    
+    for (const cause of causes) {
+      const causeKey = cause
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+      
+      console.log(`  📖 Generating repair guide for: ${cause}`)
+      
+      const prompt = language === 'de'
+        ? `Erstelle eine SEHR DETAILLIERTE Reparaturanleitung für:
+- Fehlercode: ${errorCode}
+- Ursache: ${cause}
+
+Erstelle 10-20 kinderleicht verständliche Schritte. JEDER Schritt braucht:
+- Klaren Titel
+- SEHR ausführliche Beschreibung (3-5 Sätze, erkläre WO, WAS, WIE, WARUM)
+- Benötigte Werkzeuge
+- Dauer in Minuten
+- Sicherheitshinweise falls relevant
+
+⚠️ WICHTIG - DYNAMISCHE OBD-PLATZIERUNG:
+- In den ERSTEN 8 SCHRITTEN: KEIN "OBD auslesen", "Fehlercode auslesen", "Diagnosegerät anschließen"
+- Die Reparaturschritte kommen ZUERST
+- ERST DANACH (als letzter Schritt): "Fehlercode löschen und erneut auslesen"
+
+JSON-Format:
+{
+  "cause_title": "${cause}",
+  "difficulty_level": "easy|medium|hard",
+  "estimated_time_hours": 2.0,
+  "estimated_cost_eur": [100, 300],
+  "for_beginners": true,
+  "steps": [
+    {
+      "step": 1,
+      "title": "Schritt-Titel",
+      "description": "SEHR DETAILLIERTE Beschreibung (3-5 Sätze)",
+      "duration_minutes": 10,
+      "safety_warning": "Falls relevant",
+      "tools": ["Liste"],
+      "tips": "Hilfreiche Tipps"
+    }
+  ],
+  "tools_required": ["Komplette Werkzeugliste"],
+  "safety_warnings": ["Alle Sicherheitshinweise"],
+  "when_to_call_mechanic": ["Wann zur Werkstatt"]
+}
+
+NUR JSON ausgeben!`
+        : `Create a VERY DETAILED repair guide for:
+- Error code: ${errorCode}
+- Cause: ${cause}
+
+Create 10-20 child-easy-to-understand steps. EACH step needs:
+- Clear title
+- VERY detailed description (3-5 sentences, explain WHERE, WHAT, HOW, WHY)
+- Required tools
+- Duration in minutes
+- Safety warnings if relevant
+
+⚠️ IMPORTANT - DYNAMIC OBD PLACEMENT:
+- In the FIRST 8 STEPS: NO "OBD read", "error code read", "connect diagnostic device"
+- Repair steps come FIRST
+- THEN (as last step): "Delete error code and read again"
+
+JSON format:
+{
+  "cause_title": "${cause}",
+  "difficulty_level": "easy|medium|hard",
+  "estimated_time_hours": 2.0,
+  "estimated_cost_eur": [100, 300],
+  "for_beginners": true,
+  "steps": [...],
+  "tools_required": [...],
+  "safety_warnings": [...],
+  "when_to_call_mechanic": [...]
+}
+
+JSON ONLY!`
+      
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [{
+            role: 'system',
+            content: 'You are an expert KFZ mechanic. Create EXTREMELY DETAILED step-by-step repair guides for absolute beginners. ALWAYS respond with VALID JSON only.'
+          }, {
+            role: 'user',
+            content: prompt
+          }],
+          temperature: 0.3,
+          max_tokens: 4000,
+        })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const content = data.choices[0]?.message?.content
+        if (content) {
+          try {
+            const guide = JSON.parse(content)
+            repairGuidesDe[causeKey] = guide
+            console.log(`    ✅ Generated guide for ${causeKey}`)
+          } catch (parseError) {
+            console.warn(`    ⚠️ Failed to parse guide JSON for ${causeKey}`)
+          }
+        }
+      } else {
+        console.warn(`    ⚠️ API error generating guide for ${causeKey}`)
+      }
+    }
+    
+    // Save all guides to database
+    if (Object.keys(repairGuidesDe).length > 0) {
+      const { data: entries } = await supabase
+        .from('automotive_knowledge')
+        .select('id, repair_guides_de')
+        .eq('category', 'fehlercode')
+        .ilike('topic', `%${errorCode}%`)
+        .limit(1)
+      
+      if (entries && entries.length > 0) {
+        const entry = entries[0]
+        const updatedGuides = { ...(entry.repair_guides_de || {}), ...repairGuidesDe }
+        
+        await supabase
+          .from('automotive_knowledge')
+          .update({ repair_guides_de: updatedGuides })
+          .eq('id', entry.id)
+        
+        console.log(`  💾 Saved ${Object.keys(repairGuidesDe).length} repair guides to DB`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ Repair guide generation error:', error)
   }
 }
