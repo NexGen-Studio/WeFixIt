@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/app.dart';
-import 'src/misc/missing_env_screen.dart';
 import 'src/services/maintenance_notification_service.dart';
 import 'src/services/navigation_service.dart';
 import 'src/utils/error_handler.dart';

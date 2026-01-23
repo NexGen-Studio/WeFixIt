@@ -32,9 +32,9 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
     final codes = ref.read(errorCodesProvider);
     if (codes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bitte lese zuerst Fehlercodes aus'),
-          backgroundColor: Color(0xFFFFB129),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('diagnose.please_read_codes_first')),
+          backgroundColor: const Color(0xFFFFB129),
         ),
       );
       return;
@@ -74,9 +74,9 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
       
       if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verbindung fehlgeschlagen'),
-            backgroundColor: Color(0xFFE53935),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('diagnose.connection_failed')),
+            backgroundColor: const Color(0xFFE53935),
           ),
         );
         setState(() => _isScanning = false);
@@ -92,7 +92,7 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler: $e'),
+            content: Text(AppLocalizations.of(context).tr('diagnose.generic_error').replaceAll('{error}', e.toString())),
             backgroundColor: const Color(0xFFE53935),
           ),
         );
@@ -110,9 +110,9 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
     
     if (codes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Keine Fehlercodes vorhanden. Bitte lese zuerst Codes aus.'),
-          backgroundColor: Color(0xFFFFB129),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).tr('diagnose.no_codes_to_delete')),
+          backgroundColor: const Color(0xFFFFB129),
         ),
       );
       return;
@@ -148,9 +148,9 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
         
         if (!success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Verbindung fehlgeschlagen'),
-              backgroundColor: Color(0xFFE53935),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).tr('diagnose.connection_failed')),
+              backgroundColor: const Color(0xFFE53935),
             ),
           );
           setState(() => _isScanning = false);
@@ -162,7 +162,7 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Fehler: $e'),
+              content: Text(AppLocalizations.of(context).tr('diagnose.generic_error').replaceAll('{error}', e.toString())),
               backgroundColor: const Color(0xFFE53935),
             ),
           );
@@ -191,10 +191,10 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1F26),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Anmeldung erforderlich', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Für KI-Diagnosen musst du dich anmelden. Fehlercodes auslesen und löschen ist immer kostenlos!',
-          style: TextStyle(color: Colors.white70),
+        title: Text(AppLocalizations.of(context).tr('diagnose.login_required'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          AppLocalizations.of(context).tr('diagnose.login_required_message'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
@@ -209,7 +209,7 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF8AD20),
             ),
-            child: const Text('Jetzt anmelden', style: TextStyle(color: Colors.white)),
+            child: Text(t.tr('diagnose.login_now'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -254,8 +254,8 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                 icon: Icons.search,
                 iconColor: const Color(0xFFE53935),
                 iconBg: const Color(0xFFFFEBEE),
-                title: 'Fehlercodes\nauslesen',
-                badge: 'Kostenlos',
+                title: t.tr('diagnose.read_error_codes'),
+                badge: t.tr('diagnose.free_badge'),
                 badgeColor: const Color(0xFF4CAF50),
                 onTap: _isScanning ? null : _readErrorCodes,
               ),
@@ -267,8 +267,8 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                 icon: Icons.delete_outline,
                 iconColor: const Color(0xFFFFB129),
                 iconBg: const Color(0xFFFFF8E1),
-                title: 'Fehlercodes\nlöschen',
-                badge: 'Kostenlos',
+                title: t.tr('diagnose.delete_error_codes'),
+                badge: t.tr('diagnose.free_badge'),
                 badgeColor: const Color(0xFF4CAF50),
                 onTap: _clearErrorCodes,
               ),
@@ -280,8 +280,8 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                 icon: Icons.show_chart,
                 iconColor: const Color(0xFF2196F3),
                 iconBg: const Color(0xFFE3F2FD),
-                title: 'Live Daten\nauslesen',
-                badge: 'Kostenlos',
+                title: t.tr('diagnose.live_data_read'),
+                badge: t.tr('diagnose.free_badge'),
                 badgeColor: const Color(0xFF4CAF50),
                 onTap: _readLiveData,
               ),
@@ -293,8 +293,8 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                 icon: Icons.psychology_outlined,
                 iconColor: const Color(0xFFFFB129),
                 iconBg: const Color(0xFFFFF8E1),
-                title: 'KI-Diagnose\nstarten',
-                badge: 'Credits',
+                title: t.tr('diagnose.ai_diagnosis'),
+                badge: t.tr('diagnose.credits_badge'),
                 badgeColor: const Color(0xFFFFB129),
                 onTap: _startAiDiagnosis,
               ),
@@ -363,22 +363,22 @@ class _DiagnoseScreenState extends ConsumerState<DiagnoseScreen> {
                           ),
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '🧪 Demo-Modus (ohne Adapter)',
-                                style: TextStyle(
+                                t.tr('diagnose.demo_mode_no_adapter'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15,
                                   color: Colors.white,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                'Teste mit Beispiel-Fehlercodes',
-                                style: TextStyle(
+                                t.tr('diagnose.test_example_codes'),
+                                style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 12,
                                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/obd_error_code.dart';
 import '../../models/ai_diagnosis_models.dart';
+import '../../i18n/app_localizations.dart';
 
 /// Screen 3: Ursache-Details + Schritt-für-Schritt Anleitung + Kosten
 class AiDiagnosisCauseDetailScreen extends StatelessWidget {
@@ -26,8 +27,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Reparaturanleitung',
+        title: Text(
+          AppLocalizations.of(context).tr('ai_diagnosis.repair_guide_title'),
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -93,7 +94,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                   // Vollständige Beschreibung
                   _buildSection(
                     icon: Icons.info_outline,
-                    title: 'Beschreibung',
+                    title: AppLocalizations.of(context).tr('ai_diagnosis.description'),
                     child: Text(
                       cause.fullDescription,
                       style: const TextStyle(
@@ -109,8 +110,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                   // Kostenvoranschlag
                   _buildSection(
                     icon: Icons.euro,
-                    title: 'Geschätzte Kosten',
-                    child: _buildCostEstimate(),
+                    title: AppLocalizations.of(context).tr('ai_diagnosis.estimated_cost'),
+                    child: _buildCostEstimate(context),
                   ),
 
                   const SizedBox(height: 24),
@@ -119,8 +120,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                   if (_hasTools()) ...[
                     _buildSection(
                       icon: Icons.build,
-                      title: 'Benötigte Werkzeuge',
-                      child: _buildToolsList(),
+                      title: AppLocalizations.of(context).tr('repair_guide.required_tools'),
+                      child: _buildToolsList(context),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -128,7 +129,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                   // Reparaturanleitung
                   _buildSection(
                     icon: Icons.list_alt,
-                    title: 'Schritt-für-Schritt Anleitung',
+                    title: AppLocalizations.of(context).tr('repair_guide.step_by_step_guide'),
                     child: Column(
                       children: cause.repairSteps.map((step) {
                         return _buildRepairStep(step);
@@ -162,8 +163,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Wichtige Hinweise',
+                                Text(
+                                  AppLocalizations.of(context).tr('ai_diagnosis.important_notes'),
                                   style: TextStyle(
                                     color: Color(0xFFF57C00),
                                     fontSize: 16,
@@ -229,7 +230,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCostEstimate() {
+  Widget _buildCostEstimate(BuildContext context) {
     final cost = cause.estimatedCost;
     
     return Column(
@@ -239,8 +240,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Gesamtkosten:',
+            Text(
+              AppLocalizations.of(context).tr('ai_diagnosis.total_cost') + ':',
               style: TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
@@ -270,8 +271,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Ersatzteile:',
+                Text(
+                  AppLocalizations.of(context).tr('ai_diagnosis.parts_cost') + ':',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
@@ -294,8 +295,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Arbeitszeit:',
+              Text(
+                AppLocalizations.of(context).tr('ai_diagnosis.labor_time') + ':',
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 13,
@@ -328,7 +329,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildToolsList() {
+  Widget _buildToolsList(BuildContext context) {
     final allTools = <String>{};
     
     for (var step in cause.repairSteps) {
@@ -338,8 +339,8 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
     }
     
     if (allTools.isEmpty) {
-      return const Text(
-        'Keine speziellen Werkzeuge erforderlich',
+      return Text(
+        AppLocalizations.of(context).tr('ai_diagnosis.no_special_tools'),
         style: TextStyle(
           color: Colors.white70,
           fontSize: 14,
@@ -546,7 +547,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Schwierigkeit: ${_getDifficultyLabel()}',
+                  '${AppLocalizations.of(context).tr('ai_diagnosis.difficulty')}: ${_getDifficultyLabel(context)}',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
@@ -564,7 +565,7 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'Wahrscheinlichkeit: ${_getProbabilityLabel()}',
+                      '${AppLocalizations.of(context).tr('ai_diagnosis.probability')}: ${_getProbabilityLabel(context)}',
                       style: TextStyle(
                         color: _getProbabilityColor(),
                         fontSize: 11,
@@ -602,16 +603,16 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
     }
   }
 
-  String _getDifficultyLabel() {
+  String _getDifficultyLabel(BuildContext context) {
     switch (cause.difficulty?.toLowerCase()) {
       case 'easy':
-        return 'Einfach';
+        return AppLocalizations.of(context).tr('ai_diagnosis.difficulty_easy');
       case 'medium':
-        return 'Mittel';
+        return AppLocalizations.of(context).tr('ai_diagnosis.difficulty_medium');
       case 'hard':
-        return 'Schwierig';
+        return AppLocalizations.of(context).tr('ai_diagnosis.difficulty_hard');
       default:
-        return 'Unbekannt';
+        return AppLocalizations.of(context).tr('ai_diagnosis.probability_unknown');
     }
   }
 
@@ -628,16 +629,16 @@ class AiDiagnosisCauseDetailScreen extends StatelessWidget {
     }
   }
 
-  String _getProbabilityLabel() {
+  String _getProbabilityLabel(BuildContext context) {
     switch (cause.probability?.toLowerCase()) {
       case 'high':
-        return 'Hoch';
+        return AppLocalizations.of(context).tr('ai_diagnosis.probability_high');
       case 'medium':
-        return 'Mittel';
+        return AppLocalizations.of(context).tr('ai_diagnosis.probability_medium');
       case 'low':
-        return 'Niedrig';
+        return AppLocalizations.of(context).tr('ai_diagnosis.probability_low');
       default:
-        return 'Unbekannt';
+        return AppLocalizations.of(context).tr('ai_diagnosis.probability_unknown');
     }
   }
 }

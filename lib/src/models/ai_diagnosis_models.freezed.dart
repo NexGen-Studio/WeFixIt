@@ -27,6 +27,8 @@ mixin _$AiDiagnosis {
   @JsonKey(name: 'possible_causes')
   List<PossibleCause> get possibleCauses => throw _privateConstructorUsedError;
   List<String>? get symptoms => throw _privateConstructorUsedError;
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues => throw _privateConstructorUsedError;
   String? get severity => throw _privateConstructorUsedError;
   @JsonKey(name: 'drive_safety')
   bool? get driveSafety => throw _privateConstructorUsedError;
@@ -54,6 +56,8 @@ abstract class $AiDiagnosisCopyWith<$Res> {
     String detailedDescription,
     @JsonKey(name: 'possible_causes') List<PossibleCause> possibleCauses,
     List<String>? symptoms,
+    @JsonKey(name: 'vehicle_specific_issues')
+    List<String>? vehicleSpecificIssues,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   });
@@ -79,6 +83,7 @@ class _$AiDiagnosisCopyWithImpl<$Res, $Val extends AiDiagnosis>
     Object? detailedDescription = null,
     Object? possibleCauses = null,
     Object? symptoms = freezed,
+    Object? vehicleSpecificIssues = freezed,
     Object? severity = freezed,
     Object? driveSafety = freezed,
   }) {
@@ -108,6 +113,11 @@ class _$AiDiagnosisCopyWithImpl<$Res, $Val extends AiDiagnosis>
                 freezed == symptoms
                     ? _value.symptoms
                     : symptoms // ignore: cast_nullable_to_non_nullable
+                        as List<String>?,
+            vehicleSpecificIssues:
+                freezed == vehicleSpecificIssues
+                    ? _value.vehicleSpecificIssues
+                    : vehicleSpecificIssues // ignore: cast_nullable_to_non_nullable
                         as List<String>?,
             severity:
                 freezed == severity
@@ -140,6 +150,8 @@ abstract class _$$AiDiagnosisImplCopyWith<$Res>
     String detailedDescription,
     @JsonKey(name: 'possible_causes') List<PossibleCause> possibleCauses,
     List<String>? symptoms,
+    @JsonKey(name: 'vehicle_specific_issues')
+    List<String>? vehicleSpecificIssues,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   });
@@ -164,6 +176,7 @@ class __$$AiDiagnosisImplCopyWithImpl<$Res>
     Object? detailedDescription = null,
     Object? possibleCauses = null,
     Object? symptoms = freezed,
+    Object? vehicleSpecificIssues = freezed,
     Object? severity = freezed,
     Object? driveSafety = freezed,
   }) {
@@ -194,6 +207,11 @@ class __$$AiDiagnosisImplCopyWithImpl<$Res>
                 ? _value._symptoms
                 : symptoms // ignore: cast_nullable_to_non_nullable
                     as List<String>?,
+        vehicleSpecificIssues:
+            freezed == vehicleSpecificIssues
+                ? _value._vehicleSpecificIssues
+                : vehicleSpecificIssues // ignore: cast_nullable_to_non_nullable
+                    as List<String>?,
         severity:
             freezed == severity
                 ? _value.severity
@@ -219,10 +237,13 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     @JsonKey(name: 'possible_causes')
     required final List<PossibleCause> possibleCauses,
     final List<String>? symptoms,
+    @JsonKey(name: 'vehicle_specific_issues')
+    final List<String>? vehicleSpecificIssues,
     this.severity,
     @JsonKey(name: 'drive_safety') this.driveSafety,
   }) : _possibleCauses = possibleCauses,
-       _symptoms = symptoms;
+       _symptoms = symptoms,
+       _vehicleSpecificIssues = vehicleSpecificIssues;
 
   factory _$AiDiagnosisImpl.fromJson(Map<String, dynamic> json) =>
       _$$AiDiagnosisImplFromJson(json);
@@ -252,6 +273,18 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     return EqualUnmodifiableListView(value);
   }
 
+  final List<String>? _vehicleSpecificIssues;
+  @override
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues {
+    final value = _vehicleSpecificIssues;
+    if (value == null) return null;
+    if (_vehicleSpecificIssues is EqualUnmodifiableListView)
+      return _vehicleSpecificIssues;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final String? severity;
   @override
@@ -260,7 +293,7 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
 
   @override
   String toString() {
-    return 'AiDiagnosis(code: $code, description: $description, detailedDescription: $detailedDescription, possibleCauses: $possibleCauses, symptoms: $symptoms, severity: $severity, driveSafety: $driveSafety)';
+    return 'AiDiagnosis(code: $code, description: $description, detailedDescription: $detailedDescription, possibleCauses: $possibleCauses, symptoms: $symptoms, vehicleSpecificIssues: $vehicleSpecificIssues, severity: $severity, driveSafety: $driveSafety)';
   }
 
   @override
@@ -278,6 +311,10 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
               _possibleCauses,
             ) &&
             const DeepCollectionEquality().equals(other._symptoms, _symptoms) &&
+            const DeepCollectionEquality().equals(
+              other._vehicleSpecificIssues,
+              _vehicleSpecificIssues,
+            ) &&
             (identical(other.severity, severity) ||
                 other.severity == severity) &&
             (identical(other.driveSafety, driveSafety) ||
@@ -293,6 +330,7 @@ class _$AiDiagnosisImpl implements _AiDiagnosis {
     detailedDescription,
     const DeepCollectionEquality().hash(_possibleCauses),
     const DeepCollectionEquality().hash(_symptoms),
+    const DeepCollectionEquality().hash(_vehicleSpecificIssues),
     severity,
     driveSafety,
   );
@@ -319,6 +357,8 @@ abstract class _AiDiagnosis implements AiDiagnosis {
     @JsonKey(name: 'possible_causes')
     required final List<PossibleCause> possibleCauses,
     final List<String>? symptoms,
+    @JsonKey(name: 'vehicle_specific_issues')
+    final List<String>? vehicleSpecificIssues,
     final String? severity,
     @JsonKey(name: 'drive_safety') final bool? driveSafety,
   }) = _$AiDiagnosisImpl;
@@ -337,6 +377,9 @@ abstract class _AiDiagnosis implements AiDiagnosis {
   List<PossibleCause> get possibleCauses;
   @override
   List<String>? get symptoms;
+  @override
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues;
   @override
   String? get severity;
   @override

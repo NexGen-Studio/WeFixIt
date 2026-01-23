@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/obd_error_code.dart';
 import '../../state/error_codes_provider.dart';
+import '../../i18n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Demo-Modus Diagnose Screen - Identisch zum echten Screen
@@ -18,6 +19,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0B1117),
       appBar: AppBar(
@@ -84,8 +87,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Demo-Modus',
+                          Text(
+                            t.tr('diagnose.demo_mode'),
                             style: TextStyle(
                               color: Color(0xFFFFB129),
                               fontSize: 16,
@@ -94,7 +97,7 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Alle Funktionen mit Beispiel-Daten. Kein OBD2-Adapter erforderlich.',
+                            t.tr('diagnose.demo_description'),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 13,
@@ -113,8 +116,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
               // Die 3 Hauptfunktionen
               _buildDiagnosisButton(
                 number: '1',
-                title: 'Fehlercodes auslesen',
-                description: 'Fehlerspeicher des Fahrzeugs auslesen',
+                title: t.tr('diagnose.read_error_codes'),
+                description: t.tr('diagnose.read_codes_description'),
                 icon: Icons.search,
                 color: const Color(0xFFE53935),
                 onTap: _readErrorCodes,
@@ -124,8 +127,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
 
               _buildDiagnosisButton(
                 number: '2',
-                title: 'Fehlercodes löschen',
-                description: 'Fehlerspeicher zurücksetzen',
+                title: t.tr('diagnose.delete_error_codes'),
+                description: t.tr('diagnose.delete_codes_description'),
                 icon: Icons.delete_outline,
                 color: const Color(0xFFF57C00),
                 onTap: _clearErrorCodes,
@@ -135,8 +138,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
 
               _buildDiagnosisButton(
                 number: '2.5',
-                title: 'Live Daten auslesen',
-                description: 'Echtzeit-Fahrzeugdaten im Demo-Modus',
+                title: t.tr('diagnose.live_data_read'),
+                description: t.tr('diagnose.live_data_description'),
                 icon: Icons.show_chart,
                 color: const Color(0xFF2196F3),
                 onTap: _readLiveData,
@@ -146,8 +149,8 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
 
               _buildDiagnosisButton(
                 number: '3',
-                title: 'KI-Diagnose starten',
-                description: 'Intelligente Fehleranalyse',
+                title: t.tr('diagnose.ai_diagnosis'),
+                description: t.tr('diagnose.ai_diagnosis_description'),
                 icon: Icons.psychology,
                 color: const Color(0xFFFFB129),
                 onTap: _startAiDiagnosis,
@@ -175,7 +178,7 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Beispiel-Fehlercodes',
+                          t.tr('diagnose.example_codes'),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 16,
@@ -187,19 +190,19 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
                     const SizedBox(height: 16),
                     _buildInfoItem(
                       'P0420',
-                      'Katalysator - Wirkungsgrad unter Schwellenwert',
+                      t.tr('diagnose.catalyst_efficiency'),
                       const Color(0xFFE53935),
                     ),
                     const SizedBox(height: 12),
                     _buildInfoItem(
                       'P0171',
-                      'Kraftstoffsystem zu mager',
+                      t.tr('diagnose.fuel_system_lean'),
                       const Color(0xFFE53935),
                     ),
                     const SizedBox(height: 12),
                     _buildInfoItem(
                       'C0035',
-                      'Raddrehzahlsensor defekt',
+                      t.tr('diagnose.wheel_speed_sensor'),
                       const Color(0xFFF57C00),
                     ),
                   ],
@@ -365,12 +368,13 @@ class _DemoDiagnoseScreenState extends ConsumerState<DemoDiagnoseScreen> {
   /// KI-Diagnose starten - Demo
   Future<void> _startAiDiagnosis() async {
     final codes = ref.read(errorCodesProvider);
+    final t = AppLocalizations.of(context);
     
     if (codes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Keine Fehlercodes vorhanden. Bitte lese zuerst Codes aus.'),
-          backgroundColor: Color(0xFFFFB129),
+        SnackBar(
+          content: Text(t.tr('diagnose.no_codes_to_delete')),
+          backgroundColor: const Color(0xFFFFB129),
         ),
       );
       return;

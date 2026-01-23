@@ -278,6 +278,7 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     final codeColor = _getCodeColor(widget.code.code);
 
     return Scaffold(
@@ -363,6 +364,8 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
   }
 
   Widget _buildErrorView() {
+    final t = AppLocalizations.of(context);
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -454,7 +457,7 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                 OutlinedButton.icon(
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Zurück'),
+                  label: Text(t.tr('ai_diagnosis.back_button')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white70,
                     side: const BorderSide(color: Colors.white24),
@@ -465,7 +468,7 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                 ElevatedButton.icon(
                   onPressed: _analyzeCode,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Erneut versuchen'),
+                  label: Text(t.tr('ai_diagnosis.retry_button')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFB129),
                     foregroundColor: Colors.black,
@@ -481,8 +484,10 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
   }
 
   Widget _buildDiagnosisView(Color codeColor) {
+    final t = AppLocalizations.of(context);
+    
     if (_diagnosis == null) {
-      return const Center(child: Text('Keine Diagnosedaten'));
+      return Center(child: Text(t.tr('ai_diagnosis.no_diagnosis')));
     }
 
     return SingleChildScrollView(
@@ -544,9 +549,9 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Was bedeutet dieser Fehler?',
-                  style: TextStyle(
+                Text(
+                  t.tr('ai_diagnosis.what_does_error_mean'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -582,8 +587,8 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                         size: 24,
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Symptome',
+                      Text(
+                        t.tr('ai_diagnosis.symptoms_title'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
@@ -594,7 +599,7 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${_diagnosis!.symptoms!.length} mögliche Symptome',
+                    t.tr('ai_diagnosis.symptoms_count').replaceAll('{count}', '${_diagnosis!.symptoms!.length}'),
                     style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 13,
@@ -652,6 +657,89 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                   const SizedBox(height: 32),
                 ],
                 
+                // Vehicle-specific Issues (wenn vorhanden)
+                if (widget.description?.vehicleSpecificIssues != null && widget.description!.vehicleSpecificIssues!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.directions_car,
+                        color: Color(0xFF4CAF50),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          t.tr('ai_diagnosis.vehicle_issues_title'),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.description!.vehicleSpecificIssues!.length == 1
+                      ? t.tr('ai_diagnosis.vehicle_issues_count_single').replaceAll('{count}', '${widget.description!.vehicleSpecificIssues!.length}')
+                      : t.tr('ai_diagnosis.vehicle_issues_count').replaceAll('{count}', '${widget.description!.vehicleSpecificIssues!.length}'),
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF4CAF50).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: widget.description!.vehicleSpecificIssues!.asMap().entries.map((entry) {
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: entry.key < widget.description!.vehicleSpecificIssues!.length - 1 ? 12 : 0,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF4CAF50),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                ],
+                
                 // Mögliche Ursachen Header
                 Row(
                   children: [
@@ -661,9 +749,9 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                       size: 24,
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Mögliche Ursachen',
-                      style: TextStyle(
+                    Text(
+                      t.tr('ai_diagnosis.possible_causes'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -673,7 +761,7 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_diagnosis!.possibleCauses.length} Ursachen gefunden',
+                  t.tr('ai_diagnosis.causes_found').replaceAll('{count}', '${_diagnosis!.possibleCauses.length}'),
                   style: const TextStyle(
                     color: Colors.white54,
                     fontSize: 13,
@@ -873,13 +961,14 @@ class _AiDiagnosisDetailScreenState extends State<AiDiagnosisDetailScreen> {
   }
 
   String _getDifficultyLabel(String difficulty) {
+    final t = AppLocalizations.of(context);
     switch (difficulty.toLowerCase()) {
       case 'easy':
-        return 'Einfach';
+        return t.tr('ai_diagnosis.difficulty_easy');
       case 'medium':
-        return 'Mittel';
+        return t.tr('ai_diagnosis.difficulty_medium');
       case 'hard':
-        return 'Schwierig';
+        return t.tr('ai_diagnosis.difficulty_hard');
       default:
         return difficulty;
     }

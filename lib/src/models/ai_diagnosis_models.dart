@@ -12,6 +12,7 @@ class AiDiagnosis with _$AiDiagnosis {
     required String detailedDescription,
     @JsonKey(name: 'possible_causes') required List<PossibleCause> possibleCauses,
     List<String>? symptoms,
+    @JsonKey(name: 'vehicle_specific_issues') List<String>? vehicleSpecificIssues,
     String? severity,
     @JsonKey(name: 'drive_safety') bool? driveSafety,
   }) = _AiDiagnosis;

@@ -172,8 +172,12 @@ GoRouter createRouter() {
                 path: 'ai-detail',
                 builder: (context, state) {
                   final extra = state.extra as Map<String, dynamic>;
+                  final codeData = extra['code'];
+                  final code = codeData is RawObdCode 
+                      ? codeData 
+                      : RawObdCode.fromJson(codeData as Map<String, dynamic>);
                   return AiDiagnosisDetailScreen(
-                    code: extra['code'] as RawObdCode,
+                    code: code,
                     description: extra['description'] as ObdErrorCode?,
                     isDemo: extra['isDemo'] as bool? ?? false,
                   );
@@ -183,8 +187,12 @@ GoRouter createRouter() {
                 path: 'ai-cause-detail',
                 builder: (context, state) {
                   final extra = state.extra as Map<String, dynamic>;
+                  final codeData = extra['code'];
+                  final code = codeData is RawObdCode 
+                      ? codeData 
+                      : RawObdCode.fromJson(codeData as Map<String, dynamic>);
                   return AiDiagnosisCauseDetailScreen(
-                    code: extra['code'] as RawObdCode,
+                    code: code,
                     cause: extra['cause'],
                   );
                 },

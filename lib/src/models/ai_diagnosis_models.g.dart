@@ -19,6 +19,10 @@ _$AiDiagnosisImpl _$$AiDiagnosisImplFromJson(Map<String, dynamic> json) =>
           (json['symptoms'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList(),
+      vehicleSpecificIssues:
+          (json['vehicle_specific_issues'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList(),
       severity: json['severity'] as String?,
       driveSafety: json['drive_safety'] as bool?,
     );
@@ -30,6 +34,7 @@ Map<String, dynamic> _$$AiDiagnosisImplToJson(_$AiDiagnosisImpl instance) =>
       'detailedDescription': instance.detailedDescription,
       'possible_causes': instance.possibleCauses,
       'symptoms': instance.symptoms,
+      'vehicle_specific_issues': instance.vehicleSpecificIssues,
       'severity': instance.severity,
       'drive_safety': instance.driveSafety,
     };

@@ -24,6 +24,7 @@ class ObdErrorCode with _$ObdErrorCode {
     @JsonKey(name: 'related_codes') List<String>? relatedCodes,
     @JsonKey(name: 'typical_cost_range_eur') String? typicalCostRange,
     @JsonKey(name: 'occurrence_frequency') String? occurrenceFrequency,
+    @JsonKey(name: 'vehicle_specific_issues') List<String>? vehicleSpecificIssues,
   }) = _ObdErrorCode;
 
   factory ObdErrorCode.fromJson(Map<String, dynamic> json) =>
@@ -39,6 +40,13 @@ class RawObdCode {
     required this.code,
     DateTime? readAt,
   }) : readAt = readAt ?? DateTime.now();
+
+  factory RawObdCode.fromJson(Map<String, dynamic> json) => RawObdCode(
+        code: json['code'] as String,
+        readAt: json['read_at'] != null
+            ? DateTime.parse(json['read_at'] as String)
+            : DateTime.now(),
+      );
 
   Map<String, dynamic> toJson() => {
         'code': code,

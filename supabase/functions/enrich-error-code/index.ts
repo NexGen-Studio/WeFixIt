@@ -185,19 +185,10 @@ WICHTIG: Nur JSON ausgeben, kein zusätzlicher Text!`
       
       // 5. Code existiert NICHT oder ist unvollständig → Full Enrichment
 
-      // 6. Perplexity Web-Search
-      const searchPrompt = vehicle
-        ? `Recherchiere umfassende Informationen über den OBD2-Fehlercode ${code} SPEZIFISCH für ${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.engine || ''}.
-
-Fokussiere auf:
-- Häufigste Ursachen bei diesem Fahrzeugmodell
-- Bekannte Schwachstellen dieser Baureihe
-- Typische Laufleistung bei Auftreten
-- Spezifische Teilenummern (OEM + Aftermarket)
-- Reparaturkosten für dieses Modell`
-        : `Recherchiere umfassende Informationen über den OBD2-Fehlercode ${code}.`;
+      // 6. Perplexity Web-Search (IMMER allgemein für Content)
+      const searchPrompt = `Recherchiere umfassende Informationen über den OBD2-Fehlercode ${code}.`;
       
-      console.log(`🔍 Perplexity: Searching for ${code}${vehicle ? ' (vehicle-specific)' : ''}`);
+      console.log(`🔍 Perplexity: Searching for ${code}`);
       const searchResponse = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -256,10 +247,50 @@ Nur JSON ausgeben, kein zusätzlicher Text!`
         }
       }
 
+      // Entferne Citation-Markers [1], [2], [3] etc. aus allen Textfeldern
+      if (webData.title) {
+        webData.title = webData.title.replace(/\[\d+\]/g, '').trim();
+      }
+      if (webData.content) {
+        webData.content = webData.content.replace(/\[\d+\]/g, '').trim();
+      }
+      if (webData.symptoms && Array.isArray(webData.symptoms)) {
+        webData.symptoms = webData.symptoms.map((s: string) => s.replace(/\[\d+\]/g, '').trim());
+      }
+      if (webData.causes && Array.isArray(webData.causes)) {
+        webData.causes = webData.causes.map((c: string) => c.replace(/\[\d+\]/g, '').trim());
+      }
+      if (webData.diagnostic_steps && Array.isArray(webData.diagnostic_steps)) {
+        webData.diagnostic_steps = webData.diagnostic_steps.map((d: string) => d.replace(/\[\d+\]/g, '').trim());
+      }
+      if (webData.repair_steps && Array.isArray(webData.repair_steps)) {
+        webData.repair_steps = webData.repair_steps.map((r: string) => r.replace(/\[\d+\]/g, '').trim());
+      }
+
       console.log(`✅ Perplexity: Found ${sources.length} sources`);
 
-      // 7. GPT: Übersetze ins Englische
-      console.log(`🌐 Translating to EN/FR/ES...`);
+      // 7. Vehicle-specific Daten laden
+      // vehicle_specific wird jetzt von separater Edge Function generiert (enrich-vehicle-specific)
+      const vehicleSpecificData = existing?.vehicle_specific || {};
+      
+      // 8. Merge vehicle_specific issues in causes (für Anleitungen)
+      let allCauses = webData.causes || [];
+      if (vehicle) {
+        const vehicleKey = generateVehicleKey(vehicle);
+        if (vehicleSpecificData[vehicleKey]?.issues) {
+          const vehicleIssues = vehicleSpecificData[vehicleKey].issues;
+          // Nur Issues hinzufügen die noch nicht in causes sind
+          vehicleIssues.forEach((issue: string) => {
+            if (!allCauses.some((c: string) => c.toLowerCase().includes(issue.toLowerCase().substring(0, 20)))) {
+              allCauses.push(issue);
+            }
+          });
+          console.log(`✅ Merged ${vehicleIssues.length} vehicle-specific issues into causes`);
+        }
+      }
+      
+      // 9. GPT: Übersetze title, content, symptoms, causes ins Englische
+      console.log(`🌐 Translating to EN (title, content, symptoms, causes)...`);
       const translateResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -277,8 +308,10 @@ Nur JSON ausgeben, kein zusätzlicher Text!`
 
 Titel: ${webData.title}
 Inhalt: ${webData.content}
+Symptome: ${JSON.stringify(webData.symptoms || [])}
+Ursachen: ${JSON.stringify(allCauses)}
 
-Antworte im JSON-Format: {"title": "...", "content": "..."}`
+Antworte im JSON-Format: {"title": "...", "content": "...", "symptoms": [...], "causes": [...]}`
           }],
           temperature: 0.3,
           response_format: { type: "json_object" }
@@ -288,16 +321,8 @@ Antworte im JSON-Format: {"title": "...", "content": "..."}`
       const translateData = await translateResponse.json();
       const translationEn = JSON.parse(translateData.choices[0].message.content);
       
-      // 8. Übersetze auch nach Französisch und Spanisch
-      const [translationFr, translationEs] = await Promise.all([
-        translateContent(webData.title, webData.content, 'fr'),
-        translateContent(webData.title, webData.content, 'es')
-      ]);
-
-      // 9. Repair Guides werden später von fill-repair-guides erstellt
-
-      // 11. Embeddings erstellen
-      console.log(`🧮 Creating embeddings...`);
+      // 10. Embeddings erstellen (DE + EN)
+      console.log(`🧮 Creating embeddings (DE + EN)...`);
       const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
@@ -312,45 +337,31 @@ Antworte im JSON-Format: {"title": "...", "content": "..."}`
 
       const embeddingData = await embeddingResponse.json();
       const embeddingDe = embeddingData.data[0].embedding;
-
-      // Embeddings für alle Sprachen (parallel)
-      const embeddingPromises = [
-        createEmbedding(`${translationEn.title}\n\n${translationEn.content}`),
-        createEmbedding(`${translationFr.title}\n\n${translationFr.content}`),
-        createEmbedding(`${translationEs.title}\n\n${translationEs.content}`)
-      ];
+      const embeddingEn = await createEmbedding(`${translationEn.title}\n\n${translationEn.content}`);
       
-      const [embeddingEn, embeddingFr, embeddingEs] = await Promise.all(embeddingPromises);
-
-      // 12. UPSERT in DB (Race Condition safe)
-      console.log(`💾 Upserting ${code}`);
+      // 11. UPSERT in DB
+      console.log(`💾 Upserting ${code}${vehicle ? ' WITH vehicle_specific' : ''}`);
+      
       const upsertData = {
         topic: `${code} OBD2 diagnostic trouble code`,
         category: 'fehlercode',
         title_de: webData.title,
         title_en: translationEn.title,
-        title_fr: translationFr.title,
-        title_es: translationEs.title,
         content_de: webData.content,
         content_en: translationEn.content,
-        content_fr: translationFr.content,
-        content_es: translationEs.content,
         symptoms: webData.symptoms || [],
-        causes: webData.causes || [],
+        symptoms_en: translationEn.symptoms || [],
+        causes: allCauses,
+        causes_en: translationEn.causes || [],
         diagnostic_steps: webData.diagnostic_steps || [],
         repair_steps: webData.repair_steps || [],
         tools_required: webData.tools_required || [],
         estimated_cost_eur: webData.estimated_cost_eur || null,
         difficulty_level: webData.difficulty_level || 'medium',
-        vehicle_specific: vehicle ? {
-          ...(existing?.vehicle_specific || {}),
-          [generateVehicleKey(vehicle)]: await generateVehicleSpecificData(code, vehicle)
-        } : existing?.vehicle_specific || {},
+        vehicle_specific: vehicleSpecificData,
         embedding_de: embeddingDe,
         embedding_en: embeddingEn,
-        embedding_fr: embeddingFr,
-        embedding_es: embeddingEs,
-        keywords: [code, ...webData.causes.map((c: string) => c.toLowerCase())],
+        keywords: [code, ...allCauses.map((c: string) => c.toLowerCase())],
         original_language: 'de',
         source_urls: sources.length > 0 ? sources : null,
         quality_score: 0.9,
@@ -447,14 +458,12 @@ async function generateVehicleSpecificData(code: string, vehicle: any): Promise<
 
 Antworte im JSON-Format:
 {
-  "most_likely_cause": "Die wahrscheinlichste Ursache bei diesem Fahrzeugmodell (z.B. 'Katalysator defekt (60% der Fälle)')",
-  "common_causes": ["Ursache 1 (% der Fälle)", "Ursache 2 (% der Fälle)"],
+  "issues": ["Bekanntes Problem 1 bei diesem Fahrzeugmodell", "Bekanntes Problem 2", "Bekanntes Problem 3"],
+  "most_likely_cause": "Die wahrscheinlichste Ursache bei diesem Fahrzeugmodell",
   "typical_mileage_km": "120.000 - 180.000",
   "part_numbers": {"teil": "Teilenummer"},
   "cost_estimate_eur": [150, 350],
-  "specific_notes_de": "Fahrzeugspezifische Hinweise zu bekannten Schwachstellen",
-  "difficulty_level": "easy|medium|hard",
-  "workshop_time_hours": 1.5
+  "specific_notes_de": "Fahrzeugspezifische Hinweise zu bekannten Schwachstellen"
 }`
       }],
       temperature: 0.7,
@@ -465,12 +474,26 @@ Antworte im JSON-Format:
   const data = await response.json();
   const text = data.choices[0].message.content;
   
+  let result;
   try {
-    return JSON.parse(text);
+    result = JSON.parse(text);
   } catch (e) {
     const match = text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : {};
+    result = match ? JSON.parse(match[0]) : {};
   }
+  
+  // Entferne Citations aus vehicle_specific Daten
+  if (result.issues && Array.isArray(result.issues)) {
+    result.issues = result.issues.map((issue: string) => issue.replace(/\[\d+\]/g, '').trim());
+  }
+  if (result.most_likely_cause) {
+    result.most_likely_cause = result.most_likely_cause.replace(/\[\d+\]/g, '').trim();
+  }
+  if (result.specific_notes_de) {
+    result.specific_notes_de = result.specific_notes_de.replace(/\[\d+\]/g, '').trim();
+  }
+  
+  return result;
 }
 
 async function translateContent(title: string, content: string, lang: string): Promise<any> {

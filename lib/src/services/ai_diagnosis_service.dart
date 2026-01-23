@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/obd_error_code.dart';
 import '../models/ai_diagnosis_models.dart';
+import '../state/locale_provider.dart';
 
 class AiDiagnosisService {
   final _supabase = Supabase.instance.client;
@@ -14,10 +16,13 @@ class AiDiagnosisService {
     await Future.delayed(const Duration(seconds: 1)); // Simuliere Analyse
     
     try {
-      // Hole Daten aus DB (inkl. repair_guides_de für detaillierte Anleitungen)
+      // Hole Daten aus DB (inkl. repair_guides für detaillierte Anleitungen)
+      // Prüfe App-Sprache für korrekte Spalten
+      final isEnglish = currentLanguageCode == 'en';
+      
       final result = await _supabase
         .from('automotive_knowledge')
-        .select('title_de, title_en, content_de, symptoms, causes, repair_guides_de')
+        .select('title_de, title_en, content_de, content_en, symptoms, symptoms_en, causes, causes_en, repair_guides_de, repair_guides_en, vehicle_specific, vehicle_specific_en')
         .eq('category', 'fehlercode')
         .ilike('topic', '%$code%')
         .maybeSingle();
@@ -50,7 +55,7 @@ class AiDiagnosisService {
               'readAt': DateTime.now().toIso8601String(),
             }
           ],
-          'language': 'de',
+          'language': currentLanguageCode,
         },
       );
 
@@ -74,17 +79,36 @@ class AiDiagnosisService {
     }
   }
 
-  /// Konvertiere DB-Daten zu AiDiagnosis Model (nutzt repair_guides_de!)
+  /// Konvertiere DB-Daten zu AiDiagnosis Model (nutzt repair_guides_de/en basierend auf Sprache!)
   AiDiagnosis _mapDbResultToDiagnosis(
     Map<String, dynamic> result,
     String code,
     ObdErrorCode? basicDescription,
   ) {
-    final title = result['title_de'] as String? ?? basicDescription?.titleDe ?? code;
-    final content = result['content_de'] as String? ?? '';
-    final symptoms = (result['symptoms'] as List?)?.cast<String>() ?? [];
-    final causes = (result['causes'] as List?)?.cast<String>() ?? [];
-    final repairGuideDe = result['repair_guides_de'] as Map<String, dynamic>?;
+    final isEnglish = currentLanguageCode == 'en';
+    
+    final title = isEnglish 
+      ? (result['title_en'] as String? ?? code)
+      : (result['title_de'] as String? ?? code);
+    final content = isEnglish
+      ? (result['content_en'] as String? ?? '')
+      : (result['content_de'] as String? ?? '');
+    final symptoms = isEnglish
+      ? ((result['symptoms_en'] as List?)?.cast<String>() ?? [])
+      : ((result['symptoms'] as List?)?.cast<String>() ?? []);
+    final causes = isEnglish
+      ? ((result['causes_en'] as List?)?.cast<String>() ?? [])
+      : ((result['causes'] as List?)?.cast<String>() ?? []);
+    final repairGuides = isEnglish
+      ? (result['repair_guides_en'] as Map<String, dynamic>?)
+      : (result['repair_guides_de'] as Map<String, dynamic>?);
+    
+    // Vehicle-specific issues (EN oder DE, KEIN Fallback!)
+    // WICHTIG: vehicle_specific ist eine MAP {vehicleKey: {issues: [...]}}
+    final vehicleSpecific = _extractVehicleSpecificIssues(
+      result, 
+      isEnglish ? 'vehicle_specific_en' : 'vehicle_specific'
+    );
     
     // Erstelle PossibleCause für jede cause aus der DB
     final possibleCauses = <PossibleCause>[];
@@ -97,8 +121,8 @@ class AiDiagnosisService {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
       
-      // Hole repair_steps aus repair_guides_de[causeKey]
-      final repairGuide = repairGuideDe?[causeKey] as Map<String, dynamic>?;
+      // Hole repair_steps aus repair_guides[causeKey]
+      final repairGuide = repairGuides?[causeKey] as Map<String, dynamic>?;
       final steps = (repairGuide?['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       
       final repairSteps = steps.map((step) {
@@ -118,7 +142,7 @@ class AiDiagnosisService {
       
       possibleCauses.add(PossibleCause(
         id: (i + 1).toString(),
-        title: repairGuide?['cause_title'] as String? ?? causeText,
+        title: causeText, // ✅ Nutze causeText direkt - ist bereits lokalisiert (EN bei EN App)!
         description: causeText,
         fullDescription: content.isNotEmpty ? content : causeText,
         repairSteps: repairSteps,
@@ -135,25 +159,15 @@ class AiDiagnosisService {
     }
     
     // Falls keine causes vorhanden, erstelle Fallback
-    if (possibleCauses.isEmpty) {
-      possibleCauses.add(PossibleCause(
-        id: '1',
-        title: 'Weitere Diagnose erforderlich',
-        description: 'Detaillierte Fahrzeuganalyse notwendig',
-        fullDescription: content.isNotEmpty ? content : 'Für diesen Fehlercode sind noch keine detaillierten Ursachen verfügbar.',
-        repairSteps: [],
-        estimatedCost: const CostEstimate(minEur: 100, maxEur: 500),
-        probability: 'medium',
-        difficulty: 'medium',
-      ));
-    }
+    // Falls keine causes vorhanden, NICHTS anzeigen (kein Fallback mehr!)
     
     return AiDiagnosis(
       code: code,
       description: title,
-      detailedDescription: content.isNotEmpty ? content : 'Fehlercode $code wurde in der Datenbank gefunden.',
+      detailedDescription: content,
       possibleCauses: possibleCauses,
       symptoms: symptoms.isNotEmpty ? symptoms : null,
+      vehicleSpecificIssues: vehicleSpecific,
       severity: 'medium',
       driveSafety: true,
     );
@@ -454,6 +468,25 @@ class AiDiagnosisService {
       severity: 'medium',
       driveSafety: true,
     );
+  }
+
+  /// Extrahiere vehicle_specific issues aus DB result
+  List<String>? _extractVehicleSpecificIssues(Map<String, dynamic> result, String columnName) {
+    final vehicleSpecificMap = result[columnName] as Map<String, dynamic>?;
+    if (vehicleSpecificMap == null || vehicleSpecificMap.isEmpty) return null;
+    
+    // Iteriere über alle vehicle keys und finde issues
+    for (var entry in vehicleSpecificMap.entries) {
+      final vehicleData = entry.value as Map<String, dynamic>?;
+      if (vehicleData == null) continue;
+      
+      final issues = vehicleData['issues'] as List<dynamic>?;
+      if (issues != null && issues.isNotEmpty) {
+        return issues.cast<String>();
+      }
+    }
+    
+    return null;
   }
 
   /// Batch-Analyse mehrerer Codes (für zukünftige Verwendung)

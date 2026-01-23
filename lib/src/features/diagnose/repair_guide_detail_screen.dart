@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../i18n/app_localizations.dart';
 import '../../models/ai_diagnosis_models.dart';
+import '../../state/locale_provider.dart';
 
 /// Vollbild Schritt-für-Schritt Reparaturanleitung
 /// Nutzt VORHANDENE DB-Felder: causes, diagnostic_steps, repair_steps, tools_required, etc.
@@ -28,11 +30,48 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
   String? _error;
   Map<String, dynamic>? _repairGuide;
   final Set<int> _completedSteps = {};
+  String? _currentVehicleId;
+  String? _vehicleMake;
+  String? _vehicleModel;
+  int? _vehicleYear;
   
   @override
   void initState() {
     super.initState();
+    _loadCurrentVehicle();
     _loadRepairGuide();
+  }
+  
+  Future<void> _loadCurrentVehicle() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        print('⚠️ Kein User eingeloggt');
+        return;
+      }
+      
+      // Lade erstes Fahrzeug des Users mit ALLEN Daten
+      final vehicles = await _supabase
+          .from('vehicles')
+          .select('id, make, model, year')
+          .eq('user_id', userId)
+          .limit(1);
+      
+      if (vehicles.isNotEmpty && mounted) {
+        final vehicle = vehicles.first;
+        setState(() {
+          _currentVehicleId = vehicle['id'] as String?;
+          _vehicleMake = vehicle['make'] as String?;
+          _vehicleModel = vehicle['model'] as String?;
+          _vehicleYear = vehicle['year'] as int?;
+        });
+        print('🚗 Fahrzeug geladen: $_vehicleMake $_vehicleModel $_vehicleYear (ID: $_currentVehicleId)');
+      } else {
+        print('⚠️ Kein Fahrzeug gefunden für User $userId');
+      }
+    } catch (e) {
+      print('❌ Fehler beim Laden des Fahrzeugs: $e');
+    }
   }
   
   Future<void> _loadRepairGuide() async {
@@ -42,23 +81,30 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
     });
     
     try {
-      // Lade repair_guides_de + causes aus DB
+      // Prüfe App-Sprache
+      final isEnglish = currentLanguageCode == 'en';
+      
+      // Lade repair_guides (DE oder EN) + causes aus DB
       final result = await _supabase
         .from('automotive_knowledge')
-        .select('title_de, causes, repair_guides_de')
+        .select('title_de, title_en, causes, causes_en, repair_guides_de, repair_guides_en')
         .eq('category', 'fehlercode')
         .ilike('topic', '%${widget.errorCode}%')
         .single();
       
-      final repairGuideDe = result['repair_guides_de'] as Map<String, dynamic>?;
-      final causes = (result['causes'] as List?)?.cast<String>() ?? [];
+      final repairGuides = isEnglish
+        ? (result['repair_guides_en'] as Map<String, dynamic>? ?? result['repair_guides_de'] as Map<String, dynamic>?)
+        : (result['repair_guides_de'] as Map<String, dynamic>?);
+      final causes = isEnglish
+        ? ((result['causes_en'] as List?)?.cast<String>() ?? (result['causes'] as List?)?.cast<String>() ?? [])
+        : ((result['causes'] as List?)?.cast<String>() ?? []);
       
       // ✅ WICHTIG: Nutze widget.causeKey DIREKT (bereits korrekt berechnet im Service!)
       final causeKey = widget.causeKey;
       
       // Prüfe ob repair_guide für diese cause existiert
-      if (repairGuideDe != null && repairGuideDe.containsKey(causeKey)) {
-        final guide = repairGuideDe[causeKey] as Map<String, dynamic>;
+      if (repairGuides != null && repairGuides.containsKey(causeKey)) {
+        final guide = repairGuides[causeKey] as Map<String, dynamic>;
         setState(() {
           _repairGuide = guide;
           _loading = false;
@@ -92,31 +138,59 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
   /// Generiere Reparaturanleitung mit GPT und speichere in DB
   Future<void> _generateAndSaveRepairGuide(String errorCode, String causeTitle, String causeKey) async {
     try {
-      // Rufe Edge Function auf um Anleitung zu generieren
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      
+      print('🔄 Starte Generierung für $errorCode - $causeTitle');
+      
+      // Rufe fill-repair-guides auf (erwartet error_codes ARRAY!)
       final response = await _supabase.functions.invoke(
         'fill-repair-guides',
         body: {
-          'error_code': errorCode,
-          'cause_title': causeTitle,
-          'cause_key': causeKey,
-          'generate_single': true, // Flag für einzelne Ursache
+          'error_codes': [errorCode],
+          'trigger_source': 'flutter_detail_screen',
+          'language': currentLanguageCode
         },
       );
       
-      if (response.data == null || response.data['success'] != true) {
-        throw Exception('Anleitung konnte nicht generiert werden');
+      print('📦 Response: ${response.data}');
+      
+      if (response.data == null) {
+        throw Exception('Keine Antwort von fill-repair-guides');
       }
       
-      // Hole die generierte Anleitung
-      final guide = response.data['repair_guide'] as Map<String, dynamic>;
+      // Warte kurz, dann lade neu aus DB
+      await Future.delayed(const Duration(seconds: 3));
       
-      setState(() {
-        _repairGuide = guide;
-        _loading = false;
-      });
+      // Lade die jetzt generierte Anleitung aus DB
+      final isEnglish = currentLanguageCode == 'en';
+      final result = await _supabase
+        .from('automotive_knowledge')
+        .select('repair_guides_de, repair_guides_en')
+        .eq('category', 'fehlercode')
+        .ilike('topic', '%$errorCode%')
+        .single();
+      
+      final repairGuides = isEnglish
+        ? (result['repair_guides_en'] as Map<String, dynamic>? ?? result['repair_guides_de'] as Map<String, dynamic>?)
+        : (result['repair_guides_de'] as Map<String, dynamic>?);
+      
+      if (repairGuides != null && repairGuides.containsKey(causeKey)) {
+        final guide = repairGuides[causeKey] as Map<String, dynamic>;
+        setState(() {
+          _repairGuide = guide;
+          _loading = false;
+        });
+        print('✅ Anleitung erfolgreich geladen!');
+      } else {
+        throw Exception('Anleitung wurde generiert, ist aber nicht in DB vorhanden');
+      }
     } catch (e) {
+      print('❌ Fehler bei Generierung: $e');
       setState(() {
-        _error = 'Anleitung konnte nicht generiert werden: $e';
+        _error = AppLocalizations.of(context).tr('ai_diagnosis.generating_guide');
         _loading = false;
       });
     }
@@ -137,50 +211,63 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF151C23),
-        title: const Text(
-          'Problem behoben?',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          AppLocalizations.of(context).tr('ai_diagnosis.problem_solved_title'),
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'War diese Reparaturanleitung hilfreich und hat dein Problem gelöst?',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          AppLocalizations.of(context).tr('ai_diagnosis.problem_solved_message'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Nein'),
+            child: Text(AppLocalizations.of(context).tr('ai_diagnosis.no')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4CAF50),
             ),
-            child: const Text('Ja, behoben!'),
+            child: Text(AppLocalizations.of(context).tr('ai_diagnosis.yes_solved')),
           ),
         ],
       ),
     );
     
     if (confirmed == true && mounted) {
-      // Speichere Feedback in DB
+      // Speichere Feedback in DB (UPSERT für Duplicate Key Safety)
       try {
         final userId = _supabase.auth.currentUser?.id;
         if (userId != null) {
-          await _supabase.from('error_code_feedback').insert({
+          final feedbackData = <String, dynamic>{
             'user_id': userId,
             'error_code': widget.errorCode,
             'cause_key': widget.causeKey,
             'was_helpful': true,
             'created_at': DateTime.now().toIso8601String(),
-          });
+          };
+          
+          // Füge Fahrzeugdaten hinzu (lesbar + ID für Referenz)
+          if (_currentVehicleId != null) {
+            feedbackData['vehicle_id'] = _currentVehicleId!;
+            feedbackData['vehicle_make'] = _vehicleMake;
+            feedbackData['vehicle_model'] = _vehicleModel;
+            feedbackData['vehicle_year'] = _vehicleYear;
+          }
+          
+          await _supabase.from('error_code_feedback').upsert(
+            feedbackData, 
+            onConflict: 'user_id,error_code,cause_key'
+          );
         }
         
         if (!mounted) return;
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Super! Wir freuen uns, dass wir helfen konnten.'),
-            backgroundColor: Color(0xFF4CAF50),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).tr('ai_diagnosis.feedback_success')),
+            backgroundColor: const Color(0xFF4CAF50),
           ),
         );
         
@@ -195,6 +282,17 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
           ),
         );
       }
+    } else if (confirmed == false && mounted) {
+      // User hat "Nein" geklickt - zurück zu Ursachen
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('💡 Versuche eine andere mögliche Ursache'),
+          backgroundColor: Color(0xFFFF9800),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      // Zurück zur vorherigen Seite (Ursachen-Liste)
+      context.pop();
     }
   }
   
@@ -257,7 +355,7 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
             ElevatedButton.icon(
               onPressed: _loadRepairGuide,
               icon: const Icon(Icons.refresh),
-              label: const Text('Erneut versuchen'),
+              label: Text(AppLocalizations.of(context).tr('ai_diagnosis.retry_button')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFB129),
                 foregroundColor: Colors.black,
@@ -314,15 +412,15 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Fortschritt',
+                        Text(
+                          AppLocalizations.of(context).tr('repair_guide.progress'),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
                           ),
                         ),
                         Text(
-                          '$completedCount/$totalSteps Schritte',
+                          '$completedCount/$totalSteps ${AppLocalizations.of(context).tr('repair_guide.steps')}',
                           style: const TextStyle(
                             color: Color(0xFFFFB129),
                             fontSize: 13,
@@ -369,7 +467,7 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
                 if (_hasTools()) ...[
                   _buildSection(
                     icon: Icons.build,
-                    title: 'Benötigte Werkzeuge',
+                    title: AppLocalizations.of(context).tr('repair_guide.required_tools'),
                     child: _buildToolsList(lang),
                   ),
                   const SizedBox(height: 24),
@@ -384,7 +482,7 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
                 // Schritt-für-Schritt Anleitung
                 _buildSection(
                   icon: Icons.list_alt,
-                  title: 'Schritt-für-Schritt Anleitung',
+                  title: AppLocalizations.of(context).tr('repair_guide.step_by_step_guide'),
                   child: Column(
                     children: steps.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -427,21 +525,21 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
         if (difficulty != null)
           _buildInfoBadge(
             icon: _getDifficultyIcon(difficulty),
-            label: 'Schwierigkeit',
+            label: AppLocalizations.of(context).tr('repair_guide.difficulty'),
             value: _getDifficultyLabel(difficulty),
             color: const Color(0xFFFFB129),
           ),
         if (timeHours != null)
           _buildInfoBadge(
             icon: Icons.schedule,
-            label: 'Zeit',
-            value: '~${timeHours.toStringAsFixed(1)} Std.',
+            label: AppLocalizations.of(context).tr('repair_guide.time'),
+            value: '~${timeHours.toStringAsFixed(1)} ${AppLocalizations.of(context).tr('repair_guide.hours_short')}',
             color: const Color(0xFF2196F3),
           ),
         if (finalCostRange != null && (finalCostRange is List && finalCostRange.length == 2))
           _buildInfoBadge(
             icon: Icons.euro,
-            label: 'Kosten',
+            label: AppLocalizations.of(context).tr('repair_guide.cost'),
             value: '${finalCostRange[0]}-${finalCostRange[1]}€',
             color: const Color(0xFF4CAF50),
           ),
@@ -566,13 +664,13 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.warning_amber, color: Color(0xFFF57C00), size: 24),
-              SizedBox(width: 12),
+              const Icon(Icons.warning_amber, color: Color(0xFFF57C00), size: 24),
+              const SizedBox(width: 12),
               Text(
-                'Sicherheitshinweise',
-                style: TextStyle(
+                AppLocalizations.of(context).tr('repair_guide.safety_warnings'),
+                style: const TextStyle(
                   color: Color(0xFFF57C00),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -804,13 +902,13 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.support_agent, color: Color(0xFF2196F3), size: 24),
-              SizedBox(width: 12),
+              const Icon(Icons.support_agent, color: Color(0xFF2196F3), size: 24),
+              const SizedBox(width: 12),
               Text(
-                'Wann zur Werkstatt?',
-                style: TextStyle(
+                AppLocalizations.of(context).tr('repair_guide.when_to_call_mechanic'),
+                style: const TextStyle(
                   color: Color(0xFF2196F3),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -854,8 +952,8 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
           icon: const Icon(Icons.check_circle),
           label: Text(
             allCompleted
-              ? 'Problem behoben?'
-              : 'Alle Schritte abschließen',
+              ? AppLocalizations.of(context).tr('ai_diagnosis.problem_solved_title')
+              : AppLocalizations.of(context).tr('ai_diagnosis.complete_all_steps'),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: allCompleted
@@ -918,10 +1016,11 @@ class _RepairGuideDetailScreenState extends State<RepairGuideDetailScreen> {
   }
   
   String _getDifficultyLabel(String difficulty) {
+    final t = AppLocalizations.of(context);
     switch (difficulty.toLowerCase()) {
-      case 'easy': return 'Einfach';
-      case 'medium': return 'Mittel';
-      case 'hard': return 'Schwierig';
+      case 'easy': return t.tr('repair_guide.difficulty_easy');
+      case 'medium': return t.tr('repair_guide.difficulty_medium');
+      case 'hard': return t.tr('repair_guide.difficulty_hard');
       default: return difficulty;
     }
   }

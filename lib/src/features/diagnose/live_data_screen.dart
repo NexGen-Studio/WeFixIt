@@ -92,7 +92,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
       } catch (e) {
         if (mounted) {
           setState(() {
-            _connectionStatus = 'Fehler: $e';
+            _connectionStatus = AppLocalizations.of(context).tr('live_data.initialization_error').replaceAll('{error}', e.toString());
             _isLoading = false;
           });
         }
@@ -103,7 +103,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
       if (!_obd2Service.isConnected) {
         if (mounted) {
           setState(() {
-            _connectionStatus = 'Kein Adapter verbunden - Bluetooth-Verbindung erforderlich';
+            _connectionStatus = AppLocalizations.of(context).tr('live_data.no_adapter_connected');
             _isLoading = false;
           });
         }
@@ -118,7 +118,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
         await _testAdapterConnection().timeout(
           const Duration(seconds: 8),
           onTimeout: () async {
-            throw Exception('OBD2-Adapter antwortet nicht (Timeout)');
+            throw Exception(AppLocalizations.of(context).tr('live_data.adapter_timeout'));
           },
         );
         
@@ -129,7 +129,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
       } catch (e) {
         if (mounted) {
           setState(() {
-            _connectionStatus = 'Fehler: $e';
+            _connectionStatus = AppLocalizations.of(context).tr('live_data.initialization_error').replaceAll('{error}', e.toString());
             _isLoading = false;
             _isStreaming = false;
           });
@@ -153,7 +153,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
   Future<void> _startLiveDataStream() async {
     // Demo-Modus: Keine echte Verbindungs-Prüfung, einfach streamen
     if (!_isDemoMode && !_obd2Service.isConnected) {
-      throw Exception('OBD2-Adapter nicht verbunden');
+      throw Exception(AppLocalizations.of(context).tr('live_data.adapter_not_connected'));
     }
 
     if (mounted) setState(() => _isStreaming = true);
@@ -168,7 +168,7 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _connectionStatus = 'Stream-Fehler: $e';
+          _connectionStatus = AppLocalizations.of(context).tr('live_data.stream_error').replaceAll('{error}', e.toString());
           _isStreaming = false;
         });
       }
@@ -411,29 +411,31 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
   }
 
   void _updateLiveDataList() {
+    final t = AppLocalizations.of(context);
+    
     _liveDataList = [
       // Motor-Parameter (kritisch)
       _buildLiveDataItem(
-        'Motordrehzahl',
+        t.tr('live_data.engine_rpm'),
         _currentValues['rpm']?.toStringAsFixed(0) ?? '0',
         'RPM',
         _checkRpmStatus(_currentValues['rpm']),
         isAlert: _currentValues['rpm'] > 3000,
       ),
       _buildLiveDataItem(
-        'Kühlmitteltemperatur',
+        t.tr('live_data.coolant_temperature'),
         _currentValues['temperature']?.toStringAsFixed(1) ?? '0',
         '°C',
         _checkTempStatus(_currentValues['temperature']),
       ),
       _buildLiveDataItem(
-        'Fahrzeuggeschwindigkeit',
+        t.tr('live_data.vehicle_speed'),
         _currentValues['speed']?.toStringAsFixed(1) ?? '0',
         'km/h',
         Colors.green,
       ),
       _buildLiveDataItem(
-        'Motorlast',
+        t.tr('live_data.engine_load'),
         _currentValues['engine_load']?.toStringAsFixed(1) ?? '0',
         '%',
         Colors.blue,
@@ -441,14 +443,14 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
 
       // Lambdawerte (sehr wichtig für Diagnose)
       _buildLiveDataItem(
-        'Lambda Bank 1 Sensor 1',
+        t.tr('live_data.lambda_bank1_sensor1'),
         _currentValues['lambda_bank1_s1']?.toStringAsFixed(3) ?? '0',
         'λ',
         _checkLambdaStatus(_currentValues['lambda_bank1_s1']),
         isAlert: _checkLambdaAlert(_currentValues['lambda_bank1_s1']),
       ),
       _buildLiveDataItem(
-        'Lambda Bank 1 Sensor 2',
+        t.tr('live_data.lambda_bank1_sensor2'),
         _currentValues['lambda_bank1_s2']?.toStringAsFixed(3) ?? '0',
         'λ',
         _checkLambdaStatus(_currentValues['lambda_bank1_s2']),
@@ -843,6 +845,8 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
   }
 
   Widget _buildLiveDataView() {
+    final t = AppLocalizations.of(context);
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -914,9 +918,9 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
           const SizedBox(height: 20),
 
           // Kritische Parameter (oben)
-          const Text(
-            'Kritische Parameter',
-            style: TextStyle(
+          Text(
+            t.tr('live_data.critical_parameters'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -934,9 +938,9 @@ class _LiveDataScreenState extends ConsumerState<LiveDataScreen>
           const SizedBox(height: 24),
 
           // Weitere Parameter
-          const Text(
-            'Weitere Parameter',
-            style: TextStyle(
+          Text(
+            t.tr('live_data.additional_parameters'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w700,

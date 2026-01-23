@@ -43,6 +43,10 @@ _$ObdErrorCodeImpl _$$ObdErrorCodeImplFromJson(
           .toList(),
   typicalCostRange: json['typical_cost_range_eur'] as String?,
   occurrenceFrequency: json['occurrence_frequency'] as String?,
+  vehicleSpecificIssues:
+      (json['vehicle_specific_issues'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
 );
 
 Map<String, dynamic> _$$ObdErrorCodeImplToJson(_$ObdErrorCodeImpl instance) =>
@@ -65,4 +69,5 @@ Map<String, dynamic> _$$ObdErrorCodeImplToJson(_$ObdErrorCodeImpl instance) =>
       'related_codes': instance.relatedCodes,
       'typical_cost_range_eur': instance.typicalCostRange,
       'occurrence_frequency': instance.occurrenceFrequency,
+      'vehicle_specific_issues': instance.vehicleSpecificIssues,
     };

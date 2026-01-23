@@ -50,24 +50,24 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1F26),
         title: Text(
-          'Fehlercode löschen?',
+          t.tr('error_codes.delete_code_title'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Möchtest du den Fehlercode $code wirklich aus dem Steuergerät löschen?',
+          t.tr('error_codes.delete_code_message').replaceAll('{code}', code),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+            child: Text(t.tr('diagnose.cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
             ),
-            child: const Text('Löschen'),
+            child: Text(t.tr('error_codes.delete_button')),
           ),
         ],
       ),
@@ -85,7 +85,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehlercode $code gelöscht'),
+            content: Text(t.tr('error_codes.code_deleted').replaceAll('{code}', code)),
             backgroundColor: const Color(0xFF4CAF50),
           ),
         );
@@ -94,7 +94,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Löschen: $e'),
+            content: Text(t.tr('error_codes.delete_error').replaceAll('{error}', e.toString())),
             backgroundColor: const Color(0xFFE53935),
           ),
         );
@@ -110,25 +110,25 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1F26),
-        title: const Text(
-          'Alle Codes löschen?',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          t.tr('delete_codes.delete_all_title'),
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Möchtest du wirklich ALLE Fehlercodes aus dem Steuergerät löschen?',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          t.tr('delete_codes.delete_all_message'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+            child: Text(t.tr('diagnose.cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
             ),
-            child: const Text('Alle löschen'),
+            child: Text(t.tr('delete_codes.delete_all_button')),
           ),
         ],
       ),
@@ -147,9 +147,9 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Alle Fehlercodes gelöscht'),
-            backgroundColor: Color(0xFF4CAF50),
+          SnackBar(
+            content: Text(t.tr('delete_codes.all_deleted')),
+            backgroundColor: const Color(0xFF4CAF50),
           ),
         );
         context.pop();
@@ -158,7 +158,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Löschen: $e'),
+            content: Text(t.tr('delete_codes.delete_error').replaceAll('{error}', e.toString())),
             backgroundColor: const Color(0xFFE53935),
           ),
         );
@@ -178,9 +178,9 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
       backgroundColor: const Color(0xFF0B1117),
       appBar: AppBar(
         backgroundColor: const Color(0xFF151C23),
-        title: const Text(
-          '2. Fehlercodes löschen',
-          style: TextStyle(
+        title: Text(
+          t.tr('delete_codes.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 20,
@@ -213,31 +213,34 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
   }
 
   Widget _buildEmptyState() {
+    final t = AppLocalizations.of(context);
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             Icons.info_outline,
             size: 80,
             color: Colors.white24,
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Keine Fehlercodes vorhanden',
-            style: TextStyle(
+          Text(
+            t.tr('delete_codes.no_codes'),
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Lese zuerst Fehlercodes aus',
-            style: TextStyle(
+          Text(
+            t.tr('delete_codes.read_first'),
+            style: const TextStyle(
               color: Colors.white54,
               fontSize: 14,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
           ElevatedButton(
@@ -246,7 +249,7 @@ class _DeleteErrorCodesScreenState extends ConsumerState<DeleteErrorCodesScreen>
               backgroundColor: const Color(0xFFE53935),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             ),
-            child: const Text('Zur Diagnose'),
+            child: Text(t.tr('delete_codes.go_back')),
           ),
         ],
       ),

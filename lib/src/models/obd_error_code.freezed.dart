@@ -54,6 +54,8 @@ mixin _$ObdErrorCode {
   String? get typicalCostRange => throw _privateConstructorUsedError;
   @JsonKey(name: 'occurrence_frequency')
   String? get occurrenceFrequency => throw _privateConstructorUsedError;
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues => throw _privateConstructorUsedError;
 
   /// Serializes this ObdErrorCode to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -91,6 +93,8 @@ abstract class $ObdErrorCodeCopyWith<$Res> {
     @JsonKey(name: 'related_codes') List<String>? relatedCodes,
     @JsonKey(name: 'typical_cost_range_eur') String? typicalCostRange,
     @JsonKey(name: 'occurrence_frequency') String? occurrenceFrequency,
+    @JsonKey(name: 'vehicle_specific_issues')
+    List<String>? vehicleSpecificIssues,
   });
 }
 
@@ -127,6 +131,7 @@ class _$ObdErrorCodeCopyWithImpl<$Res, $Val extends ObdErrorCode>
     Object? relatedCodes = freezed,
     Object? typicalCostRange = freezed,
     Object? occurrenceFrequency = freezed,
+    Object? vehicleSpecificIssues = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -220,6 +225,11 @@ class _$ObdErrorCodeCopyWithImpl<$Res, $Val extends ObdErrorCode>
                     ? _value.occurrenceFrequency
                     : occurrenceFrequency // ignore: cast_nullable_to_non_nullable
                         as String?,
+            vehicleSpecificIssues:
+                freezed == vehicleSpecificIssues
+                    ? _value.vehicleSpecificIssues
+                    : vehicleSpecificIssues // ignore: cast_nullable_to_non_nullable
+                        as List<String>?,
           )
           as $Val,
     );
@@ -254,6 +264,8 @@ abstract class _$$ObdErrorCodeImplCopyWith<$Res>
     @JsonKey(name: 'related_codes') List<String>? relatedCodes,
     @JsonKey(name: 'typical_cost_range_eur') String? typicalCostRange,
     @JsonKey(name: 'occurrence_frequency') String? occurrenceFrequency,
+    @JsonKey(name: 'vehicle_specific_issues')
+    List<String>? vehicleSpecificIssues,
   });
 }
 
@@ -289,6 +301,7 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
     Object? relatedCodes = freezed,
     Object? typicalCostRange = freezed,
     Object? occurrenceFrequency = freezed,
+    Object? vehicleSpecificIssues = freezed,
   }) {
     return _then(
       _$ObdErrorCodeImpl(
@@ -382,6 +395,11 @@ class __$$ObdErrorCodeImplCopyWithImpl<$Res>
                 ? _value.occurrenceFrequency
                 : occurrenceFrequency // ignore: cast_nullable_to_non_nullable
                     as String?,
+        vehicleSpecificIssues:
+            freezed == vehicleSpecificIssues
+                ? _value._vehicleSpecificIssues
+                : vehicleSpecificIssues // ignore: cast_nullable_to_non_nullable
+                    as List<String>?,
       ),
     );
   }
@@ -411,12 +429,15 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
     @JsonKey(name: 'related_codes') final List<String>? relatedCodes,
     @JsonKey(name: 'typical_cost_range_eur') this.typicalCostRange,
     @JsonKey(name: 'occurrence_frequency') this.occurrenceFrequency,
+    @JsonKey(name: 'vehicle_specific_issues')
+    final List<String>? vehicleSpecificIssues,
   }) : _symptoms = symptoms,
        _commonCauses = commonCauses,
        _diagnosticSteps = diagnosticSteps,
        _repairSuggestions = repairSuggestions,
        _affectedComponents = affectedComponents,
-       _relatedCodes = relatedCodes;
+       _relatedCodes = relatedCodes,
+       _vehicleSpecificIssues = vehicleSpecificIssues;
 
   factory _$ObdErrorCodeImpl.fromJson(Map<String, dynamic> json) =>
       _$$ObdErrorCodeImplFromJson(json);
@@ -522,10 +543,21 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
   @override
   @JsonKey(name: 'occurrence_frequency')
   final String? occurrenceFrequency;
+  final List<String>? _vehicleSpecificIssues;
+  @override
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues {
+    final value = _vehicleSpecificIssues;
+    if (value == null) return null;
+    if (_vehicleSpecificIssues is EqualUnmodifiableListView)
+      return _vehicleSpecificIssues;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
 
   @override
   String toString() {
-    return 'ObdErrorCode(code: $code, codeType: $codeType, titleDe: $titleDe, titleEn: $titleEn, descriptionDe: $descriptionDe, descriptionEn: $descriptionEn, isGeneric: $isGeneric, symptoms: $symptoms, commonCauses: $commonCauses, diagnosticSteps: $diagnosticSteps, repairSuggestions: $repairSuggestions, affectedComponents: $affectedComponents, severity: $severity, driveSafety: $driveSafety, immediateActionRequired: $immediateActionRequired, relatedCodes: $relatedCodes, typicalCostRange: $typicalCostRange, occurrenceFrequency: $occurrenceFrequency)';
+    return 'ObdErrorCode(code: $code, codeType: $codeType, titleDe: $titleDe, titleEn: $titleEn, descriptionDe: $descriptionDe, descriptionEn: $descriptionEn, isGeneric: $isGeneric, symptoms: $symptoms, commonCauses: $commonCauses, diagnosticSteps: $diagnosticSteps, repairSuggestions: $repairSuggestions, affectedComponents: $affectedComponents, severity: $severity, driveSafety: $driveSafety, immediateActionRequired: $immediateActionRequired, relatedCodes: $relatedCodes, typicalCostRange: $typicalCostRange, occurrenceFrequency: $occurrenceFrequency, vehicleSpecificIssues: $vehicleSpecificIssues)';
   }
 
   @override
@@ -577,12 +609,16 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
             (identical(other.typicalCostRange, typicalCostRange) ||
                 other.typicalCostRange == typicalCostRange) &&
             (identical(other.occurrenceFrequency, occurrenceFrequency) ||
-                other.occurrenceFrequency == occurrenceFrequency));
+                other.occurrenceFrequency == occurrenceFrequency) &&
+            const DeepCollectionEquality().equals(
+              other._vehicleSpecificIssues,
+              _vehicleSpecificIssues,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     code,
     codeType,
@@ -602,7 +638,8 @@ class _$ObdErrorCodeImpl implements _ObdErrorCode {
     const DeepCollectionEquality().hash(_relatedCodes),
     typicalCostRange,
     occurrenceFrequency,
-  );
+    const DeepCollectionEquality().hash(_vehicleSpecificIssues),
+  ]);
 
   /// Create a copy of ObdErrorCode
   /// with the given fields replaced by the non-null parameter values.
@@ -640,6 +677,8 @@ abstract class _ObdErrorCode implements ObdErrorCode {
     @JsonKey(name: 'related_codes') final List<String>? relatedCodes,
     @JsonKey(name: 'typical_cost_range_eur') final String? typicalCostRange,
     @JsonKey(name: 'occurrence_frequency') final String? occurrenceFrequency,
+    @JsonKey(name: 'vehicle_specific_issues')
+    final List<String>? vehicleSpecificIssues,
   }) = _$ObdErrorCodeImpl;
 
   factory _ObdErrorCode.fromJson(Map<String, dynamic> json) =
@@ -696,6 +735,9 @@ abstract class _ObdErrorCode implements ObdErrorCode {
   @override
   @JsonKey(name: 'occurrence_frequency')
   String? get occurrenceFrequency;
+  @override
+  @JsonKey(name: 'vehicle_specific_issues')
+  List<String>? get vehicleSpecificIssues;
 
   /// Create a copy of ObdErrorCode
   /// with the given fields replaced by the non-null parameter values.

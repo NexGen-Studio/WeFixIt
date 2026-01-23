@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/obd2_service.dart';
 import '../../services/error_code_description_service.dart';
 import '../../state/error_codes_provider.dart';
+import '../../state/locale_provider.dart';
 
 class ErrorCodesListScreen extends ConsumerStatefulWidget {
   final dynamic extra; // 'demo' oder Obd2Service
@@ -82,67 +83,25 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
             
             print('🚀 $code: Starte fill-repair-guides für $missingCount fehlende Anleitungen...');
             
-            // Wiederhole fill-repair-guides automatisch bis ALLE Causes fertig sind
-            // (fill-repair-guides verarbeitet max 3 Causes pro Call wegen Timeout)
-            int retryCount = 0;
-            const maxRetries = 5; // Max 5 Versuche (= bis zu 15 Causes)
-            
-            while (retryCount < maxRetries) {
-              try {
-                final response = await supabase.functions.invoke(
-                  'fill-repair-guides',
-                  body: {
-                    'error_codes': [code],
-                    'trigger_source': 'error_codes_list_screen'
-                  },
-                );
-                
-                if (response.data != null && response.data['success'] == true) {
-                  print('✅ $code: fill-repair-guides Call ${retryCount + 1} erfolgreich');
-                  
-                  // Prüfe ob ALLE Causes jetzt fertig sind
-                  await Future.delayed(const Duration(seconds: 5)); // Warte bis DB aktualisiert
-                  
-                  final checkResult = await supabase
-                    .from('automotive_knowledge')
-                    .select('causes, repair_guides_de, repair_guides_en')
-                    .eq('category', 'fehlercode')
-                    .eq('topic', '$code OBD2 diagnostic trouble code')
-                    .maybeSingle();
-                  
-                  if (checkResult != null) {
-                    final checkCauses = (checkResult['causes'] as List?)?.cast<String>() ?? [];
-                    final checkGuidesDe = checkResult['repair_guides_de'] as Map<String, dynamic>?;
-                    final checkGuidesEn = checkResult['repair_guides_en'] as Map<String, dynamic>?;
-                    
-                    int stillMissing = 0;
-                    for (final cause in checkCauses) {
-                      final causeKey = cause.toLowerCase()
-                        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
-                        .replaceAll(RegExp(r'^_|_$'), '');
-                      if (!(checkGuidesDe?.containsKey(causeKey) == true && 
-                            checkGuidesEn?.containsKey(causeKey) == true)) {
-                        stillMissing++;
-                      }
-                    }
-                    
-                    if (stillMissing == 0) {
-                      print('✅ $code: ALLE ${checkCauses.length} Anleitungen komplett!');
-                      break; // Fertig!
-                    } else {
-                      print('🔄 $code: Noch $stillMissing Anleitungen fehlen, weiter...');
-                      retryCount++;
-                      await Future.delayed(const Duration(seconds: 60)); // Warte 60s zwischen Calls
-                    }
-                  }
-                } else {
-                  print('⚠️ $code: fill-repair-guides Fehler');
-                  break;
-                }
-              } catch (e) {
-                print('❌ $code: Edge Function Fehler: $e');
-                break;
+            // EINFACHER CALL (KEINE RETRY LOOP!)
+            // fill-repair-guides verarbeitet ALLE Causes + triggert translate-repair-guides
+            try {
+              final response = await supabase.functions.invoke(
+                'fill-repair-guides',
+                body: {
+                  'error_codes': [code],
+                  'trigger_source': 'error_codes_list_screen',
+                  'language': currentLanguageCode
+                },
+              );
+              
+              if (response.data != null && response.data['success'] == true) {
+                print('✅ $code: fill-repair-guides erfolgreich gestartet');
+              } else {
+                print('⚠️ $code: fill-repair-guides Fehler');
               }
+            } catch (e) {
+              print('❌ $code: Edge Function Fehler: $e');
             }
           } catch (e) {
             print('❌ Background-Check Fehler für $code: $e');
@@ -240,7 +199,7 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Fehler beim Auslesen: $e'),
+          content: Text(AppLocalizations.of(context).tr('error_codes.read_error').replaceAll('{error}', e.toString())),
           backgroundColor: const Color(0xFFE53935),
         ),
       );
@@ -292,18 +251,18 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Keine Fehlercodes gefunden',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tr('error_codes.no_codes_found'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Dein Fahrzeug hat derzeit keine gespeicherten Fehlercodes. Das ist eine gute Nachricht!',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).tr('error_codes.no_codes_message'),
+                style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
                   height: 1.5,
@@ -379,9 +338,9 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Fehlercodes',
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context).tr('error_codes.title'),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -430,9 +389,9 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
             },
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Lese Fehlercodes aus...',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).tr('error_codes.reading_codes'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -460,8 +419,8 @@ class _ErrorCodesListScreenState extends ConsumerState<ErrorCodesListScreen> {
             children: [
               Text(
                 _errorCodes.length == 1
-                    ? '1 Fehlercode gefunden'
-                    : '${_errorCodes.length} Fehlercodes gefunden',
+                    ? AppLocalizations.of(context).tr('error_codes.found_single')
+                    : AppLocalizations.of(context).tr('error_codes.found_multiple').replaceAll('{count}', '${_errorCodes.length}'),
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -659,8 +618,14 @@ class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
   Future<void> _loadDescription() async {
     final description = await widget.descriptionService.getDescription(widget.code.code);
     if (mounted) {
+      // Verwende sprachabhängige Beschreibung basierend auf currentLanguageCode
+      final isEnglish = currentLanguageCode == 'en';
+      final descriptionText = isEnglish 
+        ? (description?.descriptionEn ?? description?.descriptionDe)
+        : (description?.descriptionDe ?? description?.descriptionEn);
+      
       setState(() {
-        _shortDescription = _extractShortDescription(description?.descriptionDe);
+        _shortDescription = _extractShortDescription(descriptionText);
         _isLoading = false;
       });
     }
@@ -681,25 +646,25 @@ class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1F26),
-        title: const Text(
-          'Fehlercode löschen?',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          AppLocalizations.of(context).tr('error_codes.delete_code_title'),
+          style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'Möchtest du den Fehlercode ${widget.code.code} wirklich aus dem Steuergerät löschen?',
+          AppLocalizations.of(context).tr('error_codes.delete_code_message').replaceAll('{code}', widget.code.code),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen', style: TextStyle(color: Colors.white70)),
+            child: Text(AppLocalizations.of(context).tr('diagnose.cancel'), style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
             ),
-            child: const Text('Löschen'),
+            child: Text(AppLocalizations.of(context).tr('error_codes.delete_button')),
           ),
         ],
       ),
@@ -718,7 +683,7 @@ class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehlercode ${widget.code.code} gelöscht'),
+            content: Text(AppLocalizations.of(context).tr('error_codes.code_deleted').replaceAll('{code}', widget.code.code)),
             backgroundColor: const Color(0xFF4CAF50),
           ),
         );
@@ -728,7 +693,7 @@ class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
         setState(() => _isDeleting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Löschen: $e'),
+            content: Text('${AppLocalizations.of(context).tr('error_codes.delete_error')}: $e'),
             backgroundColor: const Color(0xFFE53935),
           ),
         );
@@ -845,12 +810,12 @@ class _CodeDetailsBottomSheetState extends State<_CodeDetailsBottomSheet> {
                         )
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.delete_outline, size: 20),
-                            SizedBox(width: 8),
+                          children: [
+                            const Icon(Icons.delete_outline, size: 20),
+                            const SizedBox(width: 8),
                             Text(
-                              'Fehlercode löschen',
-                              style: TextStyle(
+                              AppLocalizations.of(context).tr('error_codes.delete_code_title'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
